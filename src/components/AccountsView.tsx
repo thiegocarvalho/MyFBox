@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Wallet, Plus, Trash2, Edit3, Check, ArrowLeftRight } from 'lucide-react';
-import type { Account, AccountType, Transaction } from '../types/finance';
-import { formatBRL } from '../utils/formatters';
+import type { Account, AccountType, Currency, Transaction } from '../types/finance';
+import { formatMoney } from '../utils/formatters';
 
 interface AccountsViewProps {
   accounts: Account[];
@@ -47,6 +47,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
   const [type, setType] = useState<AccountType>('checking');
+  const [currency, setCurrency] = useState<Currency>('BRL');
   const [initialBalanceStr, setInitialBalanceStr] = useState('0');
   const [color, setColor] = useState(COLORS[0]);
 
@@ -98,6 +99,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       name: name.trim(),
       institution: institution.trim() || undefined,
       type,
+      currency,
       initialBalance: initBal,
       color,
     });
@@ -141,7 +143,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     )}
                     <span className="account-inst-sub">
                       {ACCOUNT_TYPE_LABELS[item.acc.type]} •{' '}
-                      {item.acc.institution || 'Custódia Própria'}
+                      {item.acc.institution || 'Custódia Própria'} •{' '}
+                      <span className="curr-badge">{item.acc.currency || 'BRL'}</span>
                     </span>
                   </div>
                 </div>
@@ -198,7 +201,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     item.currentBalance >= 0 ? 'positive' : 'negative'
                   }`}
                 >
-                  {formatBRL(item.currentBalance, hideValues)}
+                  {formatMoney(item.currentBalance, item.acc.currency || 'BRL', hideValues)}
                 </div>
               </div>
 
@@ -214,24 +217,24 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       onChange={(e) => setEditInitial(e.target.value)}
                     />
                   ) : (
-                    <strong>{formatBRL(item.acc.initialBalance, hideValues)}</strong>
+                    <strong>{formatMoney(item.acc.initialBalance, item.acc.currency || 'BRL', hideValues)}</strong>
                   )}
                 </div>
                 <div>
                   <span>Entradas Pagas</span>
                   <strong className="positive">
-                    +{formatBRL(item.paidInflows, hideValues)}
+                    +{formatMoney(item.paidInflows, item.acc.currency || 'BRL', hideValues)}
                   </strong>
                 </div>
                 <div>
                   <span>Saídas Pagas</span>
                   <strong className="negative">
-                    -{formatBRL(item.paidOutflows, hideValues)}
+                    -{formatMoney(item.paidOutflows, item.acc.currency || 'BRL', hideValues)}
                   </strong>
                 </div>
                 <div>
                   <span>Projetado (c/ Pend.)</span>
-                  <strong>{formatBRL(item.projectedBalance, hideValues)}</strong>
+                  <strong>{formatMoney(item.projectedBalance, item.acc.currency || 'BRL', hideValues)}</strong>
                 </div>
               </div>
             </article>
@@ -274,7 +277,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               </div>
             </div>
 
-            <div className="form-grid-2">
+            <div className="form-grid-3">
               <div className="form-field">
                 <label>Modalidade</label>
                 <select
@@ -290,7 +293,18 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               </div>
 
               <div className="form-field">
-                <label>Saldo Inicial (R$)</label>
+                <label>Moeda Principal</label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as Currency)}
+                >
+                  <option value="BRL">Real Brasileiro (R$ BRL)</option>
+                  <option value="USD">Dólar Americano ($ USD)</option>
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label>Saldo Inicial ({currency === 'USD' ? 'US$' : 'R$'})</label>
                 <input
                   type="number"
                   step="0.01"

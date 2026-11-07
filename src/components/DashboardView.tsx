@@ -12,6 +12,7 @@ import {
 import type { Account, Category, Transaction, TransactionType } from '../types/finance';
 import {
   formatBRL,
+  formatMoney,
   formatMonthYearLabel,
   formatShortDate,
   shiftYearMonth,
@@ -49,35 +50,67 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   const metrics = useMemo(() => {
-    let incomePaid = 0;
-    let incomePending = 0;
-    let expensePaid = 0;
-    let expensePending = 0;
+    let incomePaidBrl = 0;
+    let incomePendingBrl = 0;
+    let expensePaidBrl = 0;
+    let expensePendingBrl = 0;
+
+    let incomePaidUsd = 0;
+    let incomePendingUsd = 0;
+    let expensePaidUsd = 0;
+    let expensePendingUsd = 0;
 
     for (const tx of monthTransactions) {
+      const isUsd = tx.currency === 'USD';
       if (tx.type === 'income') {
-        if (tx.status === 'paid') incomePaid += tx.amount;
-        else incomePending += tx.amount;
+        if (tx.status === 'paid') {
+          if (isUsd) incomePaidUsd += tx.amount;
+          else incomePaidBrl += tx.amount;
+        } else {
+          if (isUsd) incomePendingUsd += tx.amount;
+          else incomePendingBrl += tx.amount;
+        }
       } else {
-        if (tx.status === 'paid') expensePaid += tx.amount;
-        else expensePending += tx.amount;
+        if (tx.status === 'paid') {
+          if (isUsd) expensePaidUsd += tx.amount;
+          else expensePaidBrl += tx.amount;
+        } else {
+          if (isUsd) expensePendingUsd += tx.amount;
+          else expensePendingBrl += tx.amount;
+        }
       }
     }
 
-    const totalIncome = incomePaid + incomePending;
-    const totalExpense = expensePaid + expensePending;
-    const netResult = totalIncome - totalExpense;
-    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
+    const totalIncomeBrl = incomePaidBrl + incomePendingBrl;
+    const totalExpenseBrl = expensePaidBrl + expensePendingBrl;
+    const netResultBrl = totalIncomeBrl - totalExpenseBrl;
+    const savingsRateBrl =
+      totalIncomeBrl > 0 ? ((totalIncomeBrl - totalExpenseBrl) / totalIncomeBrl) * 100 : 0;
+
+    const totalIncomeUsd = incomePaidUsd + incomePendingUsd;
+    const totalExpenseUsd = expensePaidUsd + expensePendingUsd;
+    const netResultUsd = totalIncomeUsd - totalExpenseUsd;
+
+    const hasUsd = totalIncomeUsd > 0 || totalExpenseUsd > 0;
 
     return {
-      incomePaid,
-      incomePending,
-      totalIncome,
-      expensePaid,
-      expensePending,
-      totalExpense,
-      netResult,
-      savingsRate,
+      incomePaidBrl,
+      incomePendingBrl,
+      totalIncomeBrl,
+      expensePaidBrl,
+      expensePendingBrl,
+      totalExpenseBrl,
+      netResultBrl,
+      savingsRateBrl,
+
+      incomePaidUsd,
+      incomePendingUsd,
+      totalIncomeUsd,
+      expensePaidUsd,
+      expensePendingUsd,
+      totalExpenseUsd,
+      netResultUsd,
+      hasUsd,
     };
   }, [monthTransactions]);
 
@@ -85,6 +118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const accountBalances = useMemo(() => {
     return accounts.map((acc) => {
       let balance = acc.initialBalance;
+      const accCurrency = acc.currency || 'BRL';
       for (const tx of transactions) {
         if (tx.accountId === acc.id && tx.status === 'paid') {
           balance += tx.type === 'income' ? tx.amount : -tx.amount;
@@ -92,15 +126,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       }
       return {
         ...acc,
+        currency: accCurrency,
         currentBalance: balance,
       };
     });
   }, [accounts, transactions]);
 
-  const totalLiquidNetWorth = useMemo(
-    () => accountBalances.reduce((acc, item) => acc + item.currentBalance, 0),
-    [accountBalances]
-  );
+  const netWorth = useMemo(() => {
+    let brl = 0;
+    let usd = 0;
+    for (const acc of accountBalances) {
+      if (acc.currency === 'USD') usd += acc.currentBalance;
+      else brl += acc.currentBalance;
+    }
+    return {
+      brl,
+      usd,
+      hasUsd: usd !== 0,
+    };
+  }, [accountBalances]);
 
   // Evolução de Fluxo de Caixa (6 meses centrados/terminando no mês selecionado)
   const sixMonthSeries = useMemo(() => {
@@ -166,7 +210,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const cat = catMap.get(categoryId);
         const budget = cat?.monthlyBudget || 0;
         const pctOfExpense =
-          metrics.totalExpense > 0 ? (stats.total / metrics.totalExpense) * 100 : 0;
+          metrics.totalExpenseBrl > 0 ? (stats.total / metrics.totalExpenseBrl) * 100 : 0;
         const pctOfBudget = budget > 0 ? (stats.total / budget) * 100 : 0;
         return {
           categoryId,
@@ -179,7 +223,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [monthTransactions, catMap, metrics.totalExpense]);
+  }, [monthTransactions, catMap, metrics.totalExpenseBrl]);
 
   // Próximos lançamentos pendentes no mês
   const pendingTransactions = useMemo(() => {
@@ -197,9 +241,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="kpi-label">SALDO ACUMULADO EM CONTAS</span>
             <Wallet size={17} className="kpi-icon teal" />
           </div>
-          <div className="kpi-value mono">{formatBRL(totalLiquidNetWorth, hideValues)}</div>
+          <div className="kpi-value mono">{formatBRL(netWorth.brl, hideValues)}</div>
           <div className="kpi-sub">
-            <span>Soma de {accounts.length} contas/carteiras (liquidado)</span>
+            {netWorth.hasUsd ? (
+              <span className="kpi-usd-breakdown">
+                + {formatMoney(netWorth.usd, 'USD', hideValues)} USD • {accounts.length} contas
+              </span>
+            ) : (
+              <span>Soma de {accounts.length} contas/carteiras (liquidado)</span>
+            )}
           </div>
         </article>
 
@@ -209,14 +259,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <TrendingUp size={17} className="kpi-icon green" />
           </div>
           <div className="kpi-value mono positive">
-            {formatBRL(metrics.totalIncome, hideValues)}
+            {formatBRL(metrics.totalIncomeBrl, hideValues)}
           </div>
           <div className="kpi-sub mono">
-            <span>Recebido: {formatBRL(metrics.incomePaid, hideValues)}</span>
-            {metrics.incomePending > 0 && (
-              <span className="pending-tag">
-                +{formatBRL(metrics.incomePending, hideValues)} pend.
+            {metrics.hasUsd && metrics.totalIncomeUsd > 0 ? (
+              <span className="kpi-usd-breakdown">
+                + {formatMoney(metrics.totalIncomeUsd, 'USD', hideValues)} USD
               </span>
+            ) : (
+              <>
+                <span>Recebido: {formatBRL(metrics.incomePaidBrl, hideValues)}</span>
+                {metrics.incomePendingBrl > 0 && (
+                  <span className="pending-tag">
+                    +{formatBRL(metrics.incomePendingBrl, hideValues)} pend.
+                  </span>
+                )}
+              </>
             )}
           </div>
         </article>
@@ -227,14 +285,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <TrendingDown size={17} className="kpi-icon coral" />
           </div>
           <div className="kpi-value mono negative">
-            {formatBRL(metrics.totalExpense, hideValues)}
+            {formatBRL(metrics.totalExpenseBrl, hideValues)}
           </div>
           <div className="kpi-sub mono">
-            <span>Pago: {formatBRL(metrics.expensePaid, hideValues)}</span>
-            {metrics.expensePending > 0 && (
-              <span className="pending-tag">
-                +{formatBRL(metrics.expensePending, hideValues)} pend.
+            {metrics.hasUsd && metrics.totalExpenseUsd > 0 ? (
+              <span className="kpi-usd-breakdown">
+                + {formatMoney(metrics.totalExpenseUsd, 'USD', hideValues)} USD
               </span>
+            ) : (
+              <>
+                <span>Pago: {formatBRL(metrics.expensePaidBrl, hideValues)}</span>
+                {metrics.expensePendingBrl > 0 && (
+                  <span className="pending-tag">
+                    +{formatBRL(metrics.expensePendingBrl, hideValues)} pend.
+                  </span>
+                )}
+              </>
             )}
           </div>
         </article>
@@ -245,23 +311,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Scale size={17} className="kpi-icon brass" />
           </div>
           <div
-            className={`kpi-value mono ${metrics.netResult >= 0 ? 'positive' : 'negative'}`}
+            className={`kpi-value mono ${metrics.netResultBrl >= 0 ? 'positive' : 'negative'}`}
           >
-            {metrics.netResult >= 0 ? '+' : ''}
-            {formatBRL(metrics.netResult, hideValues)}
+            {metrics.netResultBrl >= 0 ? '+' : ''}
+            {formatBRL(metrics.netResultBrl, hideValues)}
           </div>
           <div className="kpi-sub">
-            <span
-              className={`savings-pill ${
-                metrics.savingsRate >= 20
-                  ? 'good'
-                  : metrics.savingsRate >= 0
-                  ? 'neutral'
-                  : 'deficit'
-              }`}
-            >
-              Taxa de poupança: {metrics.savingsRate.toFixed(1)}%
-            </span>
+            {metrics.hasUsd ? (
+              <span className="kpi-usd-breakdown">
+                USD:{' '}
+                <strong className={metrics.netResultUsd >= 0 ? 'positive' : 'negative'}>
+                  {metrics.netResultUsd >= 0 ? '+' : ''}
+                  {formatMoney(metrics.netResultUsd, 'USD', hideValues)}
+                </strong>{' '}
+                • Taxa BRL: {metrics.savingsRateBrl.toFixed(0)}%
+              </span>
+            ) : (
+              <span
+                className={`savings-pill ${
+                  metrics.savingsRateBrl >= 20
+                    ? 'good'
+                    : metrics.savingsRateBrl >= 0
+                    ? 'neutral'
+                    : 'deficit'
+                }`}
+              >
+                Taxa de poupança: {metrics.savingsRateBrl.toFixed(1)}%
+              </span>
+            )}
           </div>
         </article>
       </section>
@@ -447,7 +524,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     acc.currentBalance >= 0 ? 'pos' : 'neg'
                   }`}
                 >
-                  {formatBRL(acc.currentBalance, hideValues)}
+                  {formatMoney(acc.currentBalance, acc.currency, hideValues)}
+                  {acc.currency === 'USD' && <span className="badge-usd-sm">USD</span>}
                 </div>
               </div>
             ))}
@@ -505,7 +583,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         ) : (
                           <ArrowDownRight size={14} />
                         )}
-                        {formatBRL(tx.amount, hideValues)}
+                        {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
+                        {tx.currency === 'USD' && <span className="badge-usd-sm">USD</span>}
                       </span>
                       <button
                         type="button"

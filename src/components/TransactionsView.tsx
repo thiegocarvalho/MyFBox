@@ -16,7 +16,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '../types/finance';
-import { formatBRL, formatFullDateBR } from '../utils/formatters';
+import { formatBRL, formatFullDateBR, formatMoney } from '../utils/formatters';
 import { exportTransactionsToCSV } from '../services/importExport';
 
 interface TransactionsViewProps {
@@ -89,16 +89,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   ]);
 
   const summary = useMemo(() => {
-    let inc = 0;
-    let exp = 0;
+    let incBrl = 0;
+    let expBrl = 0;
+    let incUsd = 0;
+    let expUsd = 0;
     for (const tx of filteredTransactions) {
-      if (tx.type === 'income') inc += tx.amount;
-      else exp += tx.amount;
+      const isUsd = tx.currency === 'USD';
+      if (tx.type === 'income') {
+        if (isUsd) incUsd += tx.amount;
+        else incBrl += tx.amount;
+      } else {
+        if (isUsd) expUsd += tx.amount;
+        else expBrl += tx.amount;
+      }
     }
     return {
-      inc,
-      exp,
-      net: inc - exp,
+      incBrl,
+      expBrl,
+      netBrl: incBrl - expBrl,
+      incUsd,
+      expUsd,
+      netUsd: incUsd - expUsd,
+      hasUsd: incUsd > 0 || expUsd > 0,
       count: filteredTransactions.length,
     };
   }, [filteredTransactions]);
@@ -223,17 +235,33 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <div className="ledger-summary-bar mono">
           <span>{summary.count} lançamentos</span>
           <span>•</span>
-          <span className="positive">Entradas: +{formatBRL(summary.inc, hideValues)}</span>
+          <span className="positive">Entradas: +{formatBRL(summary.incBrl, hideValues)}</span>
           <span>•</span>
-          <span className="negative">Saídas: -{formatBRL(summary.exp, hideValues)}</span>
+          <span className="negative">Saídas: -{formatBRL(summary.expBrl, hideValues)}</span>
           <span>•</span>
           <span>
             Saldo:{' '}
-            <strong className={summary.net >= 0 ? 'positive' : 'negative'}>
-              {summary.net >= 0 ? '+' : ''}
-              {formatBRL(summary.net, hideValues)}
+            <strong className={summary.netBrl >= 0 ? 'positive' : 'negative'}>
+              {summary.netBrl >= 0 ? '+' : ''}
+              {formatBRL(summary.netBrl, hideValues)}
             </strong>
           </span>
+          {summary.hasUsd && (
+            <>
+              <span className="summary-usd-sep">|</span>
+              <span className="badge-usd-sm">USD</span>
+              <span className="positive">+{formatMoney(summary.incUsd, 'USD', hideValues)}</span>
+              <span>•</span>
+              <span className="negative">-{formatMoney(summary.expUsd, 'USD', hideValues)}</span>
+              <span>•</span>
+              <span>
+                <strong className={summary.netUsd >= 0 ? 'positive' : 'negative'}>
+                  {summary.netUsd >= 0 ? '+' : ''}
+                  {formatMoney(summary.netUsd, 'USD', hideValues)}
+                </strong>
+              </span>
+            </>
+          )}
         </div>
       </section>
 
@@ -269,7 +297,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   <th>CATEGORIA</th>
                   <th>CONTA / CARTEIRA</th>
                   <th>STATUS</th>
-                  <th className="align-right">VALOR (R$)</th>
+                  <th className="align-right">VALOR</th>
                   <th className="align-right">AÇÕES</th>
                 </tr>
               </thead>
@@ -322,8 +350,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           tx.type === 'income' ? 'positive' : 'negative'
                         }`}
                       >
-                        {tx.type === 'income' ? '+' : '-'}
-                        {formatBRL(tx.amount, hideValues)}
+                        <span className="amount-val">
+                          {tx.type === 'income' ? '+' : '-'}
+                          {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
+                        </span>
+                        {tx.currency === 'USD' && <span className="currency-pill-inline">USD</span>}
                       </td>
                       <td className="align-right">
                         <div className="row-actions">

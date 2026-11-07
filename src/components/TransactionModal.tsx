@@ -12,6 +12,7 @@ import {
 import type {
   Account,
   Category,
+  Currency,
   Transaction,
   TransactionStatus,
   TransactionType,
@@ -56,6 +57,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const [status, setStatus] = useState<TransactionStatus>(editingTransaction?.status || 'paid');
 
+  const [accountId, setAccountId] = useState(
+    editingTransaction?.accountId || accounts[0]?.id || ''
+  );
+
+  const [currency, setCurrency] = useState<Currency>(() => {
+    if (editingTransaction?.currency) return editingTransaction.currency;
+    const initialAcc = accounts.find((a) => a.id === (editingTransaction?.accountId || accounts[0]?.id));
+    return initialAcc?.currency || 'BRL';
+  });
+
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.type === type),
     [categories, type]
@@ -66,10 +77,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   );
   const [userSelectedCategoryManually, setUserSelectedCategoryManually] = useState(isEdit);
   const [suggestedCategoryName, setSuggestedCategoryName] = useState<string | null>(null);
-
-  const [accountId, setAccountId] = useState(
-    editingTransaction?.accountId || accounts[0]?.id || ''
-  );
   const [notes, setNotes] = useState(editingTransaction?.notes || '');
   const [repeatMonths, setRepeatMonths] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +121,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setSuggestedCategoryName(null);
   };
 
+  const handleAccountChange = (newAccId: string) => {
+    setAccountId(newAccId);
+    const targetAcc = accounts.find((a) => a.id === newAccId);
+    if (targetAcc?.currency && !isEdit) {
+      setCurrency(targetAcc.currency);
+    }
+  };
+
   const setQuickDate = (offsetDays: number) => {
     const d = new Date();
     d.setDate(d.getDate() + offsetDays);
@@ -143,6 +158,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         ...editingTransaction,
         description: description.trim(),
         amount: normalizedAmount,
+        currency,
         type,
         status,
         date,
@@ -170,6 +186,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         id: `tx_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
         description: itemDesc,
         amount: normalizedAmount,
+        currency,
         type,
         status: itemStatus,
         date: itemDate,
@@ -248,9 +265,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {/* Valor e Data com Atalhos Rápidos */}
           <div className="form-grid-2">
             <div className="form-field">
-              <label htmlFor="tx-amount">Valor (R$)</label>
+              <div className="label-with-quick-actions">
+                <label htmlFor="tx-amount">Valor</label>
+                <div className="currency-selector-pills">
+                  <button
+                    type="button"
+                    className={`curr-pill ${currency === 'BRL' ? 'active' : ''}`}
+                    onClick={() => setCurrency('BRL')}
+                  >
+                    R$ BRL
+                  </button>
+                  <button
+                    type="button"
+                    className={`curr-pill ${currency === 'USD' ? 'active' : ''}`}
+                    onClick={() => setCurrency('USD')}
+                  >
+                    US$ USD
+                  </button>
+                </div>
+              </div>
               <div className="amount-input-wrap">
-                <span className="currency-prefix mono">R$</span>
+                <span className="currency-prefix mono">{currency === 'USD' ? 'US$' : 'R$'}</span>
                 <input
                   ref={amountInputRef}
                   id="tx-amount"
@@ -361,11 +396,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <select
                 id="tx-acc"
                 value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
+                onChange={(e) => handleAccountChange(e.target.value)}
               >
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.name} ({a.institution || 'Geral'})
+                    {a.name} ({a.currency || 'BRL'})
                   </option>
                 ))}
               </select>

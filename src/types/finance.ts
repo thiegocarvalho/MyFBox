@@ -1,3 +1,4 @@
+export type Currency = 'BRL' | 'USD';
 export type TransactionType = 'income' | 'expense';
 export type TransactionStatus = 'paid' | 'pending';
 export type AccountType = 'checking' | 'savings' | 'wallet' | 'investment' | 'credit';
@@ -8,6 +9,7 @@ export interface Account {
   type: AccountType;
   initialBalance: number;
   color: string;
+  currency?: Currency; // 'BRL' | 'USD', default 'BRL'
   institution?: string;
 }
 
@@ -17,13 +19,14 @@ export interface Category {
   type: TransactionType;
   color: string;
   icon: string;
-  monthlyBudget?: number; // Orçamento teto mensal (em R$) para categorias de despesa
+  monthlyBudget?: number; // Orçamento teto mensal para categorias de despesa
 }
 
 export interface Transaction {
   id: string;
   description: string;
-  amount: number; // sempre positivo em R$
+  amount: number; // valor positivo
+  currency?: Currency; // 'BRL' | 'USD', default 'BRL'
   type: TransactionType;
   status: TransactionStatus;
   date: string; // YYYY-MM-DD
@@ -42,6 +45,7 @@ export interface VaultSettings {
   autoLockMinutes: number;
   hideValuesByDefault: boolean;
   vaultName: string;
+  usdToBrlRate?: number; // Cotação de conversão opcional
 }
 
 export interface VaultPayload {

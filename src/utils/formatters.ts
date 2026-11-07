@@ -1,6 +1,20 @@
-export function formatBRL(value: number, hideValues: boolean = false): string {
+import type { Currency } from '../types/finance';
+
+export function formatMoney(
+  value: number,
+  currency: Currency = 'BRL',
+  hideValues: boolean = false
+): string {
   if (hideValues) {
-    return 'R$ •••••';
+    return currency === 'USD' ? 'US$ •••••' : 'R$ •••••';
+  }
+  if (currency === 'USD') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   }
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -8,6 +22,10 @@ export function formatBRL(value: number, hideValues: boolean = false): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+export function formatBRL(value: number, hideValues: boolean = false): string {
+  return formatMoney(value, 'BRL', hideValues);
 }
 
 export function formatShortDate(dateStr: string): string {
