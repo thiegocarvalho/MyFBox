@@ -69,6 +69,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     return initialAcc?.currency || 'BRL';
   });
 
+  const [customExchangeRate, setCustomExchangeRate] = useState<number | undefined>(
+    editingTransaction?.exchangeRate
+  );
+  const effectiveExchangeRate = customExchangeRate ?? usdToBrlRate ?? 5.5;
+
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.type === type),
     [categories, type]
@@ -154,6 +159,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
 
     const nowIso = new Date().toISOString();
+    const rateToSave = currency === 'USD' ? effectiveExchangeRate : undefined;
 
     if (isEdit && editingTransaction) {
       const updated: Transaction = {
@@ -161,6 +167,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         description: description.trim(),
         amount: normalizedAmount,
         currency,
+        exchangeRate: rateToSave,
         type,
         status,
         date,
@@ -189,6 +196,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         description: itemDesc,
         amount: normalizedAmount,
         currency,
+        exchangeRate: rateToSave,
         type,
         status: itemStatus,
         date: itemDate,
@@ -303,17 +311,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   required
                 />
               </div>
-              {currency === 'USD' && (() => {
-                const numeric = parseFloat(amountStr.replace(',', '.'));
-                if (!isNaN(numeric) && numeric > 0 && usdToBrlRate) {
-                  return (
-                    <div className="amount-fx-hint mono">
-                      ≈ {formatBRL(numeric * usdToBrlRate)} (AwesomeAPI: R$ {usdToBrlRate.toFixed(2)})
+              {currency === 'USD' && (
+                <div className="amount-usd-rate-row">
+                  <div className="amount-fx-hint mono">
+                    ≈ {(() => {
+                      const numeric = parseFloat(amountStr.replace(',', '.'));
+                      return !isNaN(numeric) && numeric > 0 ? formatBRL(numeric * effectiveExchangeRate) : 'R$ 0,00';
+                    })()}
+                  </div>
+                  <div className="inline-fx-rate-picker">
+                    <label htmlFor="tx-fx-rate" title="Cotação USD/BRL fixada para este lançamento">
+                      Cotação:
+                    </label>
+                    <div className="fx-rate-input-wrap">
+                      <span className="mono fx-prefix">R$</span>
+                      <input
+                        id="tx-fx-rate"
+                        type="number"
+                        step="0.0001"
+                        min="0.01"
+                        className="mono fx-rate-input"
+                        value={customExchangeRate ?? (usdToBrlRate || '')}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setCustomExchangeRate(isNaN(val) ? undefined : val);
+                        }}
+                        placeholder="5.50"
+                        title="Cotação fixada no momento (AwesomeAPI por padrão)"
+                      />
                     </div>
-                  );
-                }
-                return null;
-              })()}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="form-field">

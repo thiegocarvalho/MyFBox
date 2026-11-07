@@ -350,11 +350,21 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           tx.type === 'income' ? 'positive' : 'negative'
                         }`}
                       >
-                        <span className="amount-val">
-                          {tx.type === 'income' ? '+' : '-'}
-                          {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
-                        </span>
-                        {tx.currency === 'USD' && <span className="currency-pill-inline">USD</span>}
+                        <div className="amount-main-line">
+                          <span className="amount-val">
+                            {tx.type === 'income' ? '+' : '-'}
+                            {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
+                          </span>
+                          {tx.currency === 'USD' && (
+                            <span className="currency-pill-inline">USD</span>
+                          )}
+                        </div>
+                        {tx.currency === 'USD' && tx.exchangeRate && (
+                          <div className="amount-fx-sub mono">
+                            ≈ {formatBRL(tx.amount * tx.exchangeRate, hideValues)}{' '}
+                            <span className="rate-hint">(R$ {tx.exchangeRate.toFixed(2)})</span>
+                          </div>
+                        )}
                       </td>
                       <td className="align-right">
                         <div className="row-actions">

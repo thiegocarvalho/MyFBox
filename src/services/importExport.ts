@@ -47,16 +47,29 @@ export function exportTransactionsToCSV(
   const catMap = new Map(categories.map((c) => [c.id, c.name]));
   const accMap = new Map(accounts.map((a) => [a.id, a.name]));
 
-  const headers = ['Data', 'Descricao', 'Tipo', 'Status', 'Valor', 'Categoria', 'Conta', 'Notas'];
+  const headers = [
+    'Data',
+    'Descricao',
+    'Tipo',
+    'Status',
+    'Valor',
+    'Moeda',
+    'Cotacao_USD_BRL',
+    'Categoria',
+    'Conta',
+    'Notas',
+  ];
   const rows = transactions.map((tx) => {
     const tipo = tx.type === 'income' ? 'Receita' : 'Despesa';
     const status = tx.status === 'paid' ? 'Pago' : 'Pendente';
     const valor = (tx.type === 'expense' ? -tx.amount : tx.amount).toFixed(2);
+    const moeda = tx.currency || 'BRL';
+    const cotacao = tx.exchangeRate ? tx.exchangeRate.toFixed(4) : '';
     const cat = catMap.get(tx.categoryId) || 'Sem Categoria';
     const acc = accMap.get(tx.accountId) || 'Conta Padrão';
     const notes = tx.notes || '';
 
-    return [tx.date, tx.description, tipo, status, valor, cat, acc, notes]
+    return [tx.date, tx.description, tipo, status, valor, moeda, cotacao, cat, acc, notes]
       .map((field) => `"${String(field).replace(/"/g, '""')}"`)
       .join(',');
   });

@@ -27,6 +27,7 @@ export interface Transaction {
   description: string;
   amount: number; // valor positivo
   currency?: Currency; // 'BRL' | 'USD', default 'BRL'
+  exchangeRate?: number; // Cotação de conversão fixada no momento do lançamento (ex: USD -> BRL)
   type: TransactionType;
   status: TransactionStatus;
   date: string; // YYYY-MM-DD
