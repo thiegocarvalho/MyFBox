@@ -163,11 +163,10 @@ export function App() {
 
   const handleCreateVault = async (
     password: string,
-    vaultName: string,
-    withSampleData: boolean
+    vaultName: string
   ) => {
     const newSession = await createNewCryptoSession(password);
-    const initialPayload = createInitialVaultPayload(withSampleData, vaultName);
+    const initialPayload = createInitialVaultPayload(false, vaultName);
     const newEnv = await encryptPayloadToEnvelope(initialPayload, newSession);
     await saveEncryptedEnvelopeToDisk(newEnv);
     setEnvelope(newEnv);

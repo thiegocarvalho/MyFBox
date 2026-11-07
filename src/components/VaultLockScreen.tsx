@@ -12,7 +12,7 @@ import type { EncryptedVaultEnvelope } from '../types/finance';
 interface VaultLockScreenProps {
   existingEnvelope: EncryptedVaultEnvelope | null;
   onUnlock: (password: string) => Promise<void>;
-  onCreateVault: (password: string, vaultName: string, withSampleData: boolean) => Promise<void>;
+  onCreateVault: (password: string, vaultName: string) => Promise<void>;
   onRestoreBackupEnvelope: (envelope: EncryptedVaultEnvelope, password: string) => Promise<void>;
   onResetVault: () => Promise<void>;
 }
@@ -31,7 +31,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [withSampleData, setWithSampleData] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importedEnvelope, setImportedEnvelope] = useState<EncryptedVaultEnvelope | null>(null);
@@ -70,7 +69,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
     setBusy(true);
     setError(null);
     try {
-      await onCreateVault(password, vaultName, withSampleData);
+      await onCreateVault(password, vaultName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar o cofre.');
     } finally {
@@ -267,15 +266,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                 required
               />
             </div>
-
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={withSampleData}
-                onChange={(e) => setWithSampleData(e.target.checked)}
-              />
-              <span>Carregar exemplos iniciais (despesas, contas e metas)</span>
-            </label>
 
             <button type="submit" className="btn-primary btn-full" disabled={busy}>
               {busy ? 'Criando Cofre...' : 'Criar Cofre Criptografado'}
