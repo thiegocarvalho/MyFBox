@@ -15,204 +15,185 @@
 }
 
 /* ==========================================================================
-   Tela de Bloqueio e Criação do Cofre (VaultLockScreen)
+   Tela de Bloqueio e Criação do Cofre (VaultLockScreen) — Minimalista & Elegante
    ========================================================================== */
 .vault-gate-shell {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px 20px;
-  background: radial-gradient(circle at 50% 20%, rgba(45, 212, 191, 0.07), transparent 45%),
+  padding: 24px;
+  background: radial-gradient(circle at 50% 25%, rgba(45, 212, 191, 0.08), transparent 50%),
               linear-gradient(180deg, #07090e 0%, var(--bg-app) 100%);
 }
 
-.vault-gate-grid {
+.vault-gate-card {
   width: 100%;
-  max-width: 1040px;
-  display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 36px;
+  max-width: 440px;
   background-color: var(--bg-surface);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-}
-
-@media (max-width: 860px) {
-  .vault-gate-grid {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-}
-
-.vault-gate-brand {
-  padding: 44px 36px;
-  background: linear-gradient(145deg, #0f1624 0%, #0b0f1a 100%);
-  border-right: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(0, 0, 0, 0.5);
+  padding: 36px 32px;
   display: flex;
   flex-direction: column;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.vault-badge-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-.vault-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background-color: rgba(45, 212, 191, 0.1);
-  border: 1px solid rgba(45, 212, 191, 0.25);
-  border-radius: 999px;
-  color: var(--color-teal);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.vault-hero-title {
-  font-size: 38px;
-  line-height: 1.1;
-  margin-bottom: 16px;
-  color: #fff;
-}
-
-.vault-hero-subtitle {
-  display: block;
-  font-size: 17px;
-  font-weight: 400;
-  color: var(--text-secondary);
-  margin-top: 6px;
-}
-
-.vault-hero-lead {
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--text-muted);
-  margin-bottom: 32px;
-}
-
-.vault-spec-card {
-  margin-top: auto;
-  padding: 18px;
-  background-color: rgba(6, 9, 15, 0.6);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.vault-spec-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-  text-transform: uppercase;
-}
-
-.vault-spec-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.vault-spec-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-.vault-spec-row strong {
-  color: var(--text-main);
-  font-size: 11px;
-}
-
-.vault-spec-row.highlight strong {
-  color: var(--color-teal);
-}
-
-.vault-gate-panel {
-  padding: 44px 36px;
-  display: flex;
-  flex-direction: column;
-}
-
-.vault-mode-tabs {
-  display: flex;
-  background-color: var(--bg-app);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 4px;
-  gap: 4px;
+.vault-gate-header {
+  text-align: center;
   margin-bottom: 28px;
 }
 
-.vault-tab {
-  flex: 1;
+.brand-mark-lg {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, var(--color-teal) 0%, #0d9488 100%);
+  border-radius: var(--radius-lg);
+  color: #041412;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 12.5px;
-  font-weight: 600;
+  margin: 0 auto 16px;
+  box-shadow: var(--shadow-glow-teal);
+}
+
+.vault-gate-header h2 {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.vault-gate-sub {
+  font-size: 13px;
   color: var(--text-muted);
 }
 
-.vault-tab.active {
-  background-color: var(--bg-surface-elevated);
-  color: var(--text-main);
-  border: 1px solid var(--border-card);
-}
-
-.vault-form {
+.vault-gate-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
-.vault-status-banner {
-  padding: 14px 16px;
+.vault-gate-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.link-subtle {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: color 0.15s ease;
+}
+
+.link-subtle:hover {
+  color: var(--text-main);
+  text-decoration: underline;
+}
+
+.link-danger-muted {
+  font-size: 11px;
+  color: #7f1d1d;
+  margin-top: 8px;
+  align-self: center;
+}
+
+.link-danger-muted:hover {
+  color: var(--color-coral);
+  text-decoration: underline;
+}
+
+.reset-confirm-box {
+  padding: 12px;
+  background-color: var(--color-coral-glow);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #fecdd3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.reset-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-danger-sm {
+  padding: 4px 10px;
+  background-color: var(--color-coral);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border-card);
+  border-radius: var(--radius-md);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.drop-zone:hover {
+  border-color: var(--color-teal);
+  color: var(--text-main);
+  background-color: var(--bg-surface-elevated);
+}
+
+.selected-backup-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.vault-fp-line {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
   color: var(--color-teal);
 }
 
-.vault-updated-meta {
-  font-size: 11px;
-  color: var(--text-muted);
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.btn-full {
+  width: 100%;
 }
 
 .vault-alert-error {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 14px;
   background-color: var(--color-coral-glow);
   border: 1px solid rgba(244, 63, 94, 0.4);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: #fecdd3;
-  font-size: 12.5px;
-  margin-bottom: 18px;
+  font-size: 12px;
+  margin-bottom: 16px;
 }
 
 .pw-input-wrap {
@@ -224,12 +205,11 @@
 .pw-input-wrap input {
   width: 100%;
   padding-right: 40px;
-  font-size: 14px;
 }
 
 .pw-toggle-btn {
   position: absolute;
-  right: 10px;
+  right: 8px;
   color: var(--text-muted);
   padding: 6px;
 }
@@ -239,7 +219,7 @@
 }
 
 /* ==========================================================================
-   Shell do App (Header, Barra de Telemetria e Navegação)
+   Topbar Unificada e Moderna (Header Principal)
    ========================================================================== */
 .app-shell {
   min-height: 100vh;
@@ -247,163 +227,88 @@
   flex-direction: column;
 }
 
-.crypto-telemetry-bar {
-  background-color: #05070b;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 6px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-}
-
-.telemetry-left,
-.telemetry-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.telemetry-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-}
-
-.telemetry-pill.unlocked {
-  background-color: var(--color-teal-glow);
-  color: var(--color-teal);
-  border: 1px solid rgba(45, 212, 191, 0.3);
-}
-
-.telemetry-item {
-  color: var(--text-muted);
-}
-
-.telemetry-item strong {
-  color: var(--text-main);
-}
-
-.pulse-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--color-emerald);
-  box-shadow: 0 0 8px var(--color-emerald);
-  margin-right: 4px;
-}
-
-.telemetry-action-btn,
-.telemetry-lock-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
-}
-
-.telemetry-action-btn:hover {
-  background-color: var(--bg-surface-elevated);
-  color: var(--text-main);
-  border-color: var(--border-card);
-}
-
-.telemetry-lock-btn {
-  color: var(--color-coral);
-  border-color: rgba(244, 63, 94, 0.25);
-  background-color: var(--color-coral-glow);
-}
-
-.telemetry-lock-btn:hover {
-  background-color: rgba(244, 63, 94, 0.25);
-}
-
-/* Header Principal */
 .workspace-header {
-  padding: 18px 24px;
+  height: 58px;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 14px;
-}
-
-.brand-mark {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--color-teal) 0%, #0d9488 100%);
-  border-radius: var(--radius-md);
-  color: #051614;
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-glow-teal);
-}
-
-.brand-title-row {
-  display: flex;
-  align-items: center;
   gap: 10px;
 }
 
-.brand-title-row h1 {
-  font-size: 20px;
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--color-teal) 0%, #0d9488 100%);
+  border-radius: var(--radius-sm);
+  color: #041412;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.25);
+}
+
+.brand-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
   font-weight: 700;
+  color: #fff;
 }
 
 .vault-name-badge {
-  padding: 2px 8px;
+  padding: 1px 7px;
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-card);
   border-radius: 999px;
-  font-size: 10.5px;
-  color: var(--text-secondary);
-}
-
-.brand-sub {
-  font-size: 12px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 
-/* Seletor de Competência Mensal */
+/* Seletor de Competência Mensal Compacto */
 .month-navigator {
   display: flex;
   align-items: center;
   background-color: var(--bg-app);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 4px;
-  gap: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  gap: 4px;
 }
 
 .month-nav-btn {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  border-radius: 4px;
+  color: var(--text-muted);
 }
 
 .month-nav-btn:hover {
@@ -412,40 +317,92 @@
 }
 
 .month-current-display {
-  text-align: center;
-  padding: 0 12px;
-}
-
-.month-current-display strong {
-  display: block;
-  font-size: 13.5px;
-  font-family: var(--font-heading);
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-main);
+  padding: 0 4px;
+  min-width: 100px;
+  text-align: center;
 }
 
 .month-today-btn {
-  padding: 4px 8px;
+  padding: 2px 6px;
   background-color: var(--bg-surface-elevated);
-  border-radius: var(--radius-sm);
-  font-size: 11px;
+  border-radius: 3px;
+  font-size: 10.5px;
   color: var(--color-teal);
   font-weight: 600;
 }
 
-.header-cta-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-/* Navegação por Abas */
+/* Abas Centrais */
 .workspace-tabs {
   display: flex;
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 0 24px;
-  gap: 4px;
-  overflow-x: auto;
+  gap: 2px;
+  background-color: var(--bg-app);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.ws-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.ws-tab:hover {
+  color: var(--text-main);
+}
+
+.ws-tab.active {
+  background-color: var(--bg-surface-elevated);
+  color: var(--color-teal);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Ações Rápidas no Topo */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-action-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface-elevated);
+}
+
+.icon-action-btn:hover {
+  color: var(--text-main);
+  border-color: var(--border-card);
+  background-color: var(--bg-surface-hover);
+}
+
+.icon-action-btn.lock:hover {
+  color: var(--color-coral);
+  border-color: rgba(244, 63, 94, 0.4);
+  background-color: var(--color-coral-glow);
+}
+
+.btn-primary.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
 }
 
 .ws-tab {

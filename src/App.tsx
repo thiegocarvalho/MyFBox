@@ -70,9 +70,6 @@ export function App() {
     window.setTimeout(() => setToastMessage(null), 3200);
   }, []);
 
-  // Indicador de última gravação criptografada
-  const [lastEncryptedStatus, setLastEncryptedStatus] = useState<string>('Sincronizado');
-
   useEffect(() => {
     loadEncryptedEnvelopeFromDisk()
       .then((env) => {
@@ -99,11 +96,9 @@ export function App() {
         updatedAt: new Date().toISOString(),
       };
       setVault(stamped);
-      setLastEncryptedStatus('Cifrando AES-256-GCM...');
       const newEnv = await encryptPayloadToEnvelope(stamped, activeSession);
       await saveEncryptedEnvelopeToDisk(newEnv);
       setEnvelope(newEnv);
-      setLastEncryptedStatus('Cifrado no IndexedDB');
     },
     [session]
   );
@@ -382,7 +377,7 @@ export function App() {
   if (loadingDisk) {
     return (
       <div className="loading-screen mono">
-        Inicializando subsistema criptográfico WebCrypto (AES-256-GCM)...
+        Carregando cofre criptografado...
       </div>
     );
   }
@@ -401,152 +396,132 @@ export function App() {
 
   return (
     <div className="app-shell">
-      {/* Assinatura Técnica Superior: Barra de Telemetria Criptográfica do Cofre */}
-      <div className="crypto-telemetry-bar">
-        <div className="telemetry-left">
-          <span className="telemetry-pill unlocked">
-            <ShieldCheck size={13} /> COFRE DESBLOQUEADO EM RAM
-          </span>
-          <span className="telemetry-item mono">
-            KEY ID: <strong>{session.keyFingerprint}</strong>
-          </span>
-          <span className="telemetry-item mono hide-mobile">
-            PBKDF2 {session.iterations.toLocaleString('pt-BR')} • AES-256-GCM
-          </span>
-          <span className="telemetry-item mono hide-mobile status-dot-wrap">
-            <i className="pulse-dot" /> {lastEncryptedStatus}
-          </span>
+      {/* Topbar Unificada e Limpa */}
+      <header className="workspace-header">
+        <div className="header-left">
+          <div className="brand-block">
+            <div className="brand-mark">MF</div>
+            <div className="brand-text">
+              <span className="brand-title">MyFBox</span>
+              <span className="vault-name-badge">{vault.settings.vaultName}</span>
+            </div>
+          </div>
+
+          {/* Seletor de Mês Compacto */}
+          <div className="month-navigator">
+            <button
+              type="button"
+              className="month-nav-btn"
+              onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, -1))}
+              title="Mês anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="month-current-display">
+              {formatMonthYearLabel(selectedYearMonth)}
+            </span>
+            <button
+              type="button"
+              className="month-nav-btn"
+              onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, 1))}
+              title="Próximo mês"
+            >
+              <ChevronRight size={16} />
+            </button>
+            {selectedYearMonth !== getCurrentYearMonth() && (
+              <button
+                type="button"
+                className="month-today-btn"
+                onClick={() => setSelectedYearMonth(getCurrentYearMonth())}
+                title="Voltar ao mês atual"
+              >
+                Atual
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="telemetry-right">
+        {/* Abas de Navegação Centrais */}
+        <nav className="workspace-tabs">
           <button
             type="button"
-            className="telemetry-action-btn"
-            onClick={() => setHideValues((v) => !v)}
-            title={hideValues ? 'Exibir valores monetários' : 'Ocultar valores (Modo Privacidade)'}
+            className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
           >
-            {hideValues ? <Eye size={14} /> : <EyeOff size={14} />}
-            <span>{hideValues ? 'Mostrar Valores' : 'Modo Privado'}</span>
+            <LayoutDashboard size={15} /> Visão Geral
+          </button>
+          <button
+            type="button"
+            className={`ws-tab ${activeTab === 'transactions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transactions')}
+          >
+            <ReceiptText size={15} /> Lançamentos ({vault.transactions.length})
+          </button>
+          <button
+            type="button"
+            className={`ws-tab ${activeTab === 'budgets' ? 'active' : ''}`}
+            onClick={() => setActiveTab('budgets')}
+          >
+            <Target size={15} /> Metas
+          </button>
+          <button
+            type="button"
+            className={`ws-tab ${activeTab === 'accounts' ? 'active' : ''}`}
+            onClick={() => setActiveTab('accounts')}
+          >
+            <Wallet size={15} /> Contas ({vault.accounts.length})
+          </button>
+          <button
+            type="button"
+            className={`ws-tab ${activeTab === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveTab('security')}
+            title="Backups, Importação e Segurança"
+          >
+            <DatabaseBackup size={15} /> Backups
+          </button>
+        </nav>
+
+        {/* Ações Rápidas no Topo */}
+        <div className="header-right">
+          <button
+            type="button"
+            className="icon-action-btn"
+            onClick={() => setHideValues((v) => !v)}
+            title={hideValues ? 'Mostrar valores monetários' : 'Ocultar valores (Modo Privacidade)'}
+          >
+            {hideValues ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
 
           {envelope && (
             <button
               type="button"
-              className="telemetry-action-btn"
+              className="icon-action-btn"
               onClick={() => downloadEncryptedBackupFile(envelope, vault.settings.vaultName)}
-              title="Baixar arquivo de backup criptografado (.myfbox.json)"
+              title="Baixar Backup Criptografado (.myfbox.json)"
             >
-              <Download size={14} />
-              <span>Backup .myfbox</span>
+              <Download size={16} />
             </button>
           )}
 
           <button
             type="button"
-            className="telemetry-lock-btn"
+            className="icon-action-btn lock"
             onClick={lockVault}
-            title="Descartar chave da memória RAM e trancar o cofre imediatamente"
+            title="Trancar Cofre"
           >
-            <Lock size={13} /> Trancar Cofre
+            <Lock size={15} />
           </button>
-        </div>
-      </div>
 
-      {/* Cabeçalho Principal e Navegação */}
-      <header className="workspace-header">
-        <div className="brand-block">
-          <div className="brand-mark">MF</div>
-          <div>
-            <div className="brand-title-row">
-              <h1>MyFBox</h1>
-              <span className="vault-name-badge">{vault.settings.vaultName}</span>
-            </div>
-            <p className="brand-sub">Controle Financeiro Local-First Criptografado</p>
-          </div>
-        </div>
-
-        {/* Seletor de Competência Mensal */}
-        <div className="month-navigator">
           <button
             type="button"
-            className="month-nav-btn"
-            onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, -1))}
-            title="Mês anterior"
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <div className="month-current-display">
-            <span className="eyebrow">COMPETÊNCIA</span>
-            <strong>{formatMonthYearLabel(selectedYearMonth)}</strong>
-          </div>
-          <button
-            type="button"
-            className="month-nav-btn"
-            onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, 1))}
-            title="Próximo mês"
-          >
-            <ChevronRight size={17} />
-          </button>
-          {selectedYearMonth !== getCurrentYearMonth() && (
-            <button
-              type="button"
-              className="month-today-btn"
-              onClick={() => setSelectedYearMonth(getCurrentYearMonth())}
-            >
-              Mês Atual
-            </button>
-          )}
-        </div>
-
-        <div className="header-cta-group">
-          <button
-            type="button"
-            className="btn-primary"
+            className="btn-primary btn-sm"
             onClick={() => handleOpenNewTransaction('expense')}
+            title="Adicionar lançamento (Tecla N)"
           >
-            <Plus size={16} /> Novo Lançamento
+            <Plus size={15} /> Novo
           </button>
         </div>
       </header>
-
-      {/* Abas de Navegação do Cofre */}
-      <nav className="workspace-tabs">
-        <button
-          type="button"
-          className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setActiveTab('dashboard')}
-        >
-          <LayoutDashboard size={16} /> Visão Geral & Fluxo
-        </button>
-        <button
-          type="button"
-          className={`ws-tab ${activeTab === 'transactions' ? 'active' : ''}`}
-          onClick={() => setActiveTab('transactions')}
-        >
-          <ReceiptText size={16} /> Lançamentos ({vault.transactions.length})
-        </button>
-        <button
-          type="button"
-          className={`ws-tab ${activeTab === 'budgets' ? 'active' : ''}`}
-          onClick={() => setActiveTab('budgets')}
-        >
-          <Target size={16} /> Metas & Categorias
-        </button>
-        <button
-          type="button"
-          className={`ws-tab ${activeTab === 'accounts' ? 'active' : ''}`}
-          onClick={() => setActiveTab('accounts')}
-        >
-          <Wallet size={16} /> Contas & Carteiras ({vault.accounts.length})
-        </button>
-        <button
-          type="button"
-          className={`ws-tab ${activeTab === 'security' ? 'active' : ''}`}
-          onClick={() => setActiveTab('security')}
-        >
-          <DatabaseBackup size={16} /> Backups, OFX/CSV & Criptografia
-        </button>
-      </nav>
 
       {/* Conteúdo Principal */}
       <main className="workspace-main">

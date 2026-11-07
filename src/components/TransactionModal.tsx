@@ -216,10 +216,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     <div className="modal-backdrop" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <header className="modal-header">
-          <div>
-            <span className="eyebrow">REGISTRO CRIPTOGRAFADO • AES-256</span>
-            <h2>{isEdit ? 'Editar Lançamento' : 'Novo Lançamento Financeiro'}</h2>
-          </div>
+          <h2>{isEdit ? 'Editar Lançamento' : 'Novo Lançamento'}</h2>
           <button type="button" className="icon-btn" onClick={onClose} title="Fechar (Esc)">
             <X size={18} />
           </button>
@@ -228,7 +225,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <form onSubmit={handleSubmit} className="modal-body">
           {error && <div className="vault-alert-error">{error}</div>}
 
-          {/* Toggle Despesa (Saída) vs Receita (Entrada) */}
+          {/* Toggle Despesa vs Receita */}
           <div className="type-toggle-row">
             <button
               type="button"
@@ -236,10 +233,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               onClick={() => handleTypeSwitch('expense')}
             >
               <ArrowDownCircle size={18} />
-              <div className="type-pill-text">
-                <strong>Despesa / Saída</strong>
-                <span>Compras, contas, pagamentos</span>
-              </div>
+              <strong>Despesa</strong>
             </button>
             <button
               type="button"
@@ -247,10 +241,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               onClick={() => handleTypeSwitch('income')}
             >
               <ArrowUpCircle size={18} />
-              <div className="type-pill-text">
-                <strong>Receita / Entrada</strong>
-                <span>Salário, freela, rendimentos</span>
-              </div>
+              <strong>Receita</strong>
             </button>
           </div>
 
@@ -401,7 +392,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
 
-          {/* Recorrência / Parcelamento e Observações */}
+          {/* Observações e Parcelamento (se novo) */}
           <div className="form-grid-2">
             {!isEdit ? (
               <div className="form-field">
@@ -423,19 +414,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   <option value={12}>12 parcelas (Anual / Recorrente)</option>
                 </select>
               </div>
-            ) : (
-              <div className="form-field">
-                <label>Identificador</label>
-                <input
-                  type="text"
-                  className="mono text-muted"
-                  value={editingTransaction?.id || ''}
-                  disabled
-                />
-              </div>
-            )}
+            ) : null}
 
-            <div className="form-field">
+            <div className="form-field" style={{ gridColumn: isEdit ? '1 / -1' : undefined }}>
               <label htmlFor="tx-notes">Observações (Opcional)</label>
               <input
                 id="tx-notes"

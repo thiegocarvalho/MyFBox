@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
   Search,
-  Plus,
   CheckCircle2,
   Clock,
   Edit3,
@@ -17,7 +16,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '../types/finance';
-import { formatBRL, formatFullDateBR, formatMonthYearLabel } from '../utils/formatters';
+import { formatBRL, formatFullDateBR } from '../utils/formatters';
 import { exportTransactionsToCSV } from '../services/importExport';
 
 interface TransactionsViewProps {
@@ -106,66 +105,19 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   return (
     <div className="ledger-view-stack">
-      {/* Barra de Ferramentas e Filtros do Livro-Razão */}
+      {/* Barra de Ferramentas e Filtros */}
       <section className="panel-card ledger-toolbar-card">
         <div className="ledger-toolbar-top">
           <div className="search-input-wrap">
-            <Search size={16} />
+            <Search size={15} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar por descrição, nota, categoria ou conta..."
+              placeholder="Buscar lançamento, nota ou categoria..."
             />
           </div>
 
-          <div className="ledger-top-actions">
-            <button
-              type="button"
-              className={`btn-chip-toggle ${scopeAllMonths ? 'active' : ''}`}
-              onClick={() => setScopeAllMonths((v) => !v)}
-              title="Alternar entre apenas o mês selecionado ou histórico completo"
-            >
-              <Filter size={14} />
-              {scopeAllMonths
-                ? 'Exibindo: Todo o Histórico'
-                : `Mês: ${formatMonthYearLabel(selectedYearMonth)}`}
-            </button>
-
-            <button
-              type="button"
-              className="btn-secondary-sm"
-              onClick={() =>
-                exportTransactionsToCSV(
-                  filteredTransactions,
-                  categories,
-                  accounts,
-                  `myfbox-${scopeAllMonths ? 'historico' : selectedYearMonth}`
-                )
-              }
-            >
-              <Download size={14} /> Exportar CSV ({filteredTransactions.length})
-            </button>
-
-            <button
-              type="button"
-              className="btn-Quick-income"
-              onClick={() => onOpenNewTransaction('income')}
-            >
-              <Plus size={15} /> Nova Receita
-            </button>
-
-            <button
-              type="button"
-              className="btn-Quick-expense"
-              onClick={() => onOpenNewTransaction('expense')}
-            >
-              <Plus size={15} /> Nova Despesa
-            </button>
-          </div>
-        </div>
-
-        <div className="ledger-filters-row">
           <div className="segmented-filter">
             <button
               type="button"
@@ -179,14 +131,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={typeFilter === 'income' ? 'active' : ''}
               onClick={() => setTypeFilter('income')}
             >
-              Receitas
+              Entradas
             </button>
             <button
               type="button"
               className={typeFilter === 'expense' ? 'active' : ''}
               onClick={() => setTypeFilter('expense')}
             >
-              Despesas
+              Saídas
             </button>
           </div>
 
@@ -196,7 +148,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={statusFilter === 'all' ? 'active' : ''}
               onClick={() => setStatusFilter('all')}
             >
-              Qualquer Status
+              Status
             </button>
             <button
               type="button"
@@ -240,20 +192,43 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               </option>
             ))}
           </select>
+
+          <button
+            type="button"
+            className={`btn-chip-toggle ${scopeAllMonths ? 'active' : ''}`}
+            onClick={() => setScopeAllMonths((v) => !v)}
+            title="Alternar entre mês selecionado ou histórico completo"
+          >
+            <Filter size={13} />
+            {scopeAllMonths ? 'Todo o Histórico' : 'Mês Selecionado'}
+          </button>
+
+          <button
+            type="button"
+            className="icon-action-btn"
+            onClick={() =>
+              exportTransactionsToCSV(
+                filteredTransactions,
+                categories,
+                accounts,
+                `myfbox-${scopeAllMonths ? 'historico' : selectedYearMonth}`
+              )
+            }
+            title={`Exportar ${filteredTransactions.length} lançamentos para CSV`}
+          >
+            <Download size={15} />
+          </button>
         </div>
 
         <div className="ledger-summary-bar mono">
+          <span>{summary.count} lançamentos</span>
+          <span>•</span>
+          <span className="positive">Entradas: +{formatBRL(summary.inc, hideValues)}</span>
+          <span>•</span>
+          <span className="negative">Saídas: -{formatBRL(summary.exp, hideValues)}</span>
+          <span>•</span>
           <span>
-            Registros: <strong>{summary.count}</strong>
-          </span>
-          <span className="positive">
-            Entradas: <strong>+{formatBRL(summary.inc, hideValues)}</strong>
-          </span>
-          <span className="negative">
-            Saídas: <strong>-{formatBRL(summary.exp, hideValues)}</strong>
-          </span>
-          <span>
-            Resultado do Filtro:{' '}
+            Saldo:{' '}
             <strong className={summary.net >= 0 ? 'positive' : 'negative'}>
               {summary.net >= 0 ? '+' : ''}
               {formatBRL(summary.net, hideValues)}

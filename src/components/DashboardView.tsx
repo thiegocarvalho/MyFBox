@@ -5,7 +5,6 @@ import {
   Wallet,
   Scale,
   CheckCircle2,
-  Plus,
   ArrowUpRight,
   ArrowDownRight,
   Clock,
@@ -189,85 +188,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [monthTransactions]);
 
-  // Cálculo da Barra de Horizonte Mensal (Alocação da Receita)
-  const horizonBase = Math.max(metrics.totalIncome, metrics.totalExpense, 1);
-  const paidExpensePct = Math.min(100, (metrics.expensePaid / horizonBase) * 100);
-  const pendingExpensePct = Math.min(
-    100 - paidExpensePct,
-    (metrics.expensePending / horizonBase) * 100
-  );
-  const freePct = Math.max(0, 100 - paidExpensePct - pendingExpensePct);
-
   return (
     <div className="dashboard-stack">
-      {/* Assinatura Visual: Horizonte de Alocação do Mês */}
-      <section className="horizon-strip-card">
-        <div className="horizon-header">
-          <div>
-            <span className="eyebrow">
-              ALOCAÇÃO DO FLUXO MENSAL • {formatMonthYearLabel(selectedYearMonth).toUpperCase()}
-            </span>
-            <h3 className="horizon-title">
-              {metrics.totalIncome > 0
-                ? `${Math.round((metrics.totalExpense / metrics.totalIncome) * 100)}% da receita comprometida no mês`
-                : 'Aguardando receitas ou lançamentos neste mês'}
-            </h3>
-          </div>
-          <div className="horizon-quick-actions">
-            <button
-              type="button"
-              className="btn-Quick-income"
-              onClick={() => onOpenNewTransaction('income')}
-            >
-              <Plus size={15} /> Receita
-            </button>
-            <button
-              type="button"
-              className="btn-Quick-expense"
-              onClick={() => onOpenNewTransaction('expense')}
-            >
-              <Plus size={15} /> Despesa
-            </button>
-          </div>
-        </div>
-
-        <div className="horizon-bar-track" title="Distribuição do fluxo mensal">
-          <div
-            className="horizon-segment paid-expense"
-            style={{ width: `${paidExpensePct}%` }}
-          />
-          <div
-            className="horizon-segment pending-expense"
-            style={{ width: `${pendingExpensePct}%` }}
-          />
-          <div className="horizon-segment free-margin" style={{ width: `${freePct}%` }} />
-        </div>
-
-        <div className="horizon-legend">
-          <div className="horizon-legend-item">
-            <span className="dot dot-paid-exp" />
-            <span>Despesas Pagas:</span>
-            <strong className="mono">{formatBRL(metrics.expensePaid, hideValues)}</strong>
-          </div>
-          <div className="horizon-legend-item">
-            <span className="dot dot-pending-exp" />
-            <span>A Pagar (Pendente):</span>
-            <strong className="mono">{formatBRL(metrics.expensePending, hideValues)}</strong>
-          </div>
-          <div className="horizon-legend-item">
-            <span className="dot dot-free" />
-            <span>Margem / Sobra Projetada:</span>
-            <strong
-              className="mono"
-              style={{ color: metrics.netResult >= 0 ? '#2DD4BF' : '#F43F5E' }}
-            >
-              {formatBRL(metrics.netResult, hideValues)}
-            </strong>
-          </div>
-        </div>
-      </section>
-
-      {/* 4 KPI Cards Principais */}
+      {/* 4 Cards Principais de Indicadores */}
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
