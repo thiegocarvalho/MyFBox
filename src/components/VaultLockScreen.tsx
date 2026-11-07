@@ -8,6 +8,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import type { EncryptedVaultEnvelope } from '../types/finance';
+import { MyFBoxLogo } from './MyFBoxLogo';
 
 interface VaultLockScreenProps {
   existingEnvelope: EncryptedVaultEnvelope | null;
@@ -121,7 +122,9 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
       <div className="vault-gate-card">
         {/* Cabeçalho Limpo */}
         <div className="vault-gate-header">
-          <div className="brand-mark-lg">MF</div>
+          <div className="brand-logo-wrap-lg">
+            <MyFBoxLogo size={46} />
+          </div>
           <h2>MyFBox</h2>
           <p className="vault-gate-sub">Controle Financeiro Criptografado no Dispositivo</p>
         </div>

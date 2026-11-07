@@ -42,23 +42,27 @@
 
 .vault-gate-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
-.brand-mark-lg {
-  width: 52px;
-  height: 52px;
-  background: linear-gradient(135deg, var(--color-teal) 0%, #0d9488 100%);
+.brand-logo-wrap-lg {
+  width: 64px;
+  height: 64px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.15) 0%, rgba(14, 19, 31, 0.8) 70%);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  color: #041412;
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 22px;
+  color: var(--color-teal);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
-  box-shadow: var(--shadow-glow-teal);
+  margin: 0 auto 14px;
+  box-shadow: 0 0 24px rgba(45, 212, 191, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.brand-logo-wrap-lg:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 32px rgba(45, 212, 191, 0.3);
 }
 
 .vault-gate-header h2 {
@@ -253,19 +257,23 @@
   gap: 10px;
 }
 
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, var(--color-teal) 0%, #0d9488 100%);
+.brand-logo-wrap {
+  width: 34px;
+  height: 34px;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.12) 0%, rgba(14, 19, 31, 0.6) 80%);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  color: #041412;
-  font-family: var(--font-heading);
-  font-weight: 800;
-  font-size: 14px;
+  color: var(--color-teal);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 12px rgba(45, 212, 191, 0.25);
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.15);
+  transition: all 0.15s ease;
+}
+
+.brand-logo-wrap:hover {
+  border-color: var(--color-teal);
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.3);
 }
 
 .brand-text {

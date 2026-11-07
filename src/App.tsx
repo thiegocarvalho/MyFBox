@@ -45,6 +45,7 @@ import { BudgetsView } from './components/BudgetsView';
 import { AccountsView } from './components/AccountsView';
 import { BackupSecurityView } from './components/BackupSecurityView';
 import { TransactionModal } from './components/TransactionModal';
+import { MyFBoxLogo } from './components/MyFBoxLogo';
 
 type ActiveTab = 'dashboard' | 'transactions' | 'budgets' | 'accounts' | 'security';
 
@@ -399,7 +400,9 @@ export function App() {
       <header className="workspace-header">
         <div className="header-left">
           <div className="brand-block">
-            <div className="brand-mark">MF</div>
+            <div className="brand-logo-wrap">
+              <MyFBoxLogo size={24} />
+            </div>
             <div className="brand-text">
               <span className="brand-title">MyFBox</span>
               <span className="vault-name-badge">{vault.settings.vaultName}</span>
