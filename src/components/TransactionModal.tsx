@@ -17,7 +17,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '../types/finance';
-import { addMonthsToDateStr } from '../utils/formatters';
+import { addMonthsToDateStr, formatBRL } from '../utils/formatters';
 import { predictCategory } from '../utils/categorizer';
 
 interface TransactionModalProps {
@@ -27,6 +27,7 @@ interface TransactionModalProps {
   accounts: Account[];
   transactions?: Transaction[];
   defaultYearMonth: string;
+  usdToBrlRate?: number;
   onSave: (transactionsToSave: Transaction[], isEdit: boolean) => void;
   onClose: () => void;
 }
@@ -38,6 +39,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   accounts,
   transactions = [],
   defaultYearMonth,
+  usdToBrlRate,
   onSave,
   onClose,
 }) => {
@@ -301,6 +303,17 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   required
                 />
               </div>
+              {currency === 'USD' && (() => {
+                const numeric = parseFloat(amountStr.replace(',', '.'));
+                if (!isNaN(numeric) && numeric > 0 && usdToBrlRate) {
+                  return (
+                    <div className="amount-fx-hint mono">
+                      ≈ {formatBRL(numeric * usdToBrlRate)} (AwesomeAPI: R$ {usdToBrlRate.toFixed(2)})
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div className="form-field">

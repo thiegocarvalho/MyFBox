@@ -46,6 +46,7 @@ export interface VaultSettings {
   hideValuesByDefault: boolean;
   vaultName: string;
   usdToBrlRate?: number; // Cotação de conversão opcional
+  usdRateUpdatedAt?: string;
 }
 
 export interface VaultPayload {

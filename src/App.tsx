@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -13,6 +13,7 @@ import {
   DatabaseBackup,
   Plus,
   Download,
+  RefreshCw,
 } from 'lucide-react';
 import type {
   Account,
@@ -38,6 +39,7 @@ import {
   getCurrentYearMonth,
   shiftYearMonth,
 } from './utils/formatters';
+import { fetchLiveUsdRate } from './services/currencyService';
 import { VaultLockScreen } from './components/VaultLockScreen';
 import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
@@ -122,6 +124,60 @@ export function App() {
       events.forEach((ev) => window.removeEventListener(ev, resetTimer));
     };
   }, [session, vault, lockVault]);
+
+  // Cotação USD/BRL via AwesomeAPI
+  const [usdRate, setUsdRate] = useState<number | null>(() => vault?.settings.usdToBrlRate || null);
+  const [rateRefreshing, setRateRefreshing] = useState(false);
+  const vaultRef = useRef(vault);
+
+  useEffect(() => {
+    vaultRef.current = vault;
+  }, [vault]);
+
+  useEffect(() => {
+    if (!session) return;
+    let isMounted = true;
+    fetchLiveUsdRate(false).then((info) => {
+      if (!isMounted || !info) return;
+      setUsdRate(info.rate);
+      const currentVault = vaultRef.current;
+      if (currentVault && currentVault.settings.usdToBrlRate !== info.rate) {
+        persistVaultUpdate({
+          ...currentVault,
+          settings: {
+            ...currentVault.settings,
+            usdToBrlRate: info.rate,
+            usdRateUpdatedAt: info.updatedAt,
+          },
+        });
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [session, persistVaultUpdate]);
+
+  const handleRefreshUsdRate = useCallback(async () => {
+    setRateRefreshing(true);
+    const info = await fetchLiveUsdRate(true);
+    if (info) {
+      setUsdRate(info.rate);
+      if (vault) {
+        await persistVaultUpdate({
+          ...vault,
+          settings: {
+            ...vault.settings,
+            usdToBrlRate: info.rate,
+            usdRateUpdatedAt: info.updatedAt,
+          },
+        });
+      }
+      showToast(`Cotação atualizada: 1 USD = R$ ${info.rate.toFixed(2)}`);
+    } else {
+      showToast('Não foi possível obter a cotação no momento.');
+    }
+    setRateRefreshing(false);
+  }, [vault, persistVaultUpdate, showToast]);
 
   // Handlers de Lançamentos (Transações)
   const handleOpenNewTransaction = useCallback((type: TransactionType) => {
@@ -485,6 +541,27 @@ export function App() {
 
         {/* Ações Rápidas no Topo */}
         <div className="header-right">
+          {/* Cotação USD/BRL da AwesomeAPI */}
+          <button
+            type="button"
+            className="currency-rate-chip"
+            onClick={handleRefreshUsdRate}
+            title={
+              vault.settings.usdRateUpdatedAt
+                ? `Cotação AwesomeAPI (USD Comercial)\nAtualizado em: ${vault.settings.usdRateUpdatedAt}\nClique para atualizar cotação`
+                : 'Cotação AwesomeAPI (USD Comercial)\nClique para atualizar cotação'
+            }
+          >
+            <span className="rate-chip-flag">🇺🇸</span>
+            <span className="rate-chip-label">USD</span>
+            <span className="rate-chip-val mono">
+              {usdRate || vault.settings.usdToBrlRate
+                ? `R$ ${(usdRate || vault.settings.usdToBrlRate)?.toFixed(2)}`
+                : 'R$ —'}
+            </span>
+            <RefreshCw size={11} className={`rate-chip-icon ${rateRefreshing ? 'spinning' : ''}`} />
+          </button>
+
           <button
             type="button"
             className="icon-action-btn"
@@ -535,6 +612,7 @@ export function App() {
             categories={vault.categories}
             accounts={vault.accounts}
             hideValues={hideValues}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
             onToggleTransactionStatus={handleToggleTransactionStatus}
             onOpenNewTransaction={handleOpenNewTransaction}
             onNavigateTab={(tab) => setActiveTab(tab)}
@@ -618,6 +696,7 @@ export function App() {
           accounts={vault.accounts}
           transactions={vault.transactions}
           defaultYearMonth={selectedYearMonth}
+          usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
           onSave={handleSaveTransactions}
           onClose={() => {
             setTxModalOpen(false);

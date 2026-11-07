@@ -25,6 +25,7 @@ interface DashboardViewProps {
   categories: Category[];
   accounts: Account[];
   hideValues: boolean;
+  usdToBrlRate?: number;
   onToggleTransactionStatus: (txId: string) => void;
   onOpenNewTransaction: (type: TransactionType) => void;
   onNavigateTab: (tab: 'transactions' | 'budgets' | 'accounts') => void;
@@ -37,6 +38,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   categories,
   accounts,
   hideValues,
+  usdToBrlRate,
   onToggleTransactionStatus,
   onOpenNewTransaction,
   onNavigateTab,
@@ -241,11 +243,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="kpi-label">SALDO ACUMULADO EM CONTAS</span>
             <Wallet size={17} className="kpi-icon teal" />
           </div>
-          <div className="kpi-value mono">{formatBRL(netWorth.brl, hideValues)}</div>
+          <div className="kpi-value mono">
+            {formatBRL(
+              usdToBrlRate && netWorth.hasUsd
+                ? netWorth.brl + netWorth.usd * usdToBrlRate
+                : netWorth.brl,
+              hideValues
+            )}
+          </div>
           <div className="kpi-sub">
             {netWorth.hasUsd ? (
               <span className="kpi-usd-breakdown">
-                + {formatMoney(netWorth.usd, 'USD', hideValues)} USD • {accounts.length} contas
+                {formatBRL(netWorth.brl, hideValues)} + {formatMoney(netWorth.usd, 'USD', hideValues)} USD
+                {usdToBrlRate && ` (cotação R$ ${usdToBrlRate.toFixed(2)})`}
               </span>
             ) : (
               <span>Soma de {accounts.length} contas/carteiras (liquidado)</span>
