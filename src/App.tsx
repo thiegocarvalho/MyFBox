@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
+  BarChart3,
   ReceiptText,
   Target,
   Wallet,
@@ -23,14 +24,16 @@ import type {
   Transaction,
   TransactionType,
   VaultPayload,
+  VaultSettings,
 } from './types/finance';
 import {
   createNewCryptoSession,
-  deleteEncryptedVaultFromDisk,
   encryptPayloadToEnvelope,
   loadEncryptedEnvelopeFromDisk,
   saveEncryptedEnvelopeToDisk,
   unlockEnvelopeWithPassword,
+  deleteEncryptedVaultFromDisk,
+  needsKdfUpgrade,
 } from './services/cryptoVault';
 import { createInitialVaultPayload } from './services/defaultData';
 import { downloadEncryptedBackupFile } from './services/importExport';
@@ -40,6 +43,27 @@ import {
   shiftYearMonth,
 } from './utils/formatters';
 import { fetchLiveUsdRate } from './services/currencyService';
+import { accountCurrency, convertAmount, isValidRate } from './utils/money';
+import {
+  startMcpBridge,
+  takePairingFromLocation,
+  type McpBridgeStatus,
+  type McpPairingRequest,
+} from './services/mcpBridge';
+import { McpPairDialog } from './components/McpPairDialog';
+import { ComparisonView } from './components/ComparisonView';
+import {
+  requestPersistentStorage,
+  type StoragePersistStatus,
+} from './services/storagePersistence';
+import { runMcpAction } from './services/mcpActions';
+
+const DEFAULT_MCP_PORT = 4777;
+
+function localTodayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 import { VaultLockScreen } from './components/VaultLockScreen';
 import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
@@ -49,11 +73,16 @@ import { BackupSecurityView } from './components/BackupSecurityView';
 import { TransactionModal } from './components/TransactionModal';
 import { MyFBoxLogo } from './components/MyFBoxLogo';
 
-type ActiveTab = 'dashboard' | 'transactions' | 'budgets' | 'accounts' | 'security';
+type ActiveTab = 'dashboard' | 'transactions' | 'compare' | 'budgets' | 'accounts' | 'security';
 
 export function App() {
   const [loadingDisk, setLoadingDisk] = useState(true);
   const [envelope, setEnvelope] = useState<EncryptedVaultEnvelope | null>(null);
+  // Envelope cifrado mais recente gravado no disco (usado pelo backup via MCP)
+  const envelopeRef = useRef<EncryptedVaultEnvelope | null>(null);
+  useEffect(() => {
+    envelopeRef.current = envelope;
+  }, [envelope]);
   const [session, setSession] = useState<CryptoSession | null>(null);
   const [vault, setVault] = useState<VaultPayload | null>(null);
 
@@ -91,6 +120,13 @@ export function App() {
   }, []);
 
   // Persistir alterações criptografando imediatamente com novo IV de 96 bits
+  // Cópia sempre atual do cofre: atualizada na hora da escrita (não só após o render),
+  // para que operações em sequência (ex.: chamadas do MCP) nunca leiam um estado velho.
+  const vaultRef = useRef<VaultPayload | null>(vault);
+  // Gravações em fila: cifrar + salvar é assíncrono, e duas alterações rápidas não podem
+  // terminar fora de ordem (a mais antiga sobrescreveria a mais nova no disco).
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
+
   const persistVaultUpdate = useCallback(
     async (nextVault: VaultPayload, activeSession: CryptoSession | null = session) => {
       if (!activeSession) return;
@@ -98,10 +134,16 @@ export function App() {
         ...nextVault,
         updatedAt: new Date().toISOString(),
       };
+      vaultRef.current = stamped;
       setVault(stamped);
-      const newEnv = await encryptPayloadToEnvelope(stamped, activeSession);
-      await saveEncryptedEnvelopeToDisk(newEnv);
-      setEnvelope(newEnv);
+      const write = writeChainRef.current.then(async () => {
+        const newEnv = await encryptPayloadToEnvelope(stamped, activeSession);
+        await saveEncryptedEnvelopeToDisk(newEnv);
+        envelopeRef.current = newEnv;
+        setEnvelope(newEnv);
+      });
+      writeChainRef.current = write.catch(() => undefined);
+      await write;
     },
     [session]
   );
@@ -128,7 +170,6 @@ export function App() {
   // Cotação USD/BRL via AwesomeAPI
   const [usdRate, setUsdRate] = useState<number | null>(() => vault?.settings.usdToBrlRate || null);
   const [rateRefreshing, setRateRefreshing] = useState(false);
-  const vaultRef = useRef(vault);
 
   useEffect(() => {
     vaultRef.current = vault;
@@ -162,11 +203,14 @@ export function App() {
     const info = await fetchLiveUsdRate(true);
     if (info) {
       setUsdRate(info.rate);
-      if (vault) {
+      // Lê o cofre atual (não o capturado antes do await) para não sobrescrever
+      // lançamentos salvos enquanto a cotação estava sendo buscada.
+      const currentVault = vaultRef.current;
+      if (currentVault) {
         await persistVaultUpdate({
-          ...vault,
+          ...currentVault,
           settings: {
-            ...vault.settings,
+            ...currentVault.settings,
             usdToBrlRate: info.rate,
             usdRateUpdatedAt: info.updatedAt,
           },
@@ -177,7 +221,116 @@ export function App() {
       showToast('Não foi possível obter a cotação no momento.');
     }
     setRateRefreshing(false);
-  }, [vault, persistVaultUpdate, showToast]);
+  }, [persistVaultUpdate, showToast]);
+
+  // ---------- Armazenamento persistente (o navegador não apaga o cofre sem o usuário) ----------
+  const [storageStatus, setStorageStatus] = useState<StoragePersistStatus>('unsupported');
+  const handleRequestPersist = useCallback(async () => {
+    const status = await requestPersistentStorage();
+    setStorageStatus(status);
+    return status;
+  }, []);
+  useEffect(() => {
+    // Pede ao abrir o cofre (criar, desbloquear ou restaurar)
+    if (!session) return;
+    let alive = true;
+    requestPersistentStorage().then((status) => {
+      if (alive) setStorageStatus(status);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [session]);
+
+  // ---------- Modo MCP local (desligado por padrão; ativado na aba Backups) ----------
+  const [mcpStatus, setMcpStatus] = useState<McpBridgeStatus>('off');
+  const [mcpDetail, setMcpDetail] = useState<string | undefined>();
+  const mcpQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const persistRef = useRef(persistVaultUpdate);
+  const usdRateRef = useRef<number | undefined>(undefined);
+  const showToastRef = useRef(showToast);
+
+  useEffect(() => {
+    persistRef.current = persistVaultUpdate;
+    showToastRef.current = showToast;
+    usdRateRef.current = usdRate || vault?.settings.usdToBrlRate;
+  });
+
+  const mcpEnabled = Boolean(vault?.settings.mcpEnabled);
+  const mcpToken = vault?.settings.mcpToken;
+  const mcpPort = vault?.settings.mcpPort || DEFAULT_MCP_PORT;
+
+  useEffect(() => {
+    if (!session || !mcpEnabled || !mcpToken) return;
+    const stop = startMcpBridge({
+      port: mcpPort,
+      token: mcpToken,
+      onStatus: (status, detail) => {
+        setMcpStatus(status);
+        setMcpDetail(detail);
+      },
+      // Chamadas em fila: cada ação lê o cofre mais recente e grava antes da próxima
+      onCall: (action, args) => {
+        const run = mcpQueueRef.current.then(async () => {
+          const current = vaultRef.current;
+          if (!current) throw new Error('Cofre trancado.');
+
+          // Backup: entrega só o envelope JÁ CIFRADO (o mesmo do arquivo .myfbox.json)
+          if (action === 'export_backup') {
+            const env = envelopeRef.current;
+            if (!env) throw new Error('Ainda não há envelope cifrado gravado.');
+            const result = {
+              envelope: env,
+              vaultName: current.settings.vaultName,
+              keyFingerprint: env.keyFingerprint,
+              envelopeUpdatedAt: env.updatedAt,
+              transactionCount: current.transactions.length,
+            };
+            await persistRef.current({
+              ...current,
+              settings: { ...current.settings, lastBackupAt: new Date().toISOString() },
+            });
+            showToastRef.current('MCP salvou um backup cifrado na pasta do projeto');
+            return result;
+          }
+
+          const outcome = runMcpAction(action, current, args, {
+            usdToBrlRate: usdRateRef.current,
+            today: localTodayStr(),
+            nowIso: new Date().toISOString(),
+            newId: (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          });
+          if (outcome.nextVault) await persistRef.current(outcome.nextVault);
+          if (outcome.notice) showToastRef.current(outcome.notice);
+          return outcome.result;
+        });
+        mcpQueueRef.current = run.catch(() => undefined);
+        return run;
+      },
+    });
+    return stop;
+  }, [session, mcpEnabled, mcpToken, mcpPort]);
+
+  // Pareamento por link (#mcp-pair=...): guarda o pedido e pede confirmação após desbloquear
+  const [pendingPair, setPendingPair] = useState<McpPairingRequest | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const req = takePairingFromLocation();
+      if (req) setPendingPair(req);
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+
+  const handleUpdateMcpSettings = useCallback(
+    async (patch: Partial<Pick<VaultSettings, 'mcpEnabled' | 'mcpToken' | 'mcpPort'>>) => {
+      const current = vaultRef.current;
+      if (!current) return;
+      await persistVaultUpdate({ ...current, settings: { ...current.settings, ...patch } });
+    },
+    [persistVaultUpdate]
+  );
 
   // Handlers de Lançamentos (Transações)
   const handleOpenNewTransaction = useCallback((type: TransactionType) => {
@@ -213,7 +366,17 @@ export function App() {
       envelope,
       password
     );
-    setSession(unlockedSession);
+    // Cofres antigos (menos iterações PBKDF2) são recifrados com o padrão atual e sal novo
+    const activeSession = needsKdfUpgrade(unlockedSession)
+      ? await createNewCryptoSession(password)
+      : unlockedSession;
+    if (activeSession !== unlockedSession) {
+      const upgraded = await encryptPayloadToEnvelope(payload, activeSession);
+      await saveEncryptedEnvelopeToDisk(upgraded);
+      envelopeRef.current = upgraded;
+      setEnvelope(upgraded);
+    }
+    setSession(activeSession);
     setVault(payload);
     setHideValues(payload.settings.hideValuesByDefault || false);
   };
@@ -223,7 +386,7 @@ export function App() {
     vaultName: string
   ) => {
     const newSession = await createNewCryptoSession(password);
-    const initialPayload = createInitialVaultPayload(false, vaultName);
+    const initialPayload = createInitialVaultPayload(vaultName);
     const newEnv = await encryptPayloadToEnvelope(initialPayload, newSession);
     await saveEncryptedEnvelopeToDisk(newEnv);
     setEnvelope(newEnv);
@@ -236,10 +399,14 @@ export function App() {
     importedEnvelope: EncryptedVaultEnvelope,
     password: string
   ) => {
-    const { payload, session: restoredSession } = await unlockEnvelopeWithPassword(
+    const { payload, session: unlockedSession } = await unlockEnvelopeWithPassword(
       importedEnvelope,
       password
     );
+    // Backup antigo: regrava já com o KDF atual (mesma senha, sal novo)
+    const restoredSession = needsKdfUpgrade(unlockedSession)
+      ? await createNewCryptoSession(password)
+      : unlockedSession;
     const freshEnvelope = await encryptPayloadToEnvelope(payload, restoredSession);
     await saveEncryptedEnvelopeToDisk(freshEnvelope);
     setEnvelope(freshEnvelope);
@@ -248,11 +415,29 @@ export function App() {
     setActiveTab('dashboard');
   };
 
-  const handleResetVault = async () => {
+  // Baixa o backup cifrado e registra a data no cofre (aviso de backup antigo)
+  const handleDownloadBackup = async () => {
+    if (!envelope || !vault) return;
+    downloadEncryptedBackupFile(envelope, vault.settings.vaultName);
+    await persistVaultUpdate({
+      ...vault,
+      settings: { ...vault.settings, lastBackupAt: new Date().toISOString() },
+    });
+  };
+
+  // Apaga o cofre deste navegador para criar outro. Exige a senha mestra atual
+  // (confere descriptografando o envelope) antes de apagar.
+  const handleDeleteVault = async (password: string) => {
+    const env = envelopeRef.current;
+    if (!env) throw new Error('Não há cofre gravado neste navegador.');
+    await unlockEnvelopeWithPassword(env, password); // lança erro se a senha estiver errada
     await deleteEncryptedVaultFromDisk();
+    envelopeRef.current = null;
+    vaultRef.current = null;
     setEnvelope(null);
     setSession(null);
     setVault(null);
+    setActiveTab('dashboard');
   };
 
   const handleChangeMasterPassword = async (newPassword: string) => {
@@ -288,9 +473,21 @@ export function App() {
 
   const handleToggleTransactionStatus = async (txId: string) => {
     if (!vault) return;
-    const nextTransactions = vault.transactions.map((t) =>
-      t.id === txId ? { ...t, status: t.status === 'paid' ? 'pending' : 'paid' } : t
-    ) as Transaction[];
+    const liveRate = usdRate || vault.settings.usdToBrlRate;
+    const nextTransactions = vault.transactions.map((t): Transaction => {
+      if (t.id !== txId) return t;
+      const nextStatus = t.status === 'paid' ? 'pending' : 'paid';
+      // Ao liquidar um lançamento em USD sem cotação fixada, fixa a cotação do dia
+      const account = vault.accounts.find((a) => a.id === t.accountId);
+      const involvesUsd = t.currency === 'USD' || accountCurrency(account ?? {}) === 'USD';
+      const shouldFixRate =
+        nextStatus === 'paid' && involvesUsd && !isValidRate(t.exchangeRate) && isValidRate(liveRate);
+      return {
+        ...t,
+        status: nextStatus,
+        exchangeRate: shouldFixRate ? liveRate : t.exchangeRate,
+      };
+    });
     await persistVaultUpdate({
       ...vault,
       transactions: nextTransactions,
@@ -338,12 +535,29 @@ export function App() {
 
   const handleDeleteCategory = async (catId: string) => {
     if (!vault) return;
-    const remaining = vault.categories.filter((c) => c.id !== catId);
-    if (remaining.length === 0) return;
-    const fallbackId = remaining[0].id;
-    const nextTransactions = vault.transactions.map((t) =>
-      t.categoryId === catId ? { ...t, categoryId: fallbackId } : t
-    );
+    const deleted = vault.categories.find((c) => c.id === catId);
+    if (!deleted) return;
+    let remaining = vault.categories.filter((c) => c.id !== catId);
+    const isInUse = vault.transactions.some((t) => t.categoryId === catId);
+    // Lançamentos vão para uma categoria do MESMO tipo (nunca despesa → receita).
+    // Se não houver nenhuma e a categoria estiver em uso, cria "Outros" desse tipo.
+    let fallback = remaining.find((c) => c.type === deleted.type);
+    if (!fallback && isInUse) {
+      fallback = {
+        id: `cat_other_${deleted.type}_${Date.now()}`,
+        name: 'Outros',
+        type: deleted.type,
+        color: '#8C8C8C',
+        icon: 'Tag',
+      };
+      remaining = [...remaining, fallback];
+    }
+    const fallbackId = fallback?.id;
+    const nextTransactions = fallbackId
+      ? vault.transactions.map((t) =>
+          t.categoryId === catId ? { ...t, categoryId: fallbackId } : t
+        )
+      : vault.transactions;
     await persistVaultUpdate({
       ...vault,
       categories: remaining,
@@ -371,7 +585,13 @@ export function App() {
   const handleDeleteAccount = async (accId: string) => {
     if (!vault || vault.accounts.length <= 1) return;
     const remaining = vault.accounts.filter((a) => a.id !== accId);
-    const fallbackAccId = remaining[0].id;
+    const deletedCurrency = accountCurrency(
+      vault.accounts.find((a) => a.id === accId) ?? {}
+    );
+    // Prefere uma conta da mesma moeda para não misturar R$ e US$ no saldo
+    const fallbackAccId = (
+      remaining.find((a) => accountCurrency(a) === deletedCurrency) ?? remaining[0]
+    ).id;
     const nextTransactions = vault.transactions.map((t) =>
       t.accountId === accId ? { ...t, accountId: fallbackAccId } : t
     );
@@ -390,8 +610,22 @@ export function App() {
     description: string
   ) => {
     if (!vault) return;
-    const fromName = vault.accounts.find((a) => a.id === fromAccId)?.name || 'Origem';
-    const toName = vault.accounts.find((a) => a.id === toAccId)?.name || 'Destino';
+    const fromAccount = vault.accounts.find((a) => a.id === fromAccId);
+    const toAccount = vault.accounts.find((a) => a.id === toAccId);
+    if (!fromAccount || !toAccount) return;
+    const fromName = fromAccount.name;
+    const toName = toAccount.name;
+    const fromCurrency = accountCurrency(fromAccount);
+    const toCurrency = accountCurrency(toAccount);
+    const rate = usdRate || vault.settings.usdToBrlRate;
+    const convertedAmount = convertAmount(amount, fromCurrency, toCurrency, rate);
+    if (convertedAmount === null) {
+      showToast('Sem cotação USD/BRL disponível para transferir entre moedas diferentes.');
+      return;
+    }
+    const isCrossCurrency = fromCurrency !== toCurrency;
+    const fixedRate = isCrossCurrency && isValidRate(rate) ? rate : undefined;
+    const inAmount = Math.round(convertedAmount * 100) / 100;
     const expCat =
       vault.categories.find((c) => c.type === 'expense')?.id || vault.categories[0]?.id || '';
     const incCat =
@@ -402,6 +636,8 @@ export function App() {
       id: `tx_trf_out_${Date.now()}`,
       description: `${description} (Para ${toName})`,
       amount,
+      currency: fromCurrency,
+      exchangeRate: fromCurrency === 'USD' ? fixedRate : undefined,
       type: 'expense',
       status: 'paid',
       date,
@@ -414,7 +650,9 @@ export function App() {
     const inTx: Transaction = {
       id: `tx_trf_in_${Date.now() + 1}`,
       description: `${description} (De ${fromName})`,
-      amount,
+      amount: inAmount,
+      currency: toCurrency,
+      exchangeRate: toCurrency === 'USD' ? fixedRate : undefined,
       type: 'income',
       status: 'paid',
       date,
@@ -445,7 +683,7 @@ export function App() {
         onUnlock={handleUnlockVault}
         onCreateVault={handleCreateVault}
         onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
-        onResetVault={handleResetVault}
+        pairingPending={Boolean(pendingPair)}
       />
     );
   }
@@ -457,7 +695,7 @@ export function App() {
         <div className="header-left">
           <div className="brand-block">
             <div className="brand-logo-wrap">
-              <MyFBoxLogo size={24} />
+              <MyFBoxLogo size={40} />
             </div>
             <div className="brand-text">
               <span className="brand-title">MyFBox</span>
@@ -514,6 +752,13 @@ export function App() {
             onClick={() => setActiveTab('transactions')}
           >
             <ReceiptText size={15} /> Lançamentos ({vault.transactions.length})
+          </button>
+          <button
+            type="button"
+            className={`ws-tab ${activeTab === 'compare' ? 'active' : ''}`}
+            onClick={() => setActiveTab('compare')}
+          >
+            <BarChart3 size={15} /> Comparativos
           </button>
           <button
             type="button"
@@ -575,7 +820,7 @@ export function App() {
             <button
               type="button"
               className="icon-action-btn"
-              onClick={() => downloadEncryptedBackupFile(envelope, vault.settings.vaultName)}
+              onClick={handleDownloadBackup}
               title="Baixar Backup Criptografado (.myfbox.json)"
             >
               <Download size={16} />
@@ -643,9 +888,27 @@ export function App() {
             categories={vault.categories}
             transactions={vault.transactions}
             hideValues={hideValues}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
             onUpdateCategory={handleUpdateCategory}
             onAddCategory={handleAddCategory}
             onDeleteCategory={handleDeleteCategory}
+          />
+        )}
+
+        {activeTab === 'compare' && (
+          <ComparisonView
+            selectedYearMonth={selectedYearMonth}
+            transactions={vault.transactions}
+            categories={vault.categories}
+            insights={vault.insights ?? []}
+            hideValues={hideValues}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+            onDeleteInsight={(month) =>
+              persistVaultUpdate({
+                ...vault,
+                insights: (vault.insights ?? []).filter((i) => i.month !== month),
+              })
+            }
           />
         )}
 
@@ -654,6 +917,8 @@ export function App() {
             accounts={vault.accounts}
             transactions={vault.transactions}
             hideValues={hideValues}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+            selectedYearMonth={selectedYearMonth}
             onAddAccount={handleAddAccount}
             onUpdateAccount={handleUpdateAccount}
             onDeleteAccount={handleDeleteAccount}
@@ -663,7 +928,6 @@ export function App() {
 
         {activeTab === 'security' && (
           <BackupSecurityView
-            vaultName={vault.settings.vaultName}
             envelope={envelope}
             transactions={vault.transactions}
             categories={vault.categories}
@@ -683,6 +947,28 @@ export function App() {
             }
             onChangeMasterPassword={handleChangeMasterPassword}
             onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
+            onDeleteVault={handleDeleteVault}
+            lastBackupAt={vault.settings.lastBackupAt}
+            onDownloadBackup={handleDownloadBackup}
+            storageStatus={storageStatus}
+            onRequestPersist={async () => {
+              const status = await handleRequestPersist();
+              showToast(
+                status === 'persisted'
+                  ? 'Armazenamento persistente ativo: o navegador não vai apagar o cofre sozinho.'
+                  : status === 'unsupported'
+                  ? 'Este navegador não permite pedir armazenamento persistente.'
+                  : 'O navegador recusou por enquanto. Favoritar o app ou usá-lo com frequência costuma liberar.'
+              );
+            }}
+            mcp={{
+              enabled: mcpEnabled,
+              token: mcpToken,
+              port: mcpPort,
+              status: mcpStatus,
+              detail: mcpDetail,
+            }}
+            onUpdateMcpSettings={handleUpdateMcpSettings}
           />
         )}
       </main>
@@ -697,10 +983,31 @@ export function App() {
           transactions={vault.transactions}
           defaultYearMonth={selectedYearMonth}
           usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+          onCreateCategory={handleAddCategory}
           onSave={handleSaveTransactions}
           onClose={() => {
             setTxModalOpen(false);
             setEditingTx(null);
+          }}
+        />
+      )}
+
+      {pendingPair && (
+        <McpPairDialog
+          request={pendingPair}
+          onApprove={async () => {
+            const req = pendingPair;
+            setPendingPair(null);
+            await handleUpdateMcpSettings({
+              mcpEnabled: true,
+              mcpToken: req.token,
+              mcpPort: req.port,
+            });
+            showToast('Assistente autorizado. Conectando ao servidor MCP local...');
+          }}
+          onReject={() => {
+            setPendingPair(null);
+            showToast('Pareamento recusado. Nada foi alterado.');
           }}
         />
       )}

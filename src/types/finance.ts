@@ -48,6 +48,10 @@ export interface VaultSettings {
   vaultName: string;
   usdToBrlRate?: number; // Cotação de conversão opcional
   usdRateUpdatedAt?: string;
+  lastBackupAt?: string; // Data do último download do backup cifrado
+  mcpEnabled?: boolean; // Modo MCP local — desligado por padrão
+  mcpToken?: string; // Código de pareamento com o servidor MCP local
+  mcpPort?: number; // Porta do servidor MCP local (127.0.0.1)
 }
 
 export interface VaultPayload {
@@ -57,6 +61,20 @@ export interface VaultPayload {
   categories: Category[];
   transactions: Transaction[];
   settings: VaultSettings;
+  insights?: MonthInsight[]; // Insights mensais escritos pelo assistente (opcional: cofres antigos não têm)
+}
+
+/** Análise de um mês, escrita pelo assistente via MCP (skill myfbox-insights). */
+export interface MonthInsight {
+  month: string; // AAAA-MM
+  title: string;
+  body: string; // texto em português, parágrafos separados por linha em branco
+  highlights?: string[]; // pontos curtos (até ~5)
+  author: 'agent' | 'user';
+  createdAt: string;
+  updatedAt: string;
+  /** Assinatura dos números do mês no momento da escrita (detecta insight desatualizado) */
+  dataSignature: string;
 }
 
 export interface EncryptedVaultEnvelope {

@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "myfbox": {
+      "command": "node",
+      "args": [
+        "mcp/server.mjs"
+      ],
+      "env": {
+        "MYFBOX_APP_URL": "${MYFBOX_APP_URL:-http://localhost:41730}",
+        "MYFBOX_MCP_PORT": "${MYFBOX_MCP_PORT:-4777}"
+      }
+    }
+  }
+}

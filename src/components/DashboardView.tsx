@@ -17,6 +17,14 @@ import {
   formatShortDate,
   shiftYearMonth,
 } from '../utils/formatters';
+import {
+  computeAccountBalance,
+  convertAmount,
+  computeNetWorth,
+  endOfMonthDate,
+  summarizeTransactions,
+  txAmountInBrl,
+} from '../utils/money';
 
 interface DashboardViewProps {
   selectedYearMonth: string;
@@ -51,102 +59,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     [transactions, selectedYearMonth]
   );
 
-  const metrics = useMemo(() => {
-    let incomePaidBrl = 0;
-    let incomePendingBrl = 0;
-    let expensePaidBrl = 0;
-    let expensePendingBrl = 0;
+  // Realizado = só lançamentos pagos; Previsto = realizado + pendentes do mês
+  const metrics = useMemo(
+    () => summarizeTransactions(monthTransactions, usdToBrlRate),
+    [monthTransactions, usdToBrlRate]
+  );
+  const projectionUntil = endOfMonthDate(selectedYearMonth);
 
-    let incomePaidUsd = 0;
-    let incomePendingUsd = 0;
-    let expensePaidUsd = 0;
-    let expensePendingUsd = 0;
-
-    for (const tx of monthTransactions) {
-      const isUsd = tx.currency === 'USD';
-      if (tx.type === 'income') {
-        if (tx.status === 'paid') {
-          if (isUsd) incomePaidUsd += tx.amount;
-          else incomePaidBrl += tx.amount;
-        } else {
-          if (isUsd) incomePendingUsd += tx.amount;
-          else incomePendingBrl += tx.amount;
-        }
-      } else {
-        if (tx.status === 'paid') {
-          if (isUsd) expensePaidUsd += tx.amount;
-          else expensePaidBrl += tx.amount;
-        } else {
-          if (isUsd) expensePendingUsd += tx.amount;
-          else expensePendingBrl += tx.amount;
-        }
-      }
-    }
-
-    const totalIncomeBrl = incomePaidBrl + incomePendingBrl;
-    const totalExpenseBrl = expensePaidBrl + expensePendingBrl;
-    const netResultBrl = totalIncomeBrl - totalExpenseBrl;
-    const savingsRateBrl =
-      totalIncomeBrl > 0 ? ((totalIncomeBrl - totalExpenseBrl) / totalIncomeBrl) * 100 : 0;
-
-    const totalIncomeUsd = incomePaidUsd + incomePendingUsd;
-    const totalExpenseUsd = expensePaidUsd + expensePendingUsd;
-    const netResultUsd = totalIncomeUsd - totalExpenseUsd;
-
-    const hasUsd = totalIncomeUsd > 0 || totalExpenseUsd > 0;
-
-    return {
-      incomePaidBrl,
-      incomePendingBrl,
-      totalIncomeBrl,
-      expensePaidBrl,
-      expensePendingBrl,
-      totalExpenseBrl,
-      netResultBrl,
-      savingsRateBrl,
-
-      incomePaidUsd,
-      incomePendingUsd,
-      totalIncomeUsd,
-      expensePaidUsd,
-      expensePendingUsd,
-      totalExpenseUsd,
-      netResultUsd,
-      hasUsd,
-    };
-  }, [monthTransactions]);
-
-  // Saldo líquido real por conta (considerando todos os lançamentos pagos até hoje)
+  // Saldo confirmado por conta (só lançamentos pagos) + previsão até o fim do mês
   const accountBalances = useMemo(() => {
     return accounts.map((acc) => {
-      let balance = acc.initialBalance;
-      const accCurrency = acc.currency || 'BRL';
-      for (const tx of transactions) {
-        if (tx.accountId === acc.id && tx.status === 'paid') {
-          balance += tx.type === 'income' ? tx.amount : -tx.amount;
-        }
-      }
+      const { currency, currentBalance, projectedBalance } = computeAccountBalance(
+        acc,
+        transactions,
+        usdToBrlRate,
+        projectionUntil
+      );
       return {
         ...acc,
-        currency: accCurrency,
-        currentBalance: balance,
+        currency,
+        currentBalance,
+        projectedBalance,
       };
     });
-  }, [accounts, transactions]);
+  }, [accounts, transactions, usdToBrlRate, projectionUntil]);
 
-  const netWorth = useMemo(() => {
-    let brl = 0;
-    let usd = 0;
-    for (const acc of accountBalances) {
-      if (acc.currency === 'USD') usd += acc.currentBalance;
-      else brl += acc.currentBalance;
+  const netWorth = useMemo(
+    () => computeNetWorth(accounts, transactions, usdToBrlRate, projectionUntil),
+    [accounts, transactions, usdToBrlRate, projectionUntil]
+  );
+  // Pendentes de meses anteriores (em atraso): entram no saldo previsto, então aparecem nos cards
+  const overdue = useMemo(() => {
+    const monthStart = `${selectedYearMonth}-01`;
+    let income = 0;
+    let expense = 0;
+    for (const tx of transactions) {
+      if (tx.status !== 'pending' || tx.date >= monthStart) continue;
+      const value = txAmountInBrl(tx, usdToBrlRate);
+      if (tx.type === 'income') income += value;
+      else expense += value;
     }
-    return {
-      brl,
-      usd,
-      hasUsd: usd !== 0,
-    };
-  }, [accountBalances]);
+    return { income, expense };
+  }, [transactions, selectedYearMonth, usdToBrlRate]);
+  const pendingIncome = metrics.incomePending.brl + overdue.income;
+  const hasAnyPending = metrics.hasPending || overdue.income > 0 || overdue.expense > 0;
+  const monthName = formatMonthYearLabel(selectedYearMonth).split(' ')[0].toLowerCase();
+  const lastDayLabel = (() => {
+    const [y, m] = selectedYearMonth.split('-').map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return `${String(last).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  })();
+  const usdText = (value: number | null) =>
+    value === null ? 'US$ — (sem cotação)' : formatMoney(value, 'USD', hideValues);
 
   // Evolução de Fluxo de Caixa (6 meses centrados/terminando no mês selecionado)
   const sixMonthSeries = useMemo(() => {
@@ -158,8 +122,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       let exp = 0;
       for (const tx of transactions) {
         if (tx.date.startsWith(ym)) {
-          if (tx.type === 'income') inc += tx.amount;
-          else exp += tx.amount;
+          const valueBrl = txAmountInBrl(tx, usdToBrlRate);
+          if (tx.type === 'income') inc += valueBrl;
+          else exp += valueBrl;
         }
       }
       const [, mStr] = ym.split('-');
@@ -185,7 +150,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         net: inc - exp,
       };
     });
-  }, [transactions, selectedYearMonth]);
+  }, [transactions, selectedYearMonth, usdToBrlRate]);
 
   const maxChartValue = useMemo(() => {
     const m = Math.max(
@@ -197,13 +162,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Despesas por categoria no mês selecionado
   const categoryBreakdown = useMemo(() => {
+    // Todos os valores convertidos para BRL (orçamentos e percentuais são em R$)
     const map = new Map<string, { paid: number; pending: number; total: number }>();
+    let totalExpenseAllBrl = 0;
     for (const tx of monthTransactions) {
       if (tx.type !== 'expense') continue;
+      const valueBrl = txAmountInBrl(tx, usdToBrlRate);
       const cur = map.get(tx.categoryId) || { paid: 0, pending: 0, total: 0 };
-      if (tx.status === 'paid') cur.paid += tx.amount;
-      else cur.pending += tx.amount;
-      cur.total += tx.amount;
+      if (tx.status === 'paid') cur.paid += valueBrl;
+      else cur.pending += valueBrl;
+      cur.total += valueBrl;
+      totalExpenseAllBrl += valueBrl;
       map.set(tx.categoryId, cur);
     }
 
@@ -212,7 +181,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const cat = catMap.get(categoryId);
         const budget = cat?.monthlyBudget || 0;
         const pctOfExpense =
-          metrics.totalExpenseBrl > 0 ? (stats.total / metrics.totalExpenseBrl) * 100 : 0;
+          totalExpenseAllBrl > 0 ? (stats.total / totalExpenseAllBrl) * 100 : 0;
         const pctOfBudget = budget > 0 ? (stats.total / budget) * 100 : 0;
         return {
           categoryId,
@@ -225,7 +194,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [monthTransactions, catMap, metrics.totalExpenseBrl]);
+  }, [monthTransactions, catMap, usdToBrlRate]);
 
   // Próximos lançamentos pendentes no mês
   const pendingTransactions = useMemo(() => {
@@ -236,120 +205,87 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="dashboard-stack">
-      {/* 4 Cards Principais de Indicadores */}
+      {/* 4 Cards: saldo hoje − saídas a pagar + entradas a receber = saldo previsto */}
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SALDO ACUMULADO EM CONTAS</span>
+            <span className="kpi-label">SALDO HOJE</span>
             <Wallet size={17} className="kpi-icon teal" />
           </div>
-          <div className="kpi-value mono">
-            {formatBRL(
-              usdToBrlRate && netWorth.hasUsd
-                ? netWorth.brl + netWorth.usd * usdToBrlRate
-                : netWorth.brl,
-              hideValues
-            )}
-          </div>
+          <div className="kpi-value mono">{formatBRL(netWorth.current.brl, hideValues)}</div>
           <div className="kpi-sub">
-            {netWorth.hasUsd ? (
-              <span className="kpi-usd-breakdown">
-                {formatBRL(netWorth.brl, hideValues)} + {formatMoney(netWorth.usd, 'USD', hideValues)} USD
-                {usdToBrlRate && ` (cotação R$ ${usdToBrlRate.toFixed(2)})`}
-              </span>
-            ) : (
-              <span>Soma de {accounts.length} contas/carteiras (liquidado)</span>
-            )}
+            <span>Só o que já foi pago ou recebido</span>
           </div>
+          {netWorth.current.usd !== null && (
+            <div className="kpi-sub kpi-usd-line">≈ {usdText(netWorth.current.usd)}</div>
+          )}
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">GANHOS / RECEITAS DO MÊS</span>
+            <span className="kpi-label">ENTRADAS DO MÊS</span>
             <TrendingUp size={17} className="kpi-icon green" />
           </div>
           <div className="kpi-value mono positive">
-            {formatBRL(metrics.totalIncomeBrl, hideValues)}
+            {formatBRL(metrics.incomePaid.brl, hideValues)}
           </div>
-          <div className="kpi-sub mono">
-            {metrics.hasUsd && metrics.totalIncomeUsd > 0 ? (
-              <span className="kpi-usd-breakdown">
-                + {formatMoney(metrics.totalIncomeUsd, 'USD', hideValues)} USD
+          <div className="kpi-sub">
+            <span>Recebido em {monthName}</span>
+          </div>
+          {pendingIncome > 0 && (
+            <div className="kpi-sub">
+              <span className="pending-tag">
+                + {formatBRL(pendingIncome, hideValues)} a receber
               </span>
-            ) : (
-              <>
-                <span>Recebido: {formatBRL(metrics.incomePaidBrl, hideValues)}</span>
-                {metrics.incomePendingBrl > 0 && (
-                  <span className="pending-tag">
-                    +{formatBRL(metrics.incomePendingBrl, hideValues)} pend.
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+            </div>
+          )}
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">GASTOS / DESPESAS DO MÊS</span>
+            <span className="kpi-label">SAÍDAS DO MÊS</span>
             <TrendingDown size={17} className="kpi-icon coral" />
           </div>
           <div className="kpi-value mono negative">
-            {formatBRL(metrics.totalExpenseBrl, hideValues)}
+            {formatBRL(metrics.expensePaid.brl, hideValues)}
           </div>
-          <div className="kpi-sub mono">
-            {metrics.hasUsd && metrics.totalExpenseUsd > 0 ? (
-              <span className="kpi-usd-breakdown">
-                + {formatMoney(metrics.totalExpenseUsd, 'USD', hideValues)} USD
+          <div className="kpi-sub">
+            <span>Pago em {monthName}</span>
+          </div>
+          {metrics.expensePending.brl > 0 && (
+            <div className="kpi-sub">
+              <span className="pending-tag">
+                + {formatBRL(metrics.expensePending.brl, hideValues)} a pagar até {lastDayLabel}
               </span>
-            ) : (
-              <>
-                <span>Pago: {formatBRL(metrics.expensePaidBrl, hideValues)}</span>
-                {metrics.expensePendingBrl > 0 && (
-                  <span className="pending-tag">
-                    +{formatBRL(metrics.expensePendingBrl, hideValues)} pend.
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+            </div>
+          )}
+          {overdue.expense > 0 && (
+            <div className="kpi-sub">
+              <span className="overdue-tag">
+                + {formatBRL(overdue.expense, hideValues)} em atraso de meses anteriores
+              </span>
+            </div>
+          )}
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">RESULTADO LÍQUIDO & POUPANÇA</span>
+            <span className="kpi-label">SALDO PREVISTO</span>
             <Scale size={17} className="kpi-icon brass" />
           </div>
-          <div
-            className={`kpi-value mono ${metrics.netResultBrl >= 0 ? 'positive' : 'negative'}`}
-          >
-            {metrics.netResultBrl >= 0 ? '+' : ''}
-            {formatBRL(metrics.netResultBrl, hideValues)}
+          <div className={`kpi-value mono ${netWorth.projected.brl >= 0 ? '' : 'negative'}`}>
+            {formatBRL(netWorth.projected.brl, hideValues)}
           </div>
           <div className="kpi-sub">
-            {metrics.hasUsd ? (
-              <span className="kpi-usd-breakdown">
-                USD:{' '}
-                <strong className={metrics.netResultUsd >= 0 ? 'positive' : 'negative'}>
-                  {metrics.netResultUsd >= 0 ? '+' : ''}
-                  {formatMoney(metrics.netResultUsd, 'USD', hideValues)}
-                </strong>{' '}
-                • Taxa BRL: {metrics.savingsRateBrl.toFixed(0)}%
-              </span>
-            ) : (
-              <span
-                className={`savings-pill ${
-                  metrics.savingsRateBrl >= 20
-                    ? 'good'
-                    : metrics.savingsRateBrl >= 0
-                    ? 'neutral'
-                    : 'deficit'
-                }`}
-              >
-                Taxa de poupança: {metrics.savingsRateBrl.toFixed(1)}%
-              </span>
-            )}
+            <span>
+              {hasAnyPending
+                ? `Em ${lastDayLabel}, depois de pagar e receber o que está pendente`
+                : `Em ${lastDayLabel} · nada pendente`}
+            </span>
           </div>
+          {netWorth.projected.usd !== null && (
+            <div className="kpi-sub kpi-usd-line">≈ {usdText(netWorth.projected.usd)}</div>
+          )}
         </article>
       </section>
 
@@ -536,6 +472,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   {formatMoney(acc.currentBalance, acc.currency, hideValues)}
                   {acc.currency === 'USD' && <span className="badge-usd-sm">USD</span>}
+                  {(() => {
+                    const other = acc.currency === 'USD' ? 'BRL' : 'USD';
+                    const converted = convertAmount(acc.currentBalance, acc.currency, other, usdToBrlRate);
+                    return (
+                      <span className="account-inst-sub">
+                        {converted !== null && <>≈ {formatMoney(converted, other, hideValues)} · </>}
+                        Previsão: {formatMoney(acc.projectedBalance, acc.currency, hideValues)}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -560,7 +506,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           {pendingTransactions.length === 0 ? (
             <div className="empty-state-compact">
-              <CheckCircle2 size={22} style={{ color: '#2DD4BF' }} />
+              <CheckCircle2 size={22} style={{ color: 'var(--color-accent)' }} />
               <p>Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.</p>
             </div>
           ) : (

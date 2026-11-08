@@ -2,11 +2,20 @@ import React, { useMemo, useState } from 'react';
 import { Wallet, Plus, Trash2, Edit3, Check, ArrowLeftRight } from 'lucide-react';
 import type { Account, AccountType, Currency, Transaction } from '../types/finance';
 import { formatMoney } from '../utils/formatters';
+import {
+  accountCurrency,
+  computeAccountBalance,
+  convertAmount,
+  endOfMonthDate,
+  parseDecimalInput,
+} from '../utils/money';
 
 interface AccountsViewProps {
   accounts: Account[];
   transactions: Transaction[];
   hideValues: boolean;
+  usdToBrlRate?: number;
+  selectedYearMonth: string;
   onAddAccount: (acc: Account) => void;
   onUpdateAccount: (acc: Account) => void;
   onDeleteAccount: (accId: string) => void;
@@ -27,12 +36,14 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   credit: 'Cartão / Outros',
 };
 
-const COLORS = ['#2DD4BF', '#38BDF8', '#F59E0B', '#10B981', '#8B5CF6', '#F43F5E'];
+const COLORS = ['#C8FF00', '#38BDF8', '#F59E0B', '#10B981', '#8B5CF6', '#F43F5E'];
 
 export const AccountsView: React.FC<AccountsViewProps> = ({
   accounts,
   transactions,
   hideValues,
+  usdToBrlRate,
+  selectedYearMonth,
   onAddAccount,
   onUpdateAccount,
   onDeleteAccount,
@@ -60,25 +71,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
   const accountsWithMetrics = useMemo(() => {
     return accounts.map((acc) => {
-      let paidInflows = 0;
-      let paidOutflows = 0;
-      let pendingNet = 0;
-      let txCount = 0;
-
-      for (const tx of transactions) {
-        if (tx.accountId !== acc.id) continue;
-        txCount++;
-        if (tx.status === 'paid') {
-          if (tx.type === 'income') paidInflows += tx.amount;
-          else paidOutflows += tx.amount;
-        } else {
-          pendingNet += tx.type === 'income' ? tx.amount : -tx.amount;
-        }
-      }
-
-      const currentBalance = acc.initialBalance + paidInflows - paidOutflows;
-      const projectedBalance = currentBalance + pendingNet;
-
+      const { paidInflows, paidOutflows, currentBalance, projectedBalance, txCount } =
+        computeAccountBalance(acc, transactions, usdToBrlRate, endOfMonthDate(selectedYearMonth));
       return {
         acc,
         paidInflows,
@@ -88,12 +82,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         txCount,
       };
     });
-  }, [accounts, transactions]);
+  }, [accounts, transactions, usdToBrlRate, selectedYearMonth]);
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const initBal = parseFloat(initialBalanceStr.replace(',', '.')) || 0;
+    const initBal = parseDecimalInput(initialBalanceStr) || 0;
     onAddAccount({
       id: `acc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name: name.trim(),
@@ -110,7 +104,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(transferAmount.replace(',', '.'));
+    const val = parseDecimalInput(transferAmount);
     if (!fromAcc || !toAcc || fromAcc === toAcc || Number.isNaN(val) || val <= 0) return;
     onTransferBetweenAccounts(fromAcc, toAcc, val, transferDate, transferNote);
     setTransferAmount('');
@@ -160,7 +154,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                           name: editName.trim() || item.acc.name,
                           institution: editInst.trim() || item.acc.institution,
                           initialBalance:
-                            parseFloat(editInitial.replace(',', '.')) || 0,
+                            parseDecimalInput(editInitial) || 0,
                         });
                         setEditingId(null);
                       }}
@@ -203,6 +197,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 >
                   {formatMoney(item.currentBalance, item.acc.currency || 'BRL', hideValues)}
                 </div>
+                {(() => {
+                  const from = accountCurrency(item.acc);
+                  const other = from === 'USD' ? 'BRL' : 'USD';
+                  const converted = convertAmount(item.currentBalance, from, other, usdToBrlRate);
+                  return converted !== null ? (
+                    <span className="sub-label">≈ {formatMoney(converted, other, hideValues)}</span>
+                  ) : null;
+                })()}
               </div>
 
               <div className="account-stats-grid mono">
@@ -233,7 +235,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   </strong>
                 </div>
                 <div>
-                  <span>Projetado (c/ Pend.)</span>
+                  <span>Previsão fim do mês</span>
                   <strong>{formatMoney(item.projectedBalance, item.acc.currency || 'BRL', hideValues)}</strong>
                 </div>
               </div>
@@ -250,7 +252,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               <span className="eyebrow">ESTRUTURA PATRIMONIAL</span>
               <h3>Adicionar Nova Conta ou Carteira</h3>
             </div>
-            <Wallet size={18} style={{ color: '#2DD4BF' }} />
+            <Wallet size={18} style={{ color: 'var(--color-accent)' }} />
           </header>
 
           <form onSubmit={handleCreate} className="compact-stack-form">
@@ -373,7 +375,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
             <div className="form-grid-2">
               <div className="form-field">
-                <label>Valor da Transferência (R$)</label>
+                <label>
+                  Valor da Transferência (
+                  {accountCurrency(accounts.find((a) => a.id === fromAcc) ?? {}) === 'USD' ? 'US$' : 'R$'}
+                  {' na origem'})
+                </label>
                 <input
                   type="number"
                   step="0.01"

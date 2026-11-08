@@ -38,6 +38,14 @@ export function downloadEncryptedBackupFile(envelope: EncryptedVaultEnvelope, va
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Evita "CSV injection": planilhas executam células que começam com = + - @ (ou tab/CR)
+ * como fórmula. Prefixar com apóstrofo faz o conteúdo ser tratado como texto.
+ */
+function safeCsvText(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export function exportTransactionsToCSV(
   transactions: Transaction[],
   categories: Category[],
@@ -69,7 +77,20 @@ export function exportTransactionsToCSV(
     const acc = accMap.get(tx.accountId) || 'Conta Padrão';
     const notes = tx.notes || '';
 
-    return [tx.date, tx.description, tipo, status, valor, moeda, cotacao, cat, acc, notes]
+    // Campos de texto livre passam por safeCsvText (evita fórmulas no Excel/Calc);
+    // valores numéricos (ex.: "-142.80") ficam como estão.
+    return [
+      tx.date,
+      safeCsvText(tx.description),
+      tipo,
+      status,
+      valor,
+      moeda,
+      cotacao,
+      safeCsvText(cat),
+      safeCsvText(acc),
+      safeCsvText(notes),
+    ]
       .map((field) => `"${String(field).replace(/"/g, '""')}"`)
       .join(',');
   });

@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backups cifrados do cofre (nunca versionar)
+vaults/
+backups/
+*.myfbox.json

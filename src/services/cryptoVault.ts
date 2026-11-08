@@ -4,7 +4,9 @@ const DB_NAME = 'myfbox_encrypted_vault_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'vault_store';
 const PRIMARY_VAULT_KEY = 'primary_vault';
-const PBKDF2_ITERATIONS = 310_000;
+// OWASP (2023+) recomenda >= 600.000 iterações para PBKDF2-HMAC-SHA256.
+// O número fica gravado no envelope, então cofres antigos (310.000) continuam abrindo.
+export const PBKDF2_ITERATIONS = 600_000;
 const VERIFIER_PLAINTEXT = 'MYFBOX_VAULT_VERIFIER_V1_OK';
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -30,36 +32,18 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
-async function computeKeyFingerprint(password: string, salt: Uint8Array): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(`MYFBOX_FP_V1:${bytesToBase64(salt)}:${password.length}`);
-  // Derive a separate public fingerprint tag using SHA-256 over salt + verifier domain
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits']
-  );
-  const fpSalt = new Uint8Array(salt.length + 4);
-  fpSalt.set(salt, 0);
-  fpSalt.set([0x46, 0x50, 0x56, 0x31], salt.length); // 'FPV1'
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: toArrayBuffer(fpSalt),
-      iterations: 10_000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    64
-  );
-  const hashBuffer = await crypto.subtle.digest('SHA-256', bits.byteLength ? bits : toArrayBuffer(data));
-  const hashArray = Array.from(new Uint8Array(hashBuffer)).slice(0, 4);
-  const hex = hashArray.map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join('');
-  return `${hex.slice(0, 4)}·${hex.slice(4, 8)}`;
-}
-
+/**
+ * Deriva a chave AES-256-GCM da senha com UMA derivação PBKDF2 (deriveBits) e calcula
+ * a "impressão da chave" a partir dessa mesma saída forte.
+ *
+ * Compatibilidade: deriveBits(256) + importKey('raw', AES-GCM) produz exatamente a mesma
+ * chave que deriveKey(PBKDF2 → AES-GCM 256) usado nas versões anteriores, então cofres e
+ * backups antigos continuam abrindo. Só o valor exibido da impressão muda.
+ *
+ * Segurança: versões antigas calculavam a impressão com uma derivação separada de apenas
+ * 10 mil iterações e a gravavam no envelope, o que permitia testar senhas offline ~31x mais
+ * rápido. Agora a impressão é SHA-256(domínio || chave derivada), sem atalho.
+ */
 export async function deriveAesGcmKey(
   password: string,
   salt: Uint8Array,
@@ -71,27 +55,44 @@ export async function deriveAesGcmKey(
     encoder.encode(password),
     { name: 'PBKDF2' },
     false,
-    ['deriveKey']
+    ['deriveBits']
   );
 
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: toArrayBuffer(salt),
-      iterations,
-      hash: 'SHA-256',
-    },
-    baseKey,
-    {
-      name: 'AES-GCM',
-      length: 256,
-    },
-    false, // Non-extractable key in memory
-    ['encrypt', 'decrypt']
+  const bits = new Uint8Array(
+    await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: toArrayBuffer(salt), iterations, hash: 'SHA-256' },
+      baseKey,
+      256
+    )
   );
 
-  const keyFingerprint = await computeKeyFingerprint(password, salt);
-  return { key, keyFingerprint };
+  try {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      toArrayBuffer(bits),
+      { name: 'AES-GCM', length: 256 },
+      false, // chave não extraível em memória
+      ['encrypt', 'decrypt']
+    );
+
+    const domain = encoder.encode('MYFBOX_KEY_FINGERPRINT_V2');
+    const fpInput = new Uint8Array(domain.length + bits.length);
+    fpInput.set(domain, 0);
+    fpInput.set(bits, domain.length);
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', toArrayBuffer(fpInput)));
+    fpInput.fill(0);
+    const hex = Array.from(digest.slice(0, 4))
+      .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+      .join('');
+    return { key, keyFingerprint: `${hex.slice(0, 4)}·${hex.slice(4, 8)}` };
+  } finally {
+    bits.fill(0); // não deixa a chave bruta na memória além do necessário
+  }
+}
+
+/** Cofres com menos iterações que o padrão atual devem ser recifrados no desbloqueio. */
+export function needsKdfUpgrade(session: CryptoSession): boolean {
+  return session.iterations < PBKDF2_ITERATIONS;
 }
 
 export async function encryptPayloadToEnvelope(

@@ -9,7 +9,8 @@ export function formatMoney(
     return currency === 'USD' ? 'US$ •••••' : 'R$ •••••';
   }
   if (currency === 'USD') {
-    return new Intl.NumberFormat('en-US', {
+    // Padrão brasileiro para dólar: "US$ 1.949,18"
+    return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2,

@@ -1,26 +1,48 @@
 {
   "name": "myfbox",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Controle financeiro pessoal local-first, cifrado no navegador (AES-256-GCM), com modo MCP local opcional.",
+  "license": "AGPL-3.0-or-later",
+  "keywords": [
+    "finanças",
+    "local-first",
+    "criptografia",
+    "aes-gcm",
+    "mcp",
+    "react",
+    "vite"
+  ],
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mcp": "node mcp/server.mjs"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/plus-jakarta-sans": "^5.3.0",
+    "@fontsource/space-grotesk": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
     "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.90.0",
     "typescript": "~7.0.2",
-    "vite": "^8.3.6"
+    "vite": "^8.3.6",
+    "ws": "^8.22.1",
+    "zod": "^4.6.7"
   }
 }
