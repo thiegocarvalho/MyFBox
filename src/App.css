@@ -5956,32 +5956,77 @@ textarea:focus {
 }
 
 .amount-currency {
-  display: flex;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
   border-right: 1px solid var(--border-input);
+  background: var(--bg-surface-elevated);
+  transition: background-color 0.15s ease;
 }
 
-.amount-currency-btn {
-  min-width: 58px;
-  padding: 0 12px;
-  font-family: var(--font-display);
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text-secondary);
-  border-right: 1px solid var(--border-input);
-}
-
-.amount-currency-btn:last-child {
-  border-right: none;
-}
-
-.amount-currency-btn:hover:not(.active) {
-  color: var(--text-main);
+.amount-currency:hover {
   background: var(--bg-surface-hover);
 }
 
-.amount-currency-btn.active {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
+.amount-currency:focus-within {
+  background: var(--bg-surface-hover);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+.amount-currency-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.amount-currency-symbol {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+.amount-currency-code {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.amount-currency-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.amount-currency:hover .amount-currency-chevron,
+.amount-currency:focus-within .amount-currency-chevron {
+  color: var(--text-main);
+}
+
+.amount-currency-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+}
+
+.amount-currency-select option {
+  background-color: var(--bg-surface);
+  color: var(--text-main);
 }
 
 .amount-field .amount-input-xl {
@@ -6105,8 +6150,9 @@ textarea:focus {
     padding: 8px 6px;
   }
 
-  .amount-currency-btn {
-    min-width: 50px;
+  .amount-currency-display {
+    padding: 0 10px;
+    gap: 6px;
   }
 
   .amount-field .amount-input-xl {

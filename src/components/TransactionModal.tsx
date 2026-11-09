@@ -9,6 +9,7 @@ import {
   Sparkles,
   Plus,
   Check,
+  ChevronDown,
 } from 'lucide-react';
 import type {
   Account,
@@ -50,6 +51,7 @@ const NEW_CATEGORY_COLORS = [
 interface TransactionModalProps {
   initialType?: TransactionType;
   editingTransaction?: Transaction | null;
+  duplicatingTransaction?: Transaction | null;
   categories: Category[];
   accounts: Account[];
   transactions?: Transaction[];
@@ -64,6 +66,7 @@ interface TransactionModalProps {
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   initialType = 'expense',
   editingTransaction,
+  duplicatingTransaction,
   categories,
   accounts,
   transactions = [],
@@ -75,33 +78,35 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onClose,
 }) => {
   const isEdit = Boolean(editingTransaction);
+  const isDuplicate = !isEdit && Boolean(duplicatingTransaction);
+  const baseTransaction = editingTransaction || duplicatingTransaction;
   const effectiveRates = rateSource ?? usdToBrlRate;
 
-  const [type, setType] = useState<TransactionType>(editingTransaction?.type || initialType);
-  const [description, setDescription] = useState(editingTransaction?.description || '');
+  const [type, setType] = useState<TransactionType>(baseTransaction?.type || initialType);
+  const [description, setDescription] = useState(baseTransaction?.description || '');
   const [amountStr, setAmountStr] = useState(
-    editingTransaction ? String(editingTransaction.amount) : ''
+    baseTransaction ? String(baseTransaction.amount) : ''
   );
 
   const [date, setDate] = useState(() => {
-    if (editingTransaction) return editingTransaction.date;
+    if (baseTransaction) return baseTransaction.date;
     const nowStr = localTodayStr(0);
     return nowStr.startsWith(defaultYearMonth) ? nowStr : `${defaultYearMonth}-10`;
   });
 
   const [status, setStatus] = useState<TransactionStatus>(
-    editingTransaction?.status || (date > localTodayStr(0) ? 'pending' : 'paid')
+    baseTransaction?.status || (date > localTodayStr(0) ? 'pending' : 'paid')
   );
-  const [statusChosenManually, setStatusChosenManually] = useState(isEdit);
+  const [statusChosenManually, setStatusChosenManually] = useState(Boolean(baseTransaction));
 
   const [accountId, setAccountId] = useState(
-    editingTransaction?.accountId || accounts[0]?.id || ''
+    baseTransaction?.accountId || accounts[0]?.id || ''
   );
 
   const [currency, setCurrency] = useState<Currency>(() => {
-    if (editingTransaction?.currency) return editingTransaction.currency;
+    if (baseTransaction?.currency) return baseTransaction.currency;
     const initialAcc = accounts.find(
-      (a) => a.id === (editingTransaction?.accountId || accounts[0]?.id)
+      (a) => a.id === (baseTransaction?.accountId || accounts[0]?.id)
     );
     return accountCurrency(initialAcc ?? {});
   });
@@ -117,7 +122,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   }, [needsRate, effectiveRates, foreignCurrency]);
 
   const [rateInput, setRateInput] = useState<string | null>(
-    editingTransaction?.exchangeRate ? String(editingTransaction.exchangeRate) : null
+    baseTransaction?.exchangeRate ? String(baseTransaction.exchangeRate) : null
   );
   const rateFieldValue =
     rateInput ?? (isValidRate(defaultForeignToBrlRate) ? String(defaultForeignToBrlRate) : '');
@@ -130,11 +135,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   );
 
   const [categoryId, setCategoryId] = useState(
-    editingTransaction?.categoryId || getDefaultCategoryId(categories, type)
+    baseTransaction?.categoryId || getDefaultCategoryId(categories, type)
   );
-  const [userSelectedCategoryManually, setUserSelectedCategoryManually] = useState(isEdit);
+  const [userSelectedCategoryManually, setUserSelectedCategoryManually] = useState(
+    Boolean(baseTransaction)
+  );
   const [suggestedCategoryName, setSuggestedCategoryName] = useState<string | null>(null);
-  const [notes, setNotes] = useState(editingTransaction?.notes || '');
+  const [notes, setNotes] = useState(baseTransaction?.notes || '');
   const [repeatMonths, setRepeatMonths] = useState<number>(1);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [creatingCategory, setCreatingCategory] = useState(false);
@@ -233,10 +240,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     { label: 'Amanhã', value: localTodayStr(1) },
   ];
 
-  const otherCurrencies = useMemo(
-    () => POPULAR_CURRENCIES.filter((c) => c.code !== 'BRL' && c.code !== 'USD'),
-    []
-  );
+  const currencySymbol = getCurrencySymbol(currency);
 
   const executeSave = (andKeepOpen: boolean = false): boolean => {
     const normalizedAmount = Math.round(parsedAmount * 100) / 100;
@@ -376,7 +380,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     <div className="modal-backdrop" onClick={onClose} onKeyDown={handleKeyDown}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <header className="modal-header">
-          <h2>{isEdit ? 'Editar Lançamento' : 'Novo Lançamento'}</h2>
+          <h2>
+            {isEdit
+              ? 'Editar Lançamento'
+              : isDuplicate
+                ? 'Duplicar Lançamento'
+                : 'Novo Lançamento'}
+          </h2>
           <button type="button" className="icon-btn" onClick={onClose} title="Fechar (Esc)">
             <X size={18} />
           </button>
@@ -411,54 +421,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <div className="form-field">
             <label htmlFor="tx-amount">Valor</label>
             <div className="amount-field">
-              <div className="amount-currency" role="group" aria-label="Moeda">
-                {(['BRL', 'USD'] as Currency[]).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-pressed={currency === c}
-                    className={`amount-currency-btn ${currency === c ? 'active' : ''}`}
-                    onClick={() => setCurrency(c)}
-                    title={c === 'BRL' ? 'Real brasileiro (BRL)' : 'Dólar americano (USD)'}
-                  >
-                    {c === 'BRL' ? 'R$' : 'US$'}
-                  </button>
-                ))}
+              <div className="amount-currency">
+                <div className="amount-currency-display" aria-hidden="true">
+                  <span className="amount-currency-symbol">{currencySymbol}</span>
+                  {currencySymbol !== currency && (
+                    <span className="amount-currency-code">{currency}</span>
+                  )}
+                  <ChevronDown size={14} className="amount-currency-chevron" />
+                </div>
                 <select
-                  aria-label="Outras moedas"
-                  className={`amount-currency-btn ${
-                    currency !== 'BRL' && currency !== 'USD' ? 'active' : ''
-                  }`}
-                  style={{
-                    background:
-                      currency !== 'BRL' && currency !== 'USD'
-                        ? 'var(--color-accent)'
-                        : 'transparent',
-                    color:
-                      currency !== 'BRL' && currency !== 'USD'
-                        ? 'var(--color-accent-ink)'
-                        : 'var(--text-secondary)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '0 8px',
-                    minWidth: 54,
-                  }}
-                  value={currency !== 'BRL' && currency !== 'USD' ? currency : ''}
-                  onChange={(e) => {
-                    if (e.target.value) setCurrency(e.target.value as Currency);
-                  }}
-                  title="Selecionar outra moeda (EUR, GBP, CHF...)"
+                  id="tx-currency"
+                  aria-label="Moeda do lançamento"
+                  className="amount-currency-select"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as Currency)}
+                  title="Selecionar moeda do lançamento"
                 >
-                  <option value="" disabled>
-                    {currency !== 'BRL' && currency !== 'USD'
-                      ? getCurrencySymbol(currency)
-                      : '+ Moeda'}
-                  </option>
-                  {otherCurrencies.map((c) => (
+                  {POPULAR_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.code} ({c.symbol})
+                      {c.flag} {c.code} — {c.name} ({c.symbol})
                     </option>
                   ))}
+                  {!POPULAR_CURRENCIES.some((c) => c.code === currency) && (
+                    <option value={currency}>{currency}</option>
+                  )}
                 </select>
               </div>
               <input

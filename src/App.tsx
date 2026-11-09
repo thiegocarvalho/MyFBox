@@ -61,7 +61,6 @@ import {
   deleteAccountInVault,
   deleteCategoryInVault,
   deleteTransactionInVault,
-  duplicateTransactionInVault,
   removeVaultExchangeRate,
   saveTransactionsInVault,
   setTransactionStatusInVault,
@@ -138,6 +137,7 @@ export function App() {
   const [txModalOpen, setTxModalOpen] = useState<boolean>(false);
   const [txModalInitialType, setTxModalInitialType] = useState<TransactionType>('expense');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [duplicatingTx, setDuplicatingTx] = useState<Transaction | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
@@ -548,9 +548,10 @@ export function App() {
     await persistVaultUpdate(deleteTransactionInVault(vault, txId));
   };
 
-  const handleDuplicateTransaction = async (tx: Transaction) => {
-    if (!vault) return;
-    await persistVaultUpdate(duplicateTransactionInVault(vault, tx));
+  const handleDuplicateTransaction = (tx: Transaction) => {
+    setEditingTx(null);
+    setDuplicatingTx(tx);
+    setTxModalOpen(true);
   };
 
   const handleUpdateCategory = async (updatedCat: Category) => {
@@ -888,6 +889,7 @@ export function App() {
           <TransactionModal
             initialType={txModalInitialType}
             editingTransaction={editingTx}
+            duplicatingTransaction={duplicatingTx}
             categories={vault.categories}
             accounts={vault.accounts}
             transactions={vault.transactions}
