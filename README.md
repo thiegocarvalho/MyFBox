@@ -13,8 +13,8 @@ senha mestra abre o cofre.
   (600.000 iterações) e nunca sai da memória do navegador.
 - **Lançamentos** com parcelamento/recorrência mensal, situação paga/pendente, categorização
   automática pela descrição e entrada rápida (atalho <kbd>N</kbd>).
-- **BRL e USD**: lançamentos e contas em reais ou dólares, com cotação USD/BRL (AwesomeAPI) e
-  cotação fixada no lançamento quando ele é pago.
+- **Múltiplas moedas (100% offline)**: lançamentos e contas em reais, dólares ou outras moedas,
+  com cotações locais gerenciadas manualmente no painel ou pelo assistente via MCP (sem nenhuma consulta a APIs externas).
 - **Visão geral** com saldo de hoje (só o confirmado), entradas/saídas do mês, pendências em
   atraso e saldo previsto até o fim do mês.
 - **Comparativos** mês a mês, com **insights** escritos por um assistente (via MCP) e aviso
@@ -22,8 +22,32 @@ senha mestra abre o cofre.
 - **Metas** (teto mensal) por categoria de despesa.
 - **Backups** cifrados (`.myfbox.json`), restauração, importação de extratos OFX/CSV e exportação
   de planilha CSV.
-- **Modo MCP local** (opcional, desligado por padrão): um assistente como o Claude Code consulta
-  e registra lançamentos no cofre aberto, só pela sua máquina.
+- **Modo MCP local** (opcional, desligado por padrão): assistentes ou agentes de IA locais consultam
+  e registram lançamentos no cofre aberto, só pela sua máquina.
+
+## Teclado e Produtividade
+
+O MyFBox foi projetado com filosofia neo-brutalista de alta velocidade: lance despesas e receitas rapidamente sem precisar tirar as mãos do teclado.
+
+### Atalhos Globais
+| Atalho | Ação |
+|---|---|
+| <kbd>N</kbd> | Abre o modal para um **Novo Lançamento** (quando nenhum campo de texto estiver em foco) |
+
+### No Modal de Lançamento
+| Atalho | Ação |
+|---|---|
+| <kbd>Ctrl</kbd> + <kbd>Enter</kbd> ou <kbd>⌘</kbd> + <kbd>Enter</kbd> | **Registrar no Cofre** / Salvar alterações |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> ou <kbd>Alt</kbd> + <kbd>N</kbd> | **Salvar e Novo** (grava o lançamento atual e abre espaço para o próximo sem fechar a janela) |
+| <kbd>Alt</kbd> + <kbd>1</kbd> ou <kbd>Alt</kbd> + <kbd>D</kbd> ou <kbd>Ctrl</kbd> + <kbd>↓</kbd> | Alternar para **Despesa** (Débito) |
+| <kbd>Alt</kbd> + <kbd>2</kbd> ou <kbd>Alt</kbd> + <kbd>R</kbd> ou <kbd>Ctrl</kbd> + <kbd>↑</kbd> | Alternar para **Receita** (Crédito) |
+| <kbd>Esc</kbd> | Cancelar e fechar a janela |
+
+### Fluxo de Lançamento Rápido
+1. Pressione <kbd>N</kbd> em qualquer tela para abrir o lançamento com **foco imediato no valor**.
+2. Digite o valor monetário (ex: `150,50` ou `2400`) e aperte <kbd>Tab</kbd>.
+3. Digite a descrição (ex: `Supermercado`); a **predição inteligente** já seleciona a categoria certa com base no seu histórico.
+4. Pressione <kbd>Ctrl</kbd> + <kbd>Enter</kbd> para registrar imediatamente no cofre cifrado, ou <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd> para já iniciar o próximo lançamento.
 
 ## Requisitos
 
@@ -72,11 +96,11 @@ anteriores do app.
 
 ## Modo MCP local
 
-Permite que um assistente compatível com MCP (ex.: Claude Code) leia e altere o cofre **enquanto
+Permite que qualquer assistente de IA compatível com MCP leia e altere o cofre **enquanto
 ele está aberto e desbloqueado**, sem que a senha ou a chave saiam do navegador.
 
 1. Rode o app (`npm run dev`) e desbloqueie o cofre.
-2. Abra o Claude Code na pasta do projeto: o `.mcp.json` registra o servidor `myfbox`.
+2. Abra seu assistente de IA na pasta do projeto: o `.mcp.json` registra o servidor `myfbox`.
 3. Peça "conecte ao MyFBox". O assistente mostra um **link de pareamento** e um **código curto**.
 4. Abra o link, confira o código e clique em **Autorizar**.
 

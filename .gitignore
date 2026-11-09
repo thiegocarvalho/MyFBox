@@ -27,3 +27,8 @@ dist-ssr
 vaults/
 backups/
 *.myfbox.json
+
+# Extratos, faturas e CSVs temporários (nunca versionar)
+*.csv
+transaction-history*.csv
+contas_*.csv

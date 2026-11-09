@@ -6,11 +6,9 @@
 
 - Alguém que obtém o **arquivo de backup** (`.myfbox.json`) ou uma cópia do **IndexedDB** do
   navegador: sem a senha mestra, o conteúdo é ilegível (AES-256-GCM).
-- Leitura dos seus dados por **terceiros na rede**: não há servidor do app. As únicas conexões
-  de rede são a cotação USD/BRL (AwesomeAPI, sem dados do cofre) e, se você ligar o Modo MCP, a
-  ponte local em `127.0.0.1`.
+- Leitura dos seus dados por **terceiros na rede**: não há servidor do app e **nenhuma chamada a APIs externas** (100% offline soberano; cotações de moedas são cadastradas localmente). A única conexão de rede existente é opcional: a ponte local do Modo MCP em `127.0.0.1`.
 - Execução de scripts de terceiros no build de produção: a **Content Security Policy** só permite
-  código do próprio app.
+  código do próprio app e websockets locais em loopback (`127.0.0.1`).
 
 **O MyFBox não protege contra:**
 

@@ -1,6 +1,6 @@
 ---
 name: myfbox
-description: Opera o cofre financeiro MyFBox pelo servidor MCP local (mcp__myfbox__*) — consultar saldos e gastos do mês, listar e criar categorias, definir metas, registrar/editar/dar baixa/excluir lançamentos (inclusive parcelados e em dólar). Use quando o usuário pedir algo como "registre um gasto", "quanto gastei em mercado", "crie a categoria Pets", "marque o aluguel como pago" ou "conecte ao MyFBox".
+description: Opera o cofre financeiro MyFBox pelo servidor MCP local (mcp__myfbox__*) — consultar saldos e gastos do mês, listar e criar categorias, definir metas, registrar/editar/dar baixa/excluir lançamentos (inclusive parcelados e em dólar), e gerenciar cotações de moedas offline (ex: "defina o dólar a 5,85", "cotação do euro", "quais moedas estão cadastradas"). Use quando o usuário pedir algo como "registre um gasto", "quanto gastei em mercado", "crie a categoria Pets", "marque o aluguel como pago", "defina a cotação do dólar para 5,85" ou "conecte ao MyFBox".
 ---
 
 # MyFBox via MCP local
@@ -57,9 +57,16 @@ Todas as ferramentas devolvem JSON. Valores monetários são números (`42.5`), 
 | `delete_transaction` | Exclui um lançamento (irreversível) | `id` |
 | `get_month_comparison` | Comparativo mês a mês (entradas, saídas, resultado, variações, categorias que mais mudaram) | `month?`, `months?` (6) |
 | `list_insights` / `save_insight` / `delete_insight` | Insights mensais da aba Comparativos | ver a skill `myfbox-insights` |
+| `list_exchange_rates` | Lista as cotações de moedas cadastradas no cofre (100% offline) | — |
+| `set_exchange_rate` | Adiciona ou atualiza a cotação de qualquer par entre as moedas mais populares no mundo (BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT) | `from`, `to`, `rate` |
+| `delete_exchange_rate` | Remove a cotação de um par de moedas do cofre | `from`, `to` |
 | `export_backup` | Salva um backup **cifrado** (.myfbox.json) em `vaults/` do projeto (fora do git) e marca "Último backup" no app | — |
 
 ### Regras do domínio que valem para as ferramentas
+- **Offline soberano & Moedas Populares**: O MyFBox não faz chamadas a APIs externas para cotações.
+  As moedas aceitas vêm de uma lista fechada com as mais populares no mundo e seus símbolos:
+  BRL (R$), USD (US$), EUR (€), GBP (£), JPY (¥), CHF (CHF), CAD (CA$), AUD (AU$), CNY (CN¥),
+  ARS (AR$), CLP (CLP$), UYU ($U), MXN (MX$), BTC (₿), ETH (Ξ), USDT (₮).
 - **Saldo confirmado** conta só lançamentos `paid`. Pendentes (`pending`) entram apenas na
   **previsão**, que vai até o fim do mês consultado (inclui pendentes atrasados).
 - **Data padrão** é hoje. **Data futura** vira `pending` automaticamente, a menos que você passe `status`.
@@ -106,11 +113,14 @@ create_transaction { "description": "Notebook", "amount": 400, "type": "expense"
 create_transaction { "description": "Cliente X", "amount": 1200, "type": "income", "currency": "USD", "categoryName": "Projetos & Consultoria" }
 ```
 
-**Dar baixa num pendente** — "paguei a conta de luz":
+**Dar baixa num pendente** — "paguei a conta de luz" / "paguei o aluguel dia 05":
 ```json
 list_transactions  { "search": "luz", "status": "pending" }
 update_transaction { "id": "<id encontrado>", "status": "paid" }
+update_transaction { "id": "<id do aluguel>", "status": "paid", "paidAt": "2026-11-05" }
 ```
+`paidAt` é a data do pagamento (padrão: hoje). A `date` continua sendo o vencimento: não troque
+a `date` para registrar o pagamento, senão o lançamento muda de mês nos comparativos e metas.
 
 **Quanto gastei** — "quanto gastei em mercado este mês?":
 ```json
@@ -124,6 +134,15 @@ Some os `amount` (atenção à `currency`) ou use `get_overview` para os totais 
 set_category_budget { "categoryId": "cat_groceries", "monthlyBudget": 1200 }
 set_category_budget { "categoryId": "cat_groceries", "monthlyBudget": null }
 ```
+
+**Gerenciar cotações de câmbio (100% offline)** — "defina o dólar a 5,85" / "quais cotações estão salvas?":
+```json
+set_exchange_rate   { "from": "USD", "to": "BRL", "rate": 5.85 }
+set_exchange_rate   { "from": "EUR", "to": "BRL", "rate": 6.30 }
+list_exchange_rates {}
+delete_exchange_rate { "from": "EUR", "to": "BRL" }
+```
+(O app opera totalmente offline: não busca cotações em APIs externas. As moedas aceitas vêm da lista fechada das mais populares do mundo: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT.)
 
 **Backup** — "faz um backup":
 ```json

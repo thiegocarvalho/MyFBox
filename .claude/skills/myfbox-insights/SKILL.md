@@ -13,6 +13,12 @@ cifrado do usuário. Você lê os números com `get_month_comparison` e grava co
 Pré-requisito: o app precisa estar conectado ao MCP. Se qualquer ferramenta disser que não está,
 siga a seção "Conectar" da skill `myfbox` (chame `connect_app` e mostre o link de pareamento).
 
+O insight é **opcional**: o app funciona sem assistente e cada mês já mostra entradas, saídas e
+resultado (com quanto falta pagar/receber e a % das entradas que sobra) e as **saídas por
+categoria** com participação, valor e variação vs. o mês anterior. Escreva o que esses números
+não dizem: tendência entre meses, causas das mudanças, riscos de vencimento e um próximo passo
+concreto. Não repita os números que já aparecem no cartão.
+
 ## Ferramentas
 
 | Ferramenta | Uso |

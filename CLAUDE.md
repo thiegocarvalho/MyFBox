@@ -39,9 +39,9 @@ There is no test framework configured. Verify changes with `npm run build` (type
 - IDs are generated ad hoc as `tx_${Date.now()}_${random}`-style strings; default categories/accounts use fixed IDs (`cat_housing`, `acc_main`, …) defined in `src/services/defaultData.ts`, and `src/utils/categorizer.ts`'s keyword map depends on those category IDs.
 - Auto-categorization (`predictCategory`) first matches past transaction descriptions (accent-insensitive), then falls back to the keyword map.
 
-### Multi-currency (BRL/USD)
+### Multi-currency (Offline exchange rates & popular currencies)
 - `currency` on `Account` and `Transaction` is optional; absent means `'BRL'` (keeps older vaults compatible). Totals are generally shown per currency (BRL + USD side by side) rather than silently converted.
-- `src/services/currencyService.ts` fetches the USD→BRL rate from AwesomeAPI (no key), caching it in `localStorage` for 15 min and falling back to stale cache on failure. The latest rate is also saved into the vault's `settings.usdToBrlRate`. This is the only network call in the app.
+- The app is **100% offline**: there are NO external API calls for exchange rates. Exchange rates are stored in the encrypted vault (`settings.exchangeRates` and legacy `settings.usdToBrlRate`), managed directly by the user in Settings or by the AI agent via MCP (`set_exchange_rate`, `list_exchange_rates`, `delete_exchange_rate`). Supported currencies are a curated list of the world's most popular fiat and crypto currencies: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT.
 - Format money via `formatMoney(value, currency, hideValues)`; `hideValues` masks amounts globally.
 
 ### Local MCP mode
@@ -62,5 +62,5 @@ Vaults persist across app versions, so new fields on `VaultPayload` types should
 Plain CSS, no framework. Visual direction is a dark neon-brutalist look: palette `#101010` / `#FFFFFF` / `#C8FF00`, square corners, 1px borders, `Unbounded` display font in uppercase for headings, solid offset shadows instead of soft ones. Design tokens are CSS custom properties in `src/index.css` (`--color-teal`/`--color-emerald` are legacy names that now resolve to the lime accent; prefer `--color-accent`). Component/layout styles are in `src/App.css`, and the brutalist overrides live in the "CAMADA BRUTALISTA" block at the end of it. Dark theme only. Icons from `lucide-react`. Fonts are self-hosted via `@fontsource` (latin subsets, imported in `main.tsx`); don't add Google Fonts or other third-party requests.
 
 ### Security hardening
-- Production builds get a Content Security Policy via the `myfbox-csp` plugin in `vite.config.ts` (allows only self, the AwesomeAPI rate endpoint and `ws://127.0.0.1:*`). It isn't applied in dev because Vite injects inline scripts. If you add a network call, update the CSP.
+- Production builds get a Content Security Policy via the `myfbox-csp` plugin in `vite.config.ts` (allows only self and `ws://127.0.0.1:*`). It isn't applied in dev because Vite injects inline scripts. The app makes zero external network calls.
 - CSV export neutralizes formula injection (`safeCsvText`). See `SECURITY.md` for the threat model.
