@@ -635,7 +635,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               const toInfo = getCurrencyInfo(r.to);
               return (
                 <div key={pairKey} className={`bk-rate-card ${isBeingEdited ? 'editing' : ''}`}>
-                  <div className="bk-rate-card-left">
+                  <div className="bk-rate-card-top">
                     <div className="bk-rate-pair mono">
                       <span>{fromInfo?.flag ?? '🪙'}</span>
                       <strong>{r.from}</strong>
@@ -645,37 +645,41 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                       <strong>{r.to}</strong>
                       <span className="bk-rate-symbol">({toInfo?.symbol ?? r.to})</span>
                     </div>
-                    <div className="bk-rate-val mono">
-                      1 {r.from} = {toInfo?.symbol ?? ''} {formatRate(r.rate)}
-                    </div>
-                    <div className="bk-rate-meta">
-                      <span>{r.updatedAt ? `Atualizado: ${r.updatedAt}` : 'Manual'}</span>
-                      {r.source && (
-                        <span className="bk-rate-source-tag">
-                          {r.source === 'mcp' || r.source === 'agent' ? 'MCP / Agente' : 'Manual'}
-                        </span>
+
+                    <div className="bk-rate-card-actions">
+                      <button
+                        type="button"
+                        className="bk-rate-action-btn"
+                        title={`Editar cotação ${pairKey}`}
+                        onClick={() => startEditRate(r.from, r.to, r.rate)}
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      {onDeleteExchangeRate && (
+                        <button
+                          type="button"
+                          className="bk-rate-action-btn danger"
+                          title={`Remover cotação ${pairKey}`}
+                          onClick={() => handleDeleteRate(r.from, r.to)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       )}
                     </div>
                   </div>
 
-                  <div className="bk-rate-card-actions">
-                    <button
-                      type="button"
-                      className="icon-action-btn"
-                      title={`Editar cotação ${pairKey}`}
-                      onClick={() => startEditRate(r.from, r.to, r.rate)}
-                    >
-                      <Edit3 size={15} />
-                    </button>
-                    {onDeleteExchangeRate && (
-                      <button
-                        type="button"
-                        className="icon-action-btn danger"
-                        title={`Remover cotação ${pairKey}`}
-                        onClick={() => handleDeleteRate(r.from, r.to)}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                  <div className="bk-rate-val mono">
+                    1 {r.from} = {toInfo?.symbol ?? ''} {formatRate(r.rate)}
+                  </div>
+
+                  <div className="bk-rate-meta">
+                    <span className="bk-rate-updated">
+                      {r.updatedAt ? `Atualizado: ${r.updatedAt}` : 'Manual'}
+                    </span>
+                    {r.source && (
+                      <span className="bk-rate-source-tag">
+                        {r.source === 'mcp' || r.source === 'agent' ? 'MCP / Agente' : 'Manual'}
+                      </span>
                     )}
                   </div>
                 </div>

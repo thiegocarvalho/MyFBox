@@ -1,6 +1,6 @@
 ---
 name: myfbox
-description: Opera o cofre financeiro MyFBox pelo servidor MCP local (mcp__myfbox__*) — consultar saldos e gastos do mês, listar e criar categorias, definir metas, registrar/editar/dar baixa/excluir lançamentos (inclusive parcelados e em dólar), e gerenciar cotações de moedas offline (ex: "defina o dólar a 5,85", "cotação do euro", "quais moedas estão cadastradas"). Use quando o usuário pedir algo como "registre um gasto", "quanto gastei em mercado", "crie a categoria Pets", "marque o aluguel como pago", "defina a cotação do dólar para 5,85" ou "conecte ao MyFBox".
+description: Opera o cofre financeiro MyFBox pelo servidor MCP local (mcp__myfbox__*) — consultar saldos e gastos do mês, listar/criar contas e transferir entre elas (com conversão multimoeda), listar e criar categorias, definir metas, registrar/editar/dar baixa/excluir lançamentos (inclusive parcelados e nas 16 moedas globais/cripto suportadas), e gerenciar cotações de moedas offline. Use quando o usuário pedir algo como "registre um gasto", "quanto gastei em mercado", "crie uma conta em Euro", "transfira R$ 500 para a Reserva", "crie a categoria Pets", "marque o aluguel como pago", "defina a cotação do dólar para 5,85" ou "conecte ao MyFBox".
 ---
 
 # MyFBox via MCP local
@@ -48,39 +48,47 @@ Todas as ferramentas devolvem JSON. Valores monetários são números (`42.5`), 
 | `connect_app` | Status da conexão; link de pareamento se preciso | — |
 | `get_overview` | Resumo do mês: saldo confirmado e previsto (BRL e USD), recebido/pago, pendentes, saldo por conta | `month?` |
 | `list_accounts` | Contas com moeda, saldo confirmado e previsto até o fim do mês atual | — |
+| `create_account` | Cria uma conta no cofre (não duplica nome) em qualquer das 16 moedas | `name`, `type?`, `currency?`, `initialBalance?`, `institution?`, `color?` |
+| `transfer_between_accounts` | Transferência interna entre duas contas (converte moedas automaticamente via tabela offline) | `fromAccountName?`/`fromAccountId?`, `toAccountName?`/`toAccountId?`, `amount`, `date?`, `description?` |
 | `list_categories` | Categorias com id, tipo e meta mensal | `type?` |
 | `list_transactions` | Lançamentos do mais recente ao mais antigo | `month?`, `type?`, `status?`, `categoryId?`, `accountId?`, `search?`, `limit?` (50) |
 | `create_category` | Cria categoria (não duplica nome+tipo) | `name`, `type`, `monthlyBudget?`, `color?` |
 | `set_category_budget` | Define ou remove a meta (teto mensal em BRL) de uma despesa | `categoryId`, `monthlyBudget` (número ou `null`) |
 | `create_transaction` | Registra lançamento (único ou parcelado) | `description`, `amount`, `type`, `date?`, `categoryName?`/`categoryId?`, `accountName?`/`accountId?`, `status?`, `currency?`, `exchangeRate?`, `notes?`, `repeatMonths?` |
-| `update_transaction` | Altera campos de um lançamento | `id` + campos a mudar |
+| `update_transaction` | Altera campos de um lançamento (ou dá baixa congelando o câmbio) | `id` + campos a mudar (`status?`, `paidAt?`, `exchangeRate?`, ...) |
 | `delete_transaction` | Exclui um lançamento (irreversível) | `id` |
 | `get_month_comparison` | Comparativo mês a mês (entradas, saídas, resultado, variações, categorias que mais mudaram) | `month?`, `months?` (6) |
 | `list_insights` / `save_insight` / `delete_insight` | Insights mensais da aba Comparativos | ver a skill `myfbox-insights` |
 | `list_exchange_rates` | Lista as cotações de moedas cadastradas no cofre (100% offline) | — |
-| `set_exchange_rate` | Adiciona ou atualiza a cotação de qualquer par entre as moedas mais populares no mundo (BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT) | `from`, `to`, `rate` |
+| `set_exchange_rate` | Adiciona ou atualiza a cotação de qualquer par entre as 16 moedas suportadas | `from`, `to`, `rate` |
 | `delete_exchange_rate` | Remove a cotação de um par de moedas do cofre | `from`, `to` |
 | `export_backup` | Salva um backup **cifrado** (.myfbox.json) em `vaults/` do projeto (fora do git) e marca "Último backup" no app | — |
 
 ### Regras do domínio que valem para as ferramentas
-- **Offline soberano & Moedas Populares**: O MyFBox não faz chamadas a APIs externas para cotações.
-  As moedas aceitas vêm de uma lista fechada com as mais populares no mundo e seus símbolos:
-  BRL (R$), USD (US$), EUR (€), GBP (£), JPY (¥), CHF (CHF), CAD (CA$), AUD (AU$), CNY (CN¥),
-  ARS (AR$), CLP (CLP$), UYU ($U), MXN (MX$), BTC (₿), ETH (Ξ), USDT (₮).
+- **Offline soberano & Multimoeda (16 moedas + triangulação)**: O MyFBox não faz chamadas a APIs externas para cotações.
+  As moedas aceitas vêm de uma lista fechada com as 16 mais populares no mundo e seus símbolos:
+  BRL (R\$), USD (US\$), EUR (€), GBP (£), JPY (¥), CHF (CHF), CAD (CA\$), AUD (AU\$), CNY (CN¥),
+  ARS (AR\$), CLP (CLP\$), UYU (\$U), MXN (MX\$), BTC (₿), ETH (Ξ), USDT (₮).
+  O motor de câmbio resolve pares diretos, inversos (`1 / rate`) e triangulação automática via pivôs `BRL` e `USD`.
 - **Saldo confirmado** conta só lançamentos `paid`. Pendentes (`pending`) entram apenas na
   **previsão**, que vai até o fim do mês consultado (inclui pendentes atrasados).
 - **Data padrão** é hoje. **Data futura** vira `pending` automaticamente, a menos que você passe `status`.
 - **Categoria**: com `categoryName`/`categoryId` usa a informada (precisa ser do mesmo tipo do
-  lançamento); sem nenhuma, o app **sugere pela descrição** (histórico + palavras-chave). Se não
-  conseguir sugerir, a ferramenta devolve erro listando as categorias existentes.
+  lançamento); sem nenhuma, o app **sugere pela descrição** (histórico + palavras-chave) e, se não houver correspondência, usa a categoria de sistema `"Outros"`.
 - **Conta padrão** é a primeira do cofre. **Moeda padrão** é a da conta.
 - **Parcelado/recorrente** (`repeatMonths` 2–36): cria N lançamentos mensais com sufixo
   `(1/N)`; só o primeiro usa o `status` informado, os demais ficam `pending`.
-- **Dólar**: quando o lançamento ou a conta é USD, a cotação é fixada se você passar
-  `exchangeRate` ou se o lançamento já estiver pago (usa a cotação atual do app). Pendentes
-  seguem a cotação atual até serem pagos.
+- **Moedas estrangeiras e congelamento de câmbio**: quando o lançamento ou a conta usa moeda diferente de `BRL`, a cotação para `BRL` é fixada no lançamento se você passar `exchangeRate` ou quando o lançamento está `paid` (inclusive ao dar baixa via `update_transaction { status: "paid" }`, usando a cotação atual do cofre). Pendentes seguem a cotação atual do cofre até serem pagos.
 - **Metas** existem só para categorias de **despesa**. Remover a meta (`monthlyBudget: null`)
   **não** apaga a categoria.
+
+### Limites de Segurança (O que o MCP NUNCA pode fazer)
+Por desenho de segurança, as seguintes operações são **bloqueadas no MCP** e **exclusivas do usuário pela interface (UI)**:
+1. **Criar cofre ou definir/trocar a senha mestra**: o cofre só pode ser criado ou ter sua senha alterada manualmente pelo usuário no navegador.
+2. **Apagar/destruir o cofre ou restaurar backup**: o MCP não tem permissão para apagar o cofre (`destroyVault`) nem sobrescrevê-lo com outro arquivo.
+3. **Fazer backup sem criptografia (exportar CSV ou JSON em texto puro)**:
+   - O único backup permitido via MCP é `export_backup`, que grava exclusivamente o envelope cifrado (`.myfbox.json`, `AES-256-GCM` + `PBKDF2-HMAC-SHA256`).
+   - **Nunca** gere ou salve arquivos `.csv` ou `.json` abertos em disco como forma de backup/exportação. Se o usuário pedir para exportar planilha CSV, informe que a exportação CSV é feita exclusivamente por ele na interface do app (**Backups › Exportar CSV**).
 
 ## 3. Receitas de uso
 
@@ -108,10 +116,17 @@ create_transaction { "description": "Notebook", "amount": 400, "type": "expense"
 ```
 `amount` é o valor **de cada parcela**. Se o usuário der o total, divida e confirme o valor da parcela.
 
-**Receita em dólar** — "recebi US$ 1.200 de um cliente":
+**Receita em moeda estrangeira** — "recebi US$ 1.200 de um cliente":
 ```json
 create_transaction { "description": "Cliente X", "amount": 1200, "type": "income", "currency": "USD", "categoryName": "Projetos & Consultoria" }
 ```
+
+**Criar conta e transferir entre contas** — "crie uma conta em Euro chamada Wise e transfira R$ 1.000 da Conta Principal para ela":
+```json
+create_account            { "name": "Wise", "type": "checking", "currency": "EUR", "initialBalance": 0, "institution": "Wise" }
+transfer_between_accounts { "fromAccountName": "Conta Principal", "toAccountName": "Wise", "amount": 1000, "description": "Remessa internacional" }
+```
+(Se as contas tiverem moedas diferentes, `transfer_between_accounts` converte automaticamente usando a cotação cadastrada no cofre.)
 
 **Dar baixa num pendente** — "paguei a conta de luz" / "paguei o aluguel dia 05":
 ```json
@@ -167,6 +182,6 @@ um pen-drive (é cifrado, pode ir para a nuvem).
 | Resposta | O que fazer |
 |---|---|
 | "O app MyFBox não está conectado" + link | Faça o pareamento (seção 1) ou peça para desbloquear o app. |
-| "A porta 4777 já está em uso" | Outro servidor `myfbox` já está rodando (outra sessão). Feche-o ou use `MYFBOX_MCP_PORT` (e pareie de novo: o link leva a porta). |
+| Múltiplas sessões MCP na mesma porta `4777` | Sessões adicionais entram automaticamente em **modo peer autenticado** (via Bearer token local em `~/.config/myfbox/mcp.json`) e compartilham a mesma ponte. Se outro programa externo ocupar a porta `4777`, defina `MYFBOX_MCP_PORT`. |
 | "O app não respondeu a tempo" | O cofre provavelmente trancou. Peça para desbloquear. |
 | App em outro endereço (deploy, outra porta do Vite) | Defina `MYFBOX_APP_URL` para o link apontar para o app certo. |

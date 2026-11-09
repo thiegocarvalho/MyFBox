@@ -64,6 +64,22 @@ const PROMPT_ITEMS: PromptItem[] = [
     toolsUsed: ['create_transaction'],
   },
   {
+    id: 'acc-create-multi',
+    category: 'Lançamentos',
+    title: 'Criar conta em moeda estrangeira ou cripto',
+    prompt: 'Crie uma conta corrente em Euro chamada "Wise Europa" com saldo inicial de 500 EUR.',
+    description: 'Adiciona uma nova conta em qualquer uma das 16 moedas globais e criptos suportadas no cofre.',
+    toolsUsed: ['create_account'],
+  },
+  {
+    id: 'acc-transfer',
+    category: 'Lançamentos',
+    title: 'Transferir valores entre contas (mesma ou outra moeda)',
+    prompt: 'Transfira R$ 1.200 da Conta Principal para a Reserva de Emergência hoje.',
+    description: 'Lança automaticamente o par de saída e entrada. Entre moedas diferentes, converte usando a cotação offline do cofre.',
+    toolsUsed: ['transfer_between_accounts'],
+  },
+  {
     id: 'tx-settle',
     category: 'Baixas',
     title: 'Dar baixa (quitar) lançamento pendente',
@@ -202,6 +218,18 @@ const MCP_TOOLS_DOCS: ToolDoc[] = [
     category: 'Contas',
     description: 'Lista contas com moeda, saldo confirmado e previsto até o fim do mês.',
     args: '—',
+  },
+  {
+    name: 'create_account',
+    category: 'Contas',
+    description: 'Cria uma conta bancária, reserva, investimento ou carteira em qualquer das 16 moedas suportadas.',
+    args: 'name, type?, currency?, initialBalance?, institution?, color?',
+  },
+  {
+    name: 'transfer_between_accounts',
+    category: 'Contas',
+    description: 'Transfere valores entre duas contas com conversão multimoeda automática.',
+    args: 'fromAccountName?, toAccountName?, amount, date?, description?',
   },
   {
     name: 'list_categories',
@@ -497,7 +525,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <div>
                   <strong>O que o assistente pode fazer no MyFBox:</strong>
                   <p>
-                    O servidor MCP expõe 18 ferramentas organizadas que cobrem todas as operações
+                    O servidor MCP expõe 20 ferramentas organizadas que cobrem todas as operações
                     essenciais do cofre. Todas as ações gravam no cofre criptografado e emitem avisos
                     visíveis no aplicativo.
                   </p>
@@ -539,22 +567,22 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                   <div className="mcp-skill-box">
                     <div className="mcp-skill-header">
                       <Wallet size={16} />
-                      <strong>Skill: myfbox (skills/myfbox/SKILL.md)</strong>
+                      <strong>Skill: myfbox (.claude/skills/myfbox/SKILL.md)</strong>
                     </div>
                     <p>
-                      Controla lançamentos, contas, parcelamentos em N vezes, despesas em Dólar/Euro,
-                      sugestão de categorias por IA, metas mensais e gestão de cotações de moedas offline.
+                      Controla lançamentos, criação de contas e transferências multimoeda, parcelamentos em N vezes,
+                      sugestão de categorias por IA, metas mensais e gestão de cotações offline (16 moedas).
                     </p>
                   </div>
 
                   <div className="mcp-skill-box">
                     <div className="mcp-skill-header">
                       <TrendingUp size={16} />
-                      <strong>Skill: myfbox-insights (skills/myfbox-insights/SKILL.md)</strong>
+                      <strong>Skill: myfbox-insights (.claude/skills/myfbox-insights/SKILL.md)</strong>
                     </div>
                     <p>
                       Compara meses, detecta oscilações e redige insights analíticos e práticos
-                      gravados diretamente no cofre cifrado para a aba Comparativos.
+                      gravados diretamente no cofre cifrado para a aba Comparativos (com suporte a leitura por voz local).
                     </p>
                   </div>
                 </div>
@@ -755,6 +783,18 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                     <p>
                       Sempre que o MCP registra, edita ou exclui um lançamento, um aviso em tempo real aparece na
                       interface informando exatamente o que foi executado.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mcp-sec-card">
+                  <div className="mcp-sec-icon">🚫</div>
+                  <div>
+                    <strong>Operações Exclusivas do Usuário (Bloqueadas no MCP)</strong>
+                    <p>
+                      O MCP <strong>não pode</strong> criar cofre, apagar/resetar o cofre, alterar a senha mestra
+                      nem fazer backup sem criptografia. A exportação de planilha CSV é exclusiva do usuário pela
+                      interface do aplicativo; via MCP, o único backup permitido é o envelope cifrado (<code>AES-256-GCM</code>).
                     </p>
                   </div>
                 </div>

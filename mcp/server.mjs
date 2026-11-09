@@ -70,6 +70,7 @@ const log = (...args) => console.error('[myfbox-mcp]', ...args);
 
 let appSocket = null;
 let bridgeError = null;
+let isPeer = false;
 const pending = new Map();
 
 function tokenMatches(candidate) {
@@ -192,7 +193,12 @@ const wss = new WebSocketServer({
 
 httpServer.listen(PORT, '127.0.0.1', () => log(`ponte ouvindo em ws://127.0.0.1:${PORT}`));
 httpServer.on('error', (err) => {
-  bridgeError = err.code === 'EADDRINUSE' ? `A porta ${PORT} já está em uso.` : err.message;
+  if (err.code === 'EADDRINUSE') {
+    isPeer = true;
+    log(`porta ${PORT} em uso; operando em modo peer autenticado via http://127.0.0.1:${PORT}`);
+    return;
+  }
+  bridgeError = err.message;
   log('erro na ponte:', bridgeError);
 });
 
@@ -246,7 +252,61 @@ const pairingInstructions = () =>
   `(ele abre o app, que pede confirmação com o código ${SHORT_CODE}):\n\n${PAIR_LINK}\n\n` +
   `O cofre precisa estar desbloqueado. Depois de autorizar, tente a ação de novo.`;
 
-function callApp(action, args) {
+const FORBIDDEN_MCP_ACTIONS = {
+  create_vault: 'Criar cofre é exclusivo do usuário pela interface do navegador.',
+  delete_vault: 'Apagar o cofre é exclusivo do usuário pela interface do navegador.',
+  destroy_vault: 'Apagar o cofre é exclusivo do usuário pela interface do navegador.',
+  export_csv:
+    'O MCP não faz backup sem criptografia. Exportar CSV é exclusivo do usuário pela interface (Backups › Exportar CSV).',
+  export_unencrypted:
+    'O MCP não faz backup sem criptografia. Use export_backup (AES-256-GCM).',
+};
+
+const ALLOWED_BRIDGE_ACTIONS = new Set([
+  'get_overview',
+  'list_accounts',
+  'create_account',
+  'transfer_between_accounts',
+  'list_categories',
+  'list_transactions',
+  'create_category',
+  'set_category_budget',
+  'create_transaction',
+  'update_transaction',
+  'delete_transaction',
+  'get_month_comparison',
+  'list_insights',
+  'save_insight',
+  'delete_insight',
+  'list_exchange_rates',
+  'set_exchange_rate',
+  'delete_exchange_rate',
+  'export_backup',
+]);
+
+async function callApp(action, args) {
+  if (action in FORBIDDEN_MCP_ACTIONS) {
+    throw new Error(FORBIDDEN_MCP_ACTIONS[action]);
+  }
+  if (!ALLOWED_BRIDGE_ACTIONS.has(action)) {
+    throw new Error(`Ação MCP não permitida: ${action}`);
+  }
+  if (isPeer) {
+    const res = await fetch(`http://127.0.0.1:${PORT}/call`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${TOKEN}`,
+      },
+      body: JSON.stringify({ action, args }),
+      signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error || `Falha ao comunicar com a ponte local (HTTP ${res.status}).`);
+    }
+    return json.data;
+  }
   if (bridgeError) throw new Error(`Ponte local indisponível: ${bridgeError}`);
   if (!appSocket) throw new Error(pairingInstructions());
   const id = randomUUID();
@@ -266,6 +326,7 @@ const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use AAAA-MM-DD');
 const ym = z.string().regex(/^\d{4}-\d{2}$/, 'use AAAA-MM');
 const txType = z.enum(['income', 'expense']);
 const txStatus = z.enum(['paid', 'pending']);
+const accountType = z.enum(['checking', 'savings', 'reserve', 'investment', 'credit', 'wallet']);
 const popularCurrencyCodes = [
   'BRL',
   'USD',
@@ -320,18 +381,41 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async () => ({
-    content: [
-      {
-        type: 'text',
-        text: appSocket
-          ? `Conectado ao app MyFBox (código ${SHORT_CODE}). Pronto para usar as ferramentas.`
-          : bridgeError
-          ? `Ponte local indisponível: ${bridgeError}`
-          : pairingInstructions(),
-      },
-    ],
-  })
+  async () => {
+    if (isPeer) {
+      try {
+        const res = await fetch(`http://127.0.0.1:${PORT}/status`, {
+          headers: { Authorization: `Bearer ${TOKEN}` },
+          signal: AbortSignal.timeout(5_000),
+        });
+        const status = await res.json().catch(() => null);
+        if (res.ok && status) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: status.connected
+                  ? `Conectado ao app MyFBox (código ${status.shortCode || SHORT_CODE}). Pronto para usar as ferramentas.`
+                  : pairingInstructions(),
+              },
+            ],
+          };
+        }
+      } catch {}
+    }
+    return {
+      content: [
+        {
+          type: 'text',
+          text: appSocket
+            ? `Conectado ao app MyFBox (código ${SHORT_CODE}). Pronto para usar as ferramentas.`
+            : bridgeError
+            ? `Ponte local indisponível: ${bridgeError}`
+            : pairingInstructions(),
+        },
+      ],
+    };
+  }
 );
 
 tool(
@@ -346,6 +430,33 @@ tool(
   'Lista as contas do cofre com moeda, saldo confirmado e saldo previsto.',
   {},
   { readOnly: true }
+);
+
+tool(
+  'create_account',
+  'Cria uma conta no cofre (corrente, poupança, reserva, investimento, cartão ou carteira física) em qualquer uma das 16 moedas suportadas. Se já existir uma conta com o mesmo nome, devolve a existente sem duplicar.',
+  {
+    name: z.string().min(1),
+    type: accountType.optional().describe('Padrão: checking'),
+    currency: popularCurrency.optional().describe('Padrão: BRL'),
+    initialBalance: z.number().optional().describe('Saldo inicial na moeda da conta; padrão: 0'),
+    institution: z.string().optional(),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  }
+);
+
+tool(
+  'transfer_between_accounts',
+  'Realiza uma transferência interna entre duas contas do cofre, criando o par de saída (expense) e entrada (income) já pagos. Quando as contas têm moedas diferentes, converte automaticamente usando a tabela offline do cofre (direta, inversa ou triangulação via BRL/USD).',
+  {
+    fromAccountId: z.string().optional(),
+    fromAccountName: z.string().optional(),
+    toAccountId: z.string().optional(),
+    toAccountName: z.string().optional(),
+    amount: z.number().positive().describe('Valor na moeda da conta de origem'),
+    date: ymd.optional().describe('Data da transferência (AAAA-MM-DD; padrão: hoje)'),
+    description: z.string().min(1).optional().describe('Descrição; padrão: Transferência entre contas'),
+  }
 );
 
 tool(
@@ -389,7 +500,7 @@ tool(
 
 tool(
   'create_transaction',
-  'Registra um lançamento. amount é sempre positivo; type define se é receita ou despesa. Categoria: informe categoryId ou categoryName; sem nenhum dos dois, o app sugere pela descrição. Conta padrão: a primeira. Data padrão: hoje; data futura vira pendente. repeatMonths > 1 cria parcelas mensais (as seguintes ficam pendentes).',
+  'Registra um lançamento. amount é sempre positivo; type define se é receita ou despesa. Categoria: informe categoryId ou categoryName; sem nenhum dos dois, o app sugere pela descrição (ou usa a categoria de sistema "Outros"). Conta padrão: a primeira. Data padrão: hoje; data futura vira pendente. repeatMonths > 1 cria parcelas mensais (as seguintes ficam pendentes).',
   {
     description: z.string().min(1),
     amount: z.number().positive(),
@@ -413,7 +524,7 @@ tool(
 
 tool(
   'update_transaction',
-  'Altera campos de um lançamento existente (pelo id). Só os campos enviados mudam. Para dar baixa use status "paid" e, se foi em outro dia, paidAt (a data de vencimento não muda).',
+  'Altera campos de um lançamento existente (pelo id). Só os campos enviados mudam. Para dar baixa use status "paid" e, se foi em outro dia, paidAt (a data de vencimento não muda). Ao dar baixa em lançamento de moeda estrangeira sem cotação fixa, congela automaticamente a cotação atual do cofre.',
   {
     id: z.string(),
     description: z.string().min(1).optional(),
@@ -429,6 +540,11 @@ tool(
     accountId: z.string().optional(),
     accountName: z.string().optional(),
     currency: popularCurrency.optional(),
+    exchangeRate: z
+      .number()
+      .positive()
+      .optional()
+      .describe('Cotação para BRL a fixar (quando envolve moeda estrangeira)'),
     notes: z.string().optional(),
   }
 );
@@ -518,8 +634,18 @@ server.registerTool(
     try {
       const data = await callApp('export_backup', {});
       const env = data?.envelope;
-      if (!env || env.app !== 'MyFBox' || !env.cipher?.ciphertextBase64 || !env.kdf) {
-        throw new Error('O app devolveu um envelope inválido; nada foi gravado.');
+      if (
+        !env ||
+        env.app !== 'MyFBox' ||
+        env.cipher?.algorithm !== 'AES-256-GCM' ||
+        !env.cipher?.ciphertextBase64 ||
+        env.kdf?.algorithm !== 'PBKDF2-HMAC-SHA256' ||
+        'transactions' in env ||
+        'accounts' in env
+      ) {
+        throw new Error(
+          'O app devolveu um envelope sem criptografia válida AES-256-GCM; nada foi gravado.'
+        );
       }
       const slug =
         String(data.vaultName || 'cofre')

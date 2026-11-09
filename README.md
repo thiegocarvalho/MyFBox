@@ -20,8 +20,7 @@ senha mestra abre o cofre.
 - **Comparativos** mês a mês, com **insights** escritos por um assistente (via MCP) e aviso
   quando os números do mês mudam depois do insight.
 - **Metas** (teto mensal) por categoria de despesa.
-- **Backups** cifrados (`.myfbox.json`), restauração, importação de extratos OFX/CSV e exportação
-  de planilha CSV.
+- **Backups** cifrados (`.myfbox.json`), restauração e exportação de planilha CSV.
 - **Modo MCP local** (opcional, desligado por padrão): assistentes ou agentes de IA locais consultam
   e registram lançamentos no cofre aberto, só pela sua máquina.
 
@@ -123,13 +122,16 @@ reportar vulnerabilidades.
 
 ```
 src/
-  App.tsx                 dono do estado; toda gravação passa por persistVaultUpdate
-  components/             telas (Visão Geral, Lançamentos, Comparativos, Metas, Contas, Backups)
-  services/cryptoVault.ts cifra/decifra o cofre e grava no IndexedDB
-  services/mcpBridge.ts   ponte do navegador com o servidor MCP local
-  services/mcpActions.ts  ações do MCP (funções puras)
-  utils/                  cálculos de saldo, conversão, comparativos, formatação
-mcp/server.mjs            servidor MCP (stdio) + ponte WebSocket em 127.0.0.1
+  App.tsx                   dono do estado; toda gravação passa por persistVaultUpdate
+  domain/                   casos de uso puros do cofre, validação de esquema e IDs criptográficos
+  components/               telas (Visão Geral, Lançamentos, Comparativos, Metas, Contas, Backups)
+  services/cryptoVault.ts   cifra/decifra o cofre com WebCrypto (AES-256-GCM + PBKDF2)
+  services/vaultStorage.ts  persistência isolada do envelope cifrado no IndexedDB
+  services/currencyService.ts motor offline de câmbio (16 moedas + triangulação BRL/USD)
+  services/mcpBridge.ts     ponte do navegador com o servidor MCP local
+  services/mcpActions.ts    ações do MCP (20 ferramentas puras)
+  utils/                    cálculos de saldo, conversão, comparativos, formatação
+mcp/server.mjs              servidor MCP (stdio) + ponte WebSocket/HTTP autenticada em 127.0.0.1
 ```
 
 Mais detalhes de arquitetura para quem vai contribuir estão em [CLAUDE.md](CLAUDE.md).

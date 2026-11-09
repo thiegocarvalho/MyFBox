@@ -310,8 +310,14 @@ export function App() {
           if (!current) throw new Error('Cofre trancado.');
 
           if (action === 'export_backup') {
+            await persistRef.current({
+              ...current,
+              settings: { ...current.settings, lastBackupAt: new Date().toISOString() },
+            });
             const env = envelopeRef.current;
-            if (!env) throw new Error('Ainda não há envelope cifrado gravado.');
+            if (!env || env.cipher?.algorithm !== 'AES-256-GCM' || !env.cipher?.ciphertextBase64) {
+              throw new Error('Ainda não há envelope cifrado válido gravado.');
+            }
             const result = {
               envelope: env,
               vaultName: current.settings.vaultName,
@@ -319,10 +325,6 @@ export function App() {
               envelopeUpdatedAt: env.updatedAt,
               transactionCount: current.transactions.length,
             };
-            await persistRef.current({
-              ...current,
-              settings: { ...current.settings, lastBackupAt: new Date().toISOString() },
-            });
             showToastRef.current('MCP salvou um backup cifrado na pasta do projeto');
             return result;
           }

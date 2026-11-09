@@ -29,7 +29,7 @@ concreto. Não repita os números que já aparecem no cartão.
 | `delete_insight { month }` | Remove um insight. Só com pedido do usuário. |
 | `list_transactions { month, ... }` | Detalhe dos lançamentos, quando precisar explicar um número. |
 
-Valores vêm em **BRL**. Totais do mês contam **pagos + pendentes** (visão de competência: o que
+Valores vêm em **BRL** (lançamentos em moedas estrangeiras são convertidos automaticamente pela cotação fixada no lançamento ou pela tabela offline do cofre com triangulação `BRL`/`USD`). Totais do mês contam **pagos + pendentes** (visão de competência: o que
 pertence ao mês). `paid` é o que já saiu ou entrou; `pending` ainda vai acontecer (ou está em atraso,
 se o mês já passou).
 
@@ -63,6 +63,7 @@ se o mês já passou).
   esteja lançada. Arredonde para leitura ("R$ 3,2 mil"), mas mantenha valores exatos quando forem
   pequenos ou importantes (contas a pagar).
 - Valores monetários no padrão brasileiro: `R$ 1.234,56`. Percentuais com vírgula: `47,2%`.
+- **Leitura em voz alta offline (TTS local)**: a aba Comparativos possui um reprodutor de voz 100% local (`localService === true`) que lê `title`, `body` e `highlights`. Escreva frases fluidas e bem pontuadas, sem markdown bruto (`**`, `#`, tabelas) dentro de `title`, `body` ou `highlights`.
 - Não julgue escolhas pessoais (pensão, ajuda a familiares etc.); descreva e ajude a planejar.
 - Se o mês não tem lançamentos, não grave insight: diga ao usuário que não há dados.
 - Meses futuros só têm pendentes (contas recorrentes). Pode gerar insight de planejamento, deixando

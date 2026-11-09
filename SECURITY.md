@@ -51,9 +51,12 @@ atual no desbloqueio/restauração.
   e o app o remove da barra de endereço ao ler. O diálogo mostra um código curto (SHA-256 do
   segredo) para conferir com o que o assistente exibiu.
 - O servidor **nunca recebe a senha nem a chave**: as ações rodam no navegador e só os resultados
-  voltam. O backup via MCP entrega apenas o envelope já cifrado.
+  voltam. O backup via MCP entrega apenas o envelope já cifrado (`AES-256-GCM`).
+- **Operações bloqueadas no MCP (exclusivas do usuário na interface)**: o MCP não pode criar cofre,
+  apagar/destruir o cofre, alterar a senha mestra, restaurar backups nem fazer backup sem criptografia
+  (exportar planilha CSV é exclusivo do usuário diretamente pela UI).
 - Trancar o app (manual ou auto-bloqueio) derruba a ponte; ações do MCP não contam como atividade
-  para o auto-bloqueio. Não existe ferramenta MCP para apagar o cofre.
+  para o auto-bloqueio.
 - Qualquer processo local que tenha o segredo pode ler e alterar o cofre aberto. Trate o
   computador onde o Modo MCP está ligado como confiável, ou desligue o modo.
 

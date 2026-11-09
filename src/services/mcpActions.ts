@@ -1,9 +1,12 @@
 import {
+  addAccountInVault,
   removeVaultExchangeRate,
+  transferBetweenAccountsInVault,
   upsertVaultExchangeRate,
 } from '../domain/vaultUseCases';
 import type {
   Account,
+  AccountType,
   Category,
   Currency,
   MonthInsight,
@@ -23,6 +26,7 @@ import {
   endOfMonthDate,
   isValidRate,
   summarizeTransactions,
+  txCurrency,
 } from '../utils/money';
 import {
   POPULAR_CURRENCIES,
@@ -277,6 +281,116 @@ function listTransactions(vault: VaultPayload, args: Args): McpActionOutcome {
   };
 }
 
+const ACCOUNT_TYPES: readonly AccountType[] = [
+  'checking',
+  'savings',
+  'reserve',
+  'investment',
+  'credit',
+  'wallet',
+];
+
+function createAccount(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
+  const name = str(args, 'name', true)!;
+  const existing = vault.accounts.find((a) => a.name.toLowerCase() === name.toLowerCase());
+  const month = getCurrentYearMonth();
+  if (existing) {
+    return {
+      result: {
+        created: false,
+        reason: 'já existe',
+        account: describeAccount(existing, vault, month),
+      },
+    };
+  }
+
+  const type: AccountType = oneOf(args, 'type', ACCOUNT_TYPES) ?? 'checking';
+  const rawCurrency = str(args, 'currency');
+  const currency: Currency = rawCurrency
+    ? oneOf({ currency: normalizeCurrency(rawCurrency) }, 'currency', POPULAR_CURRENCY_CODES)!
+    : 'BRL';
+  const initialBalance = round2(num(args, 'initialBalance') ?? 0);
+  const institution = str(args, 'institution');
+  const color =
+    str(args, 'color') ?? CATEGORY_COLORS[vault.accounts.length % CATEGORY_COLORS.length];
+
+  const account: Account = {
+    id: ctx.newId('acc'),
+    name,
+    type,
+    currency,
+    initialBalance,
+    color,
+    institution,
+  };
+  const nextVault = addAccountInVault(vault, account);
+  return {
+    result: {
+      created: true,
+      account: describeAccount(account, nextVault, month),
+    },
+    nextVault,
+    notice: `MCP criou a conta "${name}" (${currency})`,
+  };
+}
+
+function transferBetweenAccounts(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
+  const fromId = str(args, 'fromAccountId');
+  const fromName = str(args, 'fromAccountName');
+  const toId = str(args, 'toAccountId');
+  const toName = str(args, 'toAccountName');
+
+  if (!fromId && !fromName) {
+    throw new McpActionError('Informe fromAccountId ou fromAccountName para a conta de origem.');
+  }
+  if (!toId && !toName) {
+    throw new McpActionError('Informe toAccountId ou toAccountName para a conta de destino.');
+  }
+
+  const fromAcc = findAccount(vault, fromId, fromName);
+  const toAcc = findAccount(vault, toId, toName);
+  const amount = num(args, 'amount', true)!;
+  if (amount <= 0) {
+    throw new McpActionError('amount deve ser maior que zero');
+  }
+
+  const date = isoDate(args, 'date') ?? ctx.today;
+  const description = str(args, 'description') ?? 'Transferência entre contas';
+
+  const outcome = transferBetweenAccountsInVault(vault, {
+    fromAccId: fromAcc.id,
+    toAccId: toAcc.id,
+    amount: round2(amount),
+    date,
+    description,
+  });
+
+  if ('error' in outcome) {
+    throw new McpActionError(outcome.error);
+  }
+
+  const [inTx, outTx] = outcome.nextVault.transactions;
+  return {
+    result: {
+      transferred: true,
+      fromAccount: fromAcc.name,
+      toAccount: toAcc.name,
+      outgoingTransaction: describeTransaction(outTx, outcome.nextVault),
+      incomingTransaction: describeTransaction(inTx, outcome.nextVault),
+    },
+    nextVault: outcome.nextVault,
+    notice: `MCP transferiu de "${fromAcc.name}" para "${toAcc.name}"`,
+  };
+}
+
 function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
   const name = str(args, 'name', true)!;
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
@@ -459,11 +573,32 @@ function updateTransaction(
       POPULAR_CURRENCY_CODES
     );
   }
+  const explicitRate = num(args, 'exchangeRate');
+  if (explicitRate !== undefined) {
+    if (!isValidRate(explicitRate)) {
+      throw new McpActionError('exchangeRate deve ser maior que zero');
+    }
+    next.exchangeRate = explicitRate;
+  }
+
   if ('notes' in args) next.notes = str(args, 'notes');
   const accountId = str(args, 'accountId');
   const accountName = str(args, 'accountName');
   if (accountId || accountName) {
     next.accountId = findAccount(vault, accountId, accountName).id;
+  }
+
+  if (next.status === 'paid' && !isValidRate(next.exchangeRate)) {
+    const account = vault.accounts.find((a) => a.id === next.accountId);
+    const curr = txCurrency(next);
+    const accCurr = accountCurrency(account ?? {});
+    const foreignCurr = curr !== 'BRL' ? curr : accCurr !== 'BRL' ? accCurr : null;
+    if (foreignCurr !== null) {
+      const liveRateToBrl = findExchangeRate(vault.settings, foreignCurr, 'BRL');
+      if (isValidRate(liveRateToBrl)) {
+        next.exchangeRate = liveRateToBrl;
+      }
+    }
   }
 
   const categoryId = str(args, 'categoryId');
@@ -702,6 +837,8 @@ export const MCP_ACTIONS = {
       accounts: vault.accounts.map((a) => describeAccount(a, vault, getCurrentYearMonth())),
     },
   }),
+  create_account: createAccount,
+  transfer_between_accounts: transferBetweenAccounts,
   list_categories: (vault: VaultPayload, args: Args): McpActionOutcome => {
     const type = oneOf(args, 'type', ['income', 'expense'] as const);
     return {
@@ -729,12 +866,32 @@ export const MCP_ACTIONS = {
 
 export type McpActionName = keyof typeof MCP_ACTIONS;
 
+const FORBIDDEN_MCP_ACTIONS: Readonly<Record<string, string>> = {
+  create_vault: 'Criar cofre é uma operação exclusiva do usuário na interface do navegador.',
+  init_vault: 'Criar cofre é uma operação exclusiva do usuário na interface do navegador.',
+  delete_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
+  destroy_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
+  reset_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
+  wipe_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
+  export_csv:
+    'O MCP não faz backup sem criptografia. Exportar CSV é exclusivo do usuário pela interface do app (Backups › Exportar CSV).',
+  export_unencrypted:
+    'O MCP não faz backup sem criptografia. Use export_backup para gerar um backup cifrado (.myfbox.json com AES-256-GCM).',
+  export_plaintext:
+    'O MCP não faz backup sem criptografia. Use export_backup para gerar um backup cifrado (.myfbox.json com AES-256-GCM).',
+  change_password: 'Alterar a senha mestra é exclusivo do usuário na interface do navegador.',
+  restore_backup: 'Restaurar backup é exclusivo do usuário na interface do navegador.',
+};
+
 export function runMcpAction(
   name: string,
   vault: VaultPayload,
   args: Args,
   ctx: McpActionContext
 ): McpActionOutcome {
+  if (name in FORBIDDEN_MCP_ACTIONS) {
+    throw new McpActionError(FORBIDDEN_MCP_ACTIONS[name]);
+  }
   const action = (
     MCP_ACTIONS as Record<
       string,
