@@ -151,6 +151,13 @@ export function sanitizeVaultPayload(raw: unknown): {
       item.monthlyBudget > 0
         ? item.monthlyBudget
         : undefined;
+    const rawBudgetCurrency =
+      type === 'expense' &&
+      budget !== undefined &&
+      typeof item.budgetCurrency === 'string' &&
+      item.budgetCurrency.trim()
+        ? normalizeCurrency(item.budgetCurrency)
+        : undefined;
 
     rawCategories.push({
       id: item.id,
@@ -159,6 +166,8 @@ export function sanitizeVaultPayload(raw: unknown): {
       color: typeof item.color === 'string' && item.color ? item.color : '#737373',
       icon: typeof item.icon === 'string' && item.icon ? item.icon : 'Tag',
       monthlyBudget: type === 'expense' ? budget : undefined,
+      budgetCurrency:
+        rawBudgetCurrency && rawBudgetCurrency !== 'BRL' ? rawBudgetCurrency : undefined,
       isSystem: Boolean(item.isSystem),
     });
   }

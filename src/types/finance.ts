@@ -36,6 +36,7 @@ export interface Category {
   color: string;
   icon: string;
   monthlyBudget?: number;
+  budgetCurrency?: Currency;
   isSystem?: boolean;
 }
 

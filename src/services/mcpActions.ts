@@ -134,7 +134,13 @@ function describeAccount(acc: Account, vault: VaultPayload, month: string) {
 }
 
 function describeCategory(c: Category) {
-  return { id: c.id, name: c.name, type: c.type, monthlyBudget: c.monthlyBudget ?? null };
+  return {
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    monthlyBudget: c.monthlyBudget ?? null,
+    budgetCurrency: c.monthlyBudget ? (c.budgetCurrency ?? 'BRL') : null,
+  };
 }
 
 function describeTransaction(tx: Transaction, vault: VaultPayload) {
@@ -409,6 +415,12 @@ function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext):
     };
   }
 
+  const rawBudgetCurrency = str(args, 'budgetCurrency') ?? str(args, 'currency');
+  const budgetCurrency: Currency | undefined =
+    rawBudgetCurrency && type === 'expense' && budget
+      ? normalizeCurrency(rawBudgetCurrency) || 'BRL'
+      : undefined;
+
   const category: Category = {
     id: ctx.newId('cat'),
     name,
@@ -416,6 +428,8 @@ function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext):
     color: str(args, 'color') ?? CATEGORY_COLORS[vault.categories.length % CATEGORY_COLORS.length],
     icon: 'Tag',
     monthlyBudget: type === 'expense' && budget ? budget : undefined,
+    budgetCurrency:
+      budgetCurrency && budgetCurrency !== 'BRL' ? budgetCurrency : undefined,
   };
   return {
     result: { created: true, category: describeCategory(category) },
@@ -436,7 +450,15 @@ function setCategoryBudget(vault: VaultPayload, args: Args): McpActionOutcome {
     throw new McpActionError('Metas só existem para categorias de despesa');
   }
   const budget = raw === null || raw === 0 ? undefined : (raw as number);
-  const updated: Category = { ...cat, monthlyBudget: budget };
+  const rawBudgetCurrency = str(args, 'budgetCurrency') ?? str(args, 'currency');
+  const nextCurr = budget
+    ? normalizeCurrency(rawBudgetCurrency ?? cat.budgetCurrency ?? 'BRL') || 'BRL'
+    : undefined;
+  const updated: Category = {
+    ...cat,
+    monthlyBudget: budget,
+    budgetCurrency: nextCurr && nextCurr !== 'BRL' ? nextCurr : undefined,
+  };
   return {
     result: { category: describeCategory(updated) },
     nextVault: {

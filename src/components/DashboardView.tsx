@@ -18,6 +18,7 @@ import {
   localTodayStr,
 } from '../utils/formatters';
 import {
+  categoryBudgetInBrl,
   computeAccountBalance,
   convertAmount,
   computeNetWorth,
@@ -205,7 +206,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return Array.from(map.entries())
       .map(([categoryId, stats]) => {
         const cat = catMap.get(categoryId);
-        const budget = cat?.monthlyBudget || 0;
+        const budget = cat ? categoryBudgetInBrl(cat, effectiveRates) : 0;
         const pctOfExpense =
           totalExpenseAllBrl > 0 ? (stats.total / totalExpenseAllBrl) * 100 : 0;
         const pctOfBudget = budget > 0 ? (stats.total / budget) * 100 : 0;

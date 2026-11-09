@@ -3,7 +3,7 @@ import {
   normalizeCurrency,
   type ExchangeRateSource,
 } from '../services/currencyService';
-import type { Account, Currency, Transaction } from '../types/finance';
+import type { Account, Category, Currency, Transaction } from '../types/finance';
 
 export function txCurrency(tx: Pick<Transaction, 'currency'>): Currency {
   return normalizeCurrency(tx.currency) || 'BRL';
@@ -11,6 +11,22 @@ export function txCurrency(tx: Pick<Transaction, 'currency'>): Currency {
 
 export function accountCurrency(acc: Pick<Account, 'currency'>): Currency {
   return normalizeCurrency(acc.currency) || 'BRL';
+}
+
+export function categoryBudgetCurrency(cat: Pick<Category, 'budgetCurrency'>): Currency {
+  return normalizeCurrency(cat.budgetCurrency) || 'BRL';
+}
+
+export function categoryBudgetInBrl(
+  cat: Pick<Category, 'monthlyBudget' | 'budgetCurrency'>,
+  rateSource: ExchangeRateSource
+): number {
+  const budget = cat.monthlyBudget;
+  if (!budget || budget <= 0) return 0;
+  const curr = categoryBudgetCurrency(cat);
+  if (curr === 'BRL') return budget;
+  const converted = convertAmount(budget, curr, 'BRL', rateSource);
+  return converted !== null ? converted : budget;
 }
 
 export function isValidRate(rate: number | null | undefined): rate is number {

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Target,
   Plus,
@@ -14,12 +14,25 @@ import {
   ArrowUpDown,
   Filter,
 } from 'lucide-react';
-import type { Category, Transaction, TransactionType } from '../types/finance';
+import type { Category, Currency, Transaction, TransactionType } from '../types/finance';
 import { generateEntityId } from '../domain/id';
 import { isProtectedCategory } from '../utils/categories';
-import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
-import { parseDecimalInput, txAmountInBrl } from '../utils/money';
-import type { ExchangeRateSource } from '../services/currencyService';
+import { formatBRL, formatMoney, formatMonthYearLabel } from '../utils/formatters';
+import {
+  categoryBudgetCurrency,
+  categoryBudgetInBrl,
+  convertAmount,
+  parseDecimalInput,
+  txAmountInBrl,
+} from '../utils/money';
+import {
+  findExchangeRate,
+  getCurrencyInfo,
+  getCurrencySymbol,
+  normalizeCurrency,
+  resolveExchangeRates,
+  type ExchangeRateSource,
+} from '../services/currencyService';
 
 interface BudgetsViewProps {
   selectedYearMonth: string;
@@ -59,9 +72,38 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   onDeleteCategory,
 }) => {
   const effectiveRates = rateSource ?? usdToBrlRate;
+  const baseCurrency: Currency = 'BRL';
+
+  const availableCurrencies = useMemo(() => {
+    const codes = new Set<Currency>([baseCurrency]);
+    for (const r of resolveExchangeRates(effectiveRates)) {
+      if (r.from) codes.add(normalizeCurrency(r.from));
+      if (r.to) codes.add(normalizeCurrency(r.to));
+    }
+    for (const c of categories) {
+      if (c.budgetCurrency) {
+        codes.add(normalizeCurrency(c.budgetCurrency));
+      }
+    }
+    return Array.from(codes);
+  }, [baseCurrency, effectiveRates, categories]);
+
+  const formatCurrencyOptionLabel = (code: Currency) => {
+    const info = getCurrencyInfo(code);
+    const flag = info?.flag ? `${info.flag} ` : '';
+    const symbol = getCurrencySymbol(code);
+    const name = info?.name || code;
+    if (code === baseCurrency) {
+      return `${flag}${code} — ${name} (${symbol}) · Moeda padrão`;
+    }
+    const rateToBrl = findExchangeRate(effectiveRates, code, baseCurrency);
+    const rateLabel = rateToBrl ? ` · 1 ${code} = ${formatBRL(rateToBrl)}` : '';
+    return `${flag}${code} — ${name} (${symbol})${rateLabel}`;
+  };
 
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = useState<string>('');
+  const [budgetCurrencyDraft, setBudgetCurrencyDraft] = useState<Currency>(baseCurrency);
   const [nameDraft, setNameDraft] = useState<string>('');
   const [colorDraft, setColorDraft] = useState<string>('');
 
@@ -70,17 +112,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   const [incomeColorDraft, setIncomeColorDraft] = useState<string>('');
 
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
-
-  useEffect(() => {
-    if (!categoryToDelete) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setCategoryToDelete(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [categoryToDelete]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,9 +121,29 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   const [newCatName, setNewCatName] = useState('');
   const [newCatType, setNewCatType] = useState<TransactionType>('expense');
   const [newCatBudget, setNewCatBudget] = useState('');
+  const [newCatCurrency, setNewCatCurrency] = useState<Currency>(baseCurrency);
   const [newCatColor, setNewCatColor] = useState(PRESET_COLORS[0]);
 
-  const newCatInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!categoryToDelete && !isCreateModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (categoryToDelete) setCategoryToDelete(null);
+        else if (isCreateModalOpen) setIsCreateModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [categoryToDelete, isCreateModalOpen]);
+
+  const openCreateModal = (defaultType: TransactionType = 'expense') => {
+    setNewCatType(defaultType);
+    setNewCatName('');
+    setNewCatBudget('');
+    setNewCatCurrency(baseCurrency);
+    setNewCatColor(PRESET_COLORS[categories.length % PRESET_COLORS.length]);
+    setIsCreateModalOpen(true);
+  };
 
   const monthStatsByCategory = useMemo(() => {
     const map = new Map<string, { paid: number; pending: number; count: number }>();
@@ -112,7 +164,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     return expCats.map((cat) => {
       const stats = monthStatsByCategory.get(cat.id) || { paid: 0, pending: 0, count: 0 };
       const totalSpent = stats.paid + stats.pending;
-      const limit = cat.monthlyBudget || 0;
+      const rawLimit = cat.monthlyBudget || 0;
+      const budgetCurrency = categoryBudgetCurrency(cat);
+      const limit = categoryBudgetInBrl(cat, effectiveRates);
       const remaining = limit - totalSpent;
       const pct = limit > 0 ? (totalSpent / limit) * 100 : 0;
 
@@ -121,13 +175,15 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         paid: stats.paid,
         pending: stats.pending,
         totalSpent,
+        rawLimit,
+        budgetCurrency,
         limit,
         remaining,
         pct,
         count: stats.count,
       };
     });
-  }, [categories, monthStatsByCategory]);
+  }, [categories, monthStatsByCategory, effectiveRates]);
 
   const incomeCategoriesWithStats = useMemo(() => {
     const incCats = categories.filter((c) => c.type === 'income');
@@ -176,6 +232,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     setEditingCatId(cat.id);
     setNameDraft(cat.name);
     setBudgetDraft(cat.monthlyBudget ? String(cat.monthlyBudget) : '');
+    setBudgetCurrencyDraft(categoryBudgetCurrency(cat));
     setColorDraft(cat.color || PRESET_COLORS[0]);
   };
 
@@ -185,17 +242,20 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
   const saveEditing = (cat: Category) => {
     const parsedBudget = Math.max(0, parseDecimalInput(budgetDraft) || 0);
+    const hasBudget = cat.type === 'expense' && parsedBudget > 0;
     onUpdateCategory({
       ...cat,
       name: nameDraft.trim() || cat.name,
       color: colorDraft || cat.color,
-      monthlyBudget: cat.type === 'expense' && parsedBudget > 0 ? parsedBudget : undefined,
+      monthlyBudget: hasBudget ? parsedBudget : undefined,
+      budgetCurrency:
+        hasBudget && budgetCurrencyDraft !== baseCurrency ? budgetCurrencyDraft : undefined,
     });
     setEditingCatId(null);
   };
 
   const removeGoal = (cat: Category) => {
-    onUpdateCategory({ ...cat, monthlyBudget: undefined });
+    onUpdateCategory({ ...cat, monthlyBudget: undefined, budgetCurrency: undefined });
     if (editingCatId === cat.id) setEditingCatId(null);
   };
 
@@ -224,22 +284,22 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     const parsedBudget = newCatBudget.trim()
       ? Math.max(0, parseDecimalInput(newCatBudget) || 0)
       : 0;
+    const hasBudget = newCatType === 'expense' && parsedBudget > 0;
     const created: Category = {
       id: generateEntityId('cat'),
       name: newCatName.trim(),
       type: newCatType,
       color: newCatColor,
       icon: 'Tag',
-      monthlyBudget: newCatType === 'expense' && parsedBudget > 0 ? parsedBudget : undefined,
+      monthlyBudget: hasBudget ? parsedBudget : undefined,
+      budgetCurrency:
+        hasBudget && newCatCurrency !== baseCurrency ? newCatCurrency : undefined,
     };
     onAddCategory(created);
     setNewCatName('');
     setNewCatBudget('');
-  };
-
-  const scrollToNewCategory = () => {
-    newCatInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    newCatInputRef.current?.focus();
+    setNewCatCurrency(baseCurrency);
+    setIsCreateModalOpen(false);
   };
 
   const filteredExpenseCategories = useMemo(() => {
@@ -495,9 +555,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
           <button
             type="button"
-            className="btn-primary"
-            style={{ padding: '6px 14px', fontSize: '11px' }}
-            onClick={scrollToNewCategory}
+            className="btn-primary budget-new-cat-btn"
+            onClick={() => openCreateModal('expense')}
           >
             <Plus size={14} /> Nova Categoria
           </button>
@@ -512,9 +571,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             <p>
               {searchQuery || statusFilter !== 'all'
                 ? 'Nenhuma categoria corresponde aos filtros aplicados. Redefina a busca ou selecione "Todas".'
-                : 'Crie sua primeira categoria de despesa no formulário abaixo e estipule um teto mensal.'}
+                : 'Crie sua primeira categoria de despesa e estipule um teto mensal.'}
             </p>
-            {(searchQuery || statusFilter !== 'all') && (
+            {searchQuery || statusFilter !== 'all' ? (
               <button
                 type="button"
                 className="btn-secondary"
@@ -525,6 +584,15 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 }}
               >
                 Limpar Filtros
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: 10 }}
+                onClick={() => openCreateModal('expense')}
+              >
+                <Plus size={14} /> Nova Categoria
               </button>
             )}
           </div>
@@ -658,18 +726,52 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       />
                     </div>
 
-                    <div className="budget-edit-field">
-                      <label>Teto Mensal (R$)</label>
-                      <input
-                        type="number"
-                        step="10"
-                        min="0"
-                        className="mono"
-                        value={budgetDraft}
-                        onChange={(e) => setBudgetDraft(e.target.value)}
-                        placeholder="Ex: 800"
-                      />
+                    <div className="budget-edit-goal-row">
+                      <div className="budget-edit-field">
+                        <label>Moeda da Meta</label>
+                        <select
+                          value={budgetCurrencyDraft}
+                          onChange={(e) => setBudgetCurrencyDraft(e.target.value as Currency)}
+                        >
+                          {availableCurrencies.map((code) => (
+                            <option key={code} value={code}>
+                              {formatCurrencyOptionLabel(code)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="budget-edit-field">
+                        <label>Teto Mensal ({getCurrencySymbol(budgetCurrencyDraft)})</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="mono"
+                          value={budgetDraft}
+                          onChange={(e) => setBudgetDraft(e.target.value)}
+                          placeholder="Ex: 800"
+                        />
+                      </div>
                     </div>
+
+                    {(() => {
+                      const parsed = Math.max(0, parseDecimalInput(budgetDraft) || 0);
+                      if (budgetCurrencyDraft === baseCurrency || parsed <= 0) return null;
+                      const converted = convertAmount(
+                        parsed,
+                        budgetCurrencyDraft,
+                        baseCurrency,
+                        effectiveRates
+                      );
+                      return (
+                        <div className="budget-currency-preview mono">
+                          {converted !== null
+                            ? `≈ ${formatBRL(converted, hideValues)} na cotação atual`
+                            : `Sem cotação ${budgetCurrencyDraft}/${baseCurrency} cadastrada`}
+                        </div>
+                      );
+                    })()}
 
                     <div className="budget-edit-field">
                       <label>Cor Identificadora</label>
@@ -687,7 +789,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     </div>
 
                     <div className="budget-edit-actions">
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div className="budget-edit-actions-group">
                         <button
                           type="button"
                           className="btn-primary"
@@ -706,38 +808,40 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         </button>
                       </div>
 
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {hasLimit && (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{
-                              padding: '6px 10px',
-                              fontSize: '11px',
-                              color: 'var(--text-secondary)',
-                            }}
-                            onClick={() => removeGoal(item.cat)}
-                            title="Remover apenas o teto mensal"
-                          >
-                            Remover Meta
-                          </button>
-                        )}
-                        {!isProtected && (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{
-                              padding: '6px 10px',
-                              fontSize: '11px',
-                              color: 'var(--color-coral)',
-                            }}
-                            onClick={() => setCategoryToDelete(item.cat)}
-                            title="Excluir categoria"
-                          >
-                            <Trash2 size={12} /> Excluir
-                          </button>
-                        )}
-                      </div>
+                      {(hasLimit || !isProtected) && (
+                        <div className="budget-edit-actions-group">
+                          {hasLimit && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '11px',
+                                color: 'var(--text-secondary)',
+                              }}
+                              onClick={() => removeGoal(item.cat)}
+                              title="Remover apenas o teto mensal"
+                            >
+                              Remover Meta
+                            </button>
+                          )}
+                          {!isProtected && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '11px',
+                                color: 'var(--color-coral)',
+                              }}
+                              onClick={() => setCategoryToDelete(item.cat)}
+                              title="Excluir categoria"
+                            >
+                              <Trash2 size={12} /> Excluir
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -752,7 +856,14 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             title="Clique para ajustar o teto desta categoria"
                           >
                             <span className="sub-tag">TETO:</span>
-                            <strong className="mono">{formatBRL(item.limit, hideValues)}</strong>
+                            <strong className="mono">
+                              {formatMoney(item.rawLimit, item.budgetCurrency, hideValues)}
+                            </strong>
+                            {item.budgetCurrency !== baseCurrency && (
+                              <span className="budget-limit-converted mono">
+                                (≈ {formatBRL(item.limit, hideValues)})
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -816,248 +927,344 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </div>
       )}
 
-      <div className="dashboard-bottom-grid">
-        <section className="panel-card">
-          <header className="panel-header">
-            <div>
-              <span className="eyebrow">CADASTRO RÁPIDO</span>
-              <h3>Nova Categoria & Meta</h3>
-            </div>
-            <Target size={18} style={{ color: 'var(--color-accent)' }} />
-          </header>
-
-          <form onSubmit={handleCreateCategory} className="compact-stack-form">
-            <div className="form-type-toggle">
-              <button
-                type="button"
-                className={`form-type-tab ${newCatType === 'expense' ? 'active' : ''}`}
-                onClick={() => setNewCatType('expense')}
-              >
-                Despesa
-              </button>
-              <button
-                type="button"
-                className={`form-type-tab ${newCatType === 'income' ? 'active' : ''}`}
-                onClick={() => setNewCatType('income')}
-              >
-                Receita / Entrada
-              </button>
-            </div>
-
-            <div className="form-grid-2">
-              <div className="form-field">
-                <label>Nome da Categoria</label>
-                <input
-                  ref={newCatInputRef}
-                  type="text"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="Ex: Transporte, Pets, Moradia..."
-                  required
-                />
-              </div>
-
-              {newCatType === 'expense' ? (
-                <div className="form-field">
-                  <label>Meta Mensal (R$, opcional)</label>
-                  <input
-                    type="number"
-                    step="10"
-                    min="0"
-                    className="mono"
-                    value={newCatBudget}
-                    onChange={(e) => setNewCatBudget(e.target.value)}
-                    placeholder="Sem meta (opcional)"
-                  />
-                </div>
-              ) : (
-                <div className="form-field">
-                  <label>Finalidade</label>
-                  <input
-                    type="text"
-                    disabled
-                    value="Entradas & Salários"
-                    style={{ opacity: 0.6 }}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="form-field">
-              <label>Cor Identificadora</label>
-              <div className="color-swatches-grid">
-                {PRESET_COLORS.map((color) => (
-                  <button
-                    type="button"
-                    key={color}
-                    className={`color-swatch-box ${newCatColor === color ? 'selected' : ''}`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setNewCatColor(color)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary">
-              <Plus size={16} /> Criar Categoria
+      <section className="panel-card">
+        <header className="panel-header">
+          <div>
+            <span className="eyebrow">FONTES DE ENTRADA</span>
+            <h3>Categorias de Receita ({incomeCategoriesWithStats.length})</h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary budget-new-cat-btn"
+              onClick={() => openCreateModal('income')}
+            >
+              <Plus size={14} /> Nova Receita
             </button>
-          </form>
-        </section>
-
-        <section className="panel-card">
-          <header className="panel-header">
-            <div>
-              <span className="eyebrow">FONTES DE ENTRADA</span>
-              <h3>Categorias de Receita ({incomeCategoriesWithStats.length})</h3>
-            </div>
             <TrendingDown
               size={18}
               style={{ color: 'var(--color-accent)', transform: 'rotate(180deg)' }}
             />
-          </header>
+          </div>
+        </header>
 
-          <div className="accounts-mini-list">
-            {incomeCategoriesWithStats.map((item) => {
-              const isEditing = editingIncomeCatId === item.cat.id;
-              const isProtected = isProtectedCategory(item.cat);
+        <div className="accounts-mini-list">
+          {incomeCategoriesWithStats.map((item) => {
+            const isEditing = editingIncomeCatId === item.cat.id;
+            const isProtected = isProtectedCategory(item.cat);
 
-              return (
-                <div key={item.cat.id} className="account-mini-row">
-                  <div className="account-mini-info" style={{ minWidth: 0, flex: 1 }}>
-                    <span
-                      className="cat-color-square"
-                      style={{ backgroundColor: isEditing ? incomeColorDraft : item.cat.color }}
-                    />
-                    {isEditing ? (
-                      <div
+            return (
+              <div key={item.cat.id} className={`account-mini-row ${isEditing ? 'is-editing' : ''}`}>
+                <div className="account-mini-info" style={{ minWidth: 0, flex: 1 }}>
+                  <span
+                    className="cat-color-square"
+                    style={{ backgroundColor: isEditing ? incomeColorDraft : item.cat.color }}
+                  />
+                  {isEditing ? (
+                    <div className="income-cat-edit-fields">
+                      <input
+                        type="text"
+                        value={isProtected ? item.cat.name : incomeNameDraft}
+                        onChange={(e) => setIncomeNameDraft(e.target.value)}
+                        placeholder="Nome da categoria"
+                        disabled={isProtected}
+                        title={
+                          isProtected
+                            ? 'O nome da categoria do sistema é fixo ("Outros")'
+                            : undefined
+                        }
                         style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6,
-                          flex: 1,
-                          paddingRight: 10,
+                          padding: '4px 8px',
+                          fontSize: '13px',
+                          width: '100%',
+                          minWidth: 0,
+                          ...(isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : {}),
                         }}
-                      >
-                        <input
-                          type="text"
-                          value={isProtected ? item.cat.name : incomeNameDraft}
-                          onChange={(e) => setIncomeNameDraft(e.target.value)}
-                          placeholder="Nome da categoria"
-                          disabled={isProtected}
-                          title={
-                            isProtected
-                              ? 'O nome da categoria do sistema é fixo ("Outros")'
-                              : undefined
-                          }
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '13px',
-                            ...(isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : {}),
-                          }}
-                        />
-                        <div className="color-swatches-grid">
-                          {PRESET_COLORS.map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              className={`color-swatch-box ${incomeColorDraft === c ? 'selected' : ''}`}
-                              style={{ backgroundColor: c, width: 18, height: 18 }}
-                              onClick={() => setIncomeColorDraft(c)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <strong>{item.cat.name}</strong>
-                          {isProtected && (
-                            <span
-                              className="budget-status-chip system-badge"
-                              title="Categoria permanente do sistema (não pode ser excluída)"
-                              style={{
-                                fontSize: '9px',
-                                padding: '1px 5px',
-                                opacity: 0.75,
-                                letterSpacing: '0.05em',
-                              }}
-                            >
-                              SISTEMA
-                            </span>
-                          )}
-                        </div>
-                        <span className="sub-label mono" style={{ fontSize: '11px' }}>
-                          Recebido: {formatBRL(item.paid, hideValues)}
-                          {item.pending > 0 &&
-                            ` · A receber: ${formatBRL(item.pending, hideValues)}`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="row-actions">
-                    {isEditing ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          style={{ padding: '4px 8px', fontSize: '11px' }}
-                          onClick={() => saveEditingIncome(item.cat)}
-                        >
-                          <Check size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          style={{ padding: '4px 8px', fontSize: '11px' }}
-                          onClick={cancelEditingIncome}
-                        >
-                          <X size={12} />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          className="icon-btn-sm"
-                          onClick={() => startEditingIncome(item.cat)}
-                          title="Editar categoria de receita"
-                        >
-                          <Edit3 size={13} />
-                        </button>
-                        {!isProtected ? (
+                      />
+                      <div className="color-swatches-grid">
+                        {PRESET_COLORS.map((c) => (
                           <button
+                            key={c}
                             type="button"
-                            className="icon-btn-sm danger"
-                            onClick={() => setCategoryToDelete(item.cat)}
-                            title="Excluir categoria de receita"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        ) : (
+                            className={`color-swatch-box ${incomeColorDraft === c ? 'selected' : ''}`}
+                            style={{ backgroundColor: c, width: 18, height: 18 }}
+                            onClick={() => setIncomeColorDraft(c)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                      <div className="income-cat-title-row">
+                        <strong>{item.cat.name}</strong>
+                        {isProtected && (
                           <span
-                            className="icon-btn-sm disabled"
+                            className="budget-status-chip system-badge"
+                            title="Categoria permanente do sistema (não pode ser excluída)"
                             style={{
-                              opacity: 0.35,
-                              cursor: 'not-allowed',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              fontSize: '9px',
+                              padding: '1px 5px',
+                              opacity: 0.75,
+                              letterSpacing: '0.05em',
                             }}
-                            title="Categoria do sistema permanente (não pode ser excluída)"
                           >
-                            <ShieldCheck size={13} />
+                            SISTEMA
                           </span>
                         )}
-                      </>
-                    )}
+                      </div>
+                      <span className="sub-label mono" style={{ fontSize: '11px' }}>
+                        Recebido: {formatBRL(item.paid, hideValues)}
+                        {item.pending > 0 &&
+                          ` · A receber: ${formatBRL(item.pending, hideValues)}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="row-actions">
+                  {isEditing ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                        onClick={() => saveEditingIncome(item.cat)}
+                      >
+                        <Check size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ padding: '4px 8px', fontSize: '11px' }}
+                        onClick={cancelEditingIncome}
+                      >
+                        <X size={12} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-btn-sm"
+                        onClick={() => startEditingIncome(item.cat)}
+                        title="Editar categoria de receita"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      {!isProtected ? (
+                        <button
+                          type="button"
+                          className="icon-btn-sm danger"
+                          onClick={() => setCategoryToDelete(item.cat)}
+                          title="Excluir categoria de receita"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      ) : (
+                        <span
+                          className="icon-btn-sm disabled"
+                          style={{
+                            opacity: 0.35,
+                            cursor: 'not-allowed',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          title="Categoria do sistema permanente (não pode ser excluída)"
+                        >
+                          <ShieldCheck size={13} />
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {isCreateModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsCreateModalOpen(false)}>
+          <div
+            className="modal-card"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-cat-modal-title"
+            style={{ maxWidth: 520 }}
+          >
+            <header className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Target size={18} style={{ color: 'var(--color-accent)' }} />
+                <h2 id="new-cat-modal-title">Nova Categoria & Meta</h2>
+              </div>
+              <button
+                type="button"
+                className="icon-action-btn"
+                onClick={() => setIsCreateModalOpen(false)}
+                title="Fechar (Esc)"
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            <form onSubmit={handleCreateCategory}>
+              <div
+                className="modal-body"
+                style={{
+                  padding: '22px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                }}
+              >
+                <div className="form-type-toggle">
+                  <button
+                    type="button"
+                    className={`form-type-tab ${newCatType === 'expense' ? 'active' : ''}`}
+                    onClick={() => setNewCatType('expense')}
+                  >
+                    Despesa
+                  </button>
+                  <button
+                    type="button"
+                    className={`form-type-tab ${newCatType === 'income' ? 'active' : ''}`}
+                    onClick={() => setNewCatType('income')}
+                  >
+                    Receita / Entrada
+                  </button>
+                </div>
+
+                <div className="form-field">
+                  <label>Nome da Categoria</label>
+                  <input
+                    type="text"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    placeholder={
+                      newCatType === 'expense'
+                        ? 'Ex: Transporte, Pets, Moradia, Assinaturas...'
+                        : 'Ex: Salário, Dividendos, Freelance...'
+                    }
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                {newCatType === 'expense' ? (
+                  <>
+                    <div className="form-grid-2">
+                      <div className="form-field">
+                        <label>Moeda da Meta</label>
+                        <select
+                          value={newCatCurrency}
+                          onChange={(e) => setNewCatCurrency(e.target.value as Currency)}
+                        >
+                          {availableCurrencies.map((code) => (
+                            <option key={code} value={code}>
+                              {formatCurrencyOptionLabel(code)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-field">
+                        <label>
+                          Meta Mensal ({getCurrencySymbol(newCatCurrency)}, opcional)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="mono"
+                          value={newCatBudget}
+                          onChange={(e) => setNewCatBudget(e.target.value)}
+                          placeholder="Sem meta (opcional)"
+                        />
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const parsed = Math.max(0, parseDecimalInput(newCatBudget) || 0);
+                      if (newCatCurrency !== baseCurrency && parsed > 0) {
+                        const converted = convertAmount(
+                          parsed,
+                          newCatCurrency,
+                          baseCurrency,
+                          effectiveRates
+                        );
+                        return (
+                          <div className="budget-currency-preview mono">
+                            {converted !== null
+                              ? `≈ ${formatBRL(converted, hideValues)} na cotação atual`
+                              : `Sem cotação ${newCatCurrency}/${baseCurrency} cadastrada`}
+                          </div>
+                        );
+                      }
+                      if (availableCurrencies.length === 1) {
+                        return (
+                          <span className="sub-label" style={{ fontSize: 11 }}>
+                            Cadastre outras moedas em Configurações › Câmbio para definir metas em
+                            moeda estrangeira.
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </>
+                ) : (
+                  <div className="form-field">
+                    <label>Finalidade</label>
+                    <input
+                      type="text"
+                      disabled
+                      value="Entradas & Salários (sem teto de gastos)"
+                      style={{ opacity: 0.6 }}
+                    />
+                  </div>
+                )}
+
+                <div className="form-field">
+                  <label>Cor Identificadora</label>
+                  <div className="color-swatches-grid">
+                    {PRESET_COLORS.map((color) => (
+                      <button
+                        type="button"
+                        key={color}
+                        className={`color-swatch-box ${newCatColor === color ? 'selected' : ''}`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setNewCatColor(color)}
+                      />
+                    ))}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+
+              <footer
+                className="modal-footer"
+                style={{
+                  padding: '16px 24px',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary">
+                  <Plus size={16} /> Criar Categoria
+                </button>
+              </footer>
+            </form>
           </div>
-        </section>
-      </div>
+        </div>
+      )}
 
       {categoryToDelete && !isProtectedCategory(categoryToDelete) && (() => {
         const linkedCount = transactions.filter(
@@ -1089,7 +1296,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 </button>
               </header>
 
-              <div className="modal-body" style={{ padding: '22px 24px' }}>
+              <div className="modal-body">
                 <div className="delete-confirm-box">
                   <div className="delete-confirm-cat-preview">
                     <span
@@ -1131,7 +1338,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 </div>
               </div>
 
-              <footer className="modal-footer" style={{ padding: '16px 24px' }}>
+              <footer className="modal-footer">
                 <button
                   type="button"
                   className="btn-secondary"
