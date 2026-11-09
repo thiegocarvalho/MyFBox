@@ -1,4 +1,4 @@
-import type { Account, Category, VaultPayload } from '../types/finance';
+import type { Account, Category, InitialAccountData, VaultPayload } from '../types/finance';
 
 const EMPTY_ACCOUNTS: Account[] = [
   {
@@ -94,16 +94,32 @@ const DEFAULT_CATEGORIES: Category[] = [
   },
 ];
 
-/** Cofre novo: uma conta, categorias padrão (sem metas) e nenhum lançamento. */
-export function createInitialVaultPayload(vaultName: string = 'Cofre Pessoal'): VaultPayload {
+/** Cofre novo: conta inicial configurada ou padrão, categorias padrão e nenhum lançamento. */
+export function createInitialVaultPayload(
+  vaultName: string = 'Cofre Pessoal',
+  initialAccount?: InitialAccountData
+): VaultPayload {
+  const accounts: Account[] = initialAccount
+    ? [
+        {
+          id: `acc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          name: initialAccount.name.trim() || 'Conta Principal',
+          type: initialAccount.type || 'checking',
+          initialBalance: initialAccount.initialBalance ?? 0,
+          color: initialAccount.color || '#C8FF00',
+          currency: initialAccount.currency || 'BRL',
+        },
+      ]
+    : structuredClone(EMPTY_ACCOUNTS);
+
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
-    accounts: structuredClone(EMPTY_ACCOUNTS),
+    accounts,
     categories: structuredClone(DEFAULT_CATEGORIES),
     transactions: [],
     settings: {
-      currency: 'BRL',
+      currency: initialAccount?.currency || 'BRL',
       autoLockMinutes: 15,
       hideValuesByDefault: false,
       vaultName: vaultName.trim() || 'Cofre Pessoal',

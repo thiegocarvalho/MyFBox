@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from '../services/currencyService';
 import type { Currency } from '../types/finance';
 
 export function formatMoney(
@@ -6,23 +7,23 @@ export function formatMoney(
   hideValues: boolean = false
 ): string {
   if (hideValues) {
-    return currency === 'USD' ? 'US$ •••••' : 'R$ •••••';
+    const sym = getCurrencySymbol(currency) || currency;
+    return `${sym} •••••`;
   }
-  if (currency === 'USD') {
-    // Padrão brasileiro para dólar: "US$ 1.949,18"
+  try {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'USD',
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(value);
+  } catch {
+    const sym = getCurrencySymbol(currency) || currency;
+    return `${sym} ${value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   }
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 export function formatBRL(value: number, hideValues: boolean = false): string {

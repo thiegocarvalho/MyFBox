@@ -6,6 +6,7 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '../types/finance';
+import { getDefaultCategoryId } from '../utils/categories';
 
 export interface ParsedImportItem {
   tempId: string;
@@ -60,6 +61,7 @@ export function exportTransactionsToCSV(
     'Descricao',
     'Tipo',
     'Status',
+    'Pago_em',
     'Valor',
     'Moeda',
     'Cotacao_USD_BRL',
@@ -84,6 +86,7 @@ export function exportTransactionsToCSV(
       safeCsvText(tx.description),
       tipo,
       status,
+      tx.paidAt ?? '',
       valor,
       moeda,
       cotacao,
@@ -114,18 +117,19 @@ function guessCategoryForDescription(
   type: TransactionType,
   categories: Category[]
 ): string {
+  const defaultCatId = getDefaultCategoryId(categories, type);
   const lower = description.toLowerCase();
   const candidates = categories.filter((c) => c.type === type);
-  if (candidates.length === 0) return categories[0]?.id || '';
+  if (candidates.length === 0) return defaultCatId;
 
   if (type === 'income') {
     if (lower.includes('salário') || lower.includes('salario') || lower.includes('folha') || lower.includes('pagamento')) {
-      return candidates.find((c) => c.name.toLowerCase().includes('salário'))?.id || candidates[0].id;
+      return candidates.find((c) => c.name.toLowerCase().includes('salário'))?.id || defaultCatId;
     }
     if (lower.includes('cdb') || lower.includes('dividendo') || lower.includes('rendimento') || lower.includes('juros')) {
-      return candidates.find((c) => c.name.toLowerCase().includes('rendimento'))?.id || candidates[0].id;
+      return candidates.find((c) => c.name.toLowerCase().includes('rendimento'))?.id || defaultCatId;
     }
-    return candidates[0].id;
+    return defaultCatId;
   }
 
   // Expense matching
@@ -138,7 +142,7 @@ function guessCategoryForDescription(
     lower.includes('hortifruti') ||
     lower.includes('feira')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('mercado'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('mercado'))?.id || defaultCatId;
   }
   if (
     lower.includes('ifood') ||
@@ -150,7 +154,7 @@ function guessCategoryForDescription(
     lower.includes('burger') ||
     lower.includes('pizza')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('restaurante'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('restaurante'))?.id || defaultCatId;
   }
   if (
     lower.includes('uber') ||
@@ -161,7 +165,7 @@ function guessCategoryForDescription(
     lower.includes('estacionamento') ||
     lower.includes('pedagio')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('transporte'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('transporte'))?.id || defaultCatId;
   }
   if (
     lower.includes('aluguel') ||
@@ -172,7 +176,7 @@ function guessCategoryForDescription(
     lower.includes('sabesp') ||
     lower.includes('iptu')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('moradia'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('moradia'))?.id || defaultCatId;
   }
   if (
     lower.includes('farmacia') ||
@@ -184,7 +188,7 @@ function guessCategoryForDescription(
     lower.includes('hospital') ||
     lower.includes('saude')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('saúde'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('saúde'))?.id || defaultCatId;
   }
   if (
     lower.includes('netflix') ||
@@ -195,10 +199,10 @@ function guessCategoryForDescription(
     lower.includes('claro') ||
     lower.includes('assinatura')
   ) {
-    return candidates.find((c) => c.name.toLowerCase().includes('assinatura'))?.id || candidates[0].id;
+    return candidates.find((c) => c.name.toLowerCase().includes('assinatura'))?.id || defaultCatId;
   }
 
-  return candidates[0].id;
+  return defaultCatId;
 }
 
 function normalizeDateString(raw: string): string {

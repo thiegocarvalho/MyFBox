@@ -1,7 +1,13 @@
-export type Currency = 'BRL' | 'USD';
+export type Currency = string;
 export type TransactionType = 'income' | 'expense';
 export type TransactionStatus = 'paid' | 'pending';
-export type AccountType = 'checking' | 'savings' | 'wallet' | 'investment' | 'credit';
+export type AccountType =
+  | 'reserve'
+  | 'investment'
+  | 'checking'
+  | 'credit'
+  | 'wallet'
+  | 'savings';
 
 export interface Account {
   id: string;
@@ -13,6 +19,14 @@ export interface Account {
   institution?: string;
 }
 
+export interface InitialAccountData {
+  name: string;
+  type: AccountType;
+  color: string;
+  initialBalance: number;
+  currency?: Currency;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -20,6 +34,7 @@ export interface Category {
   color: string;
   icon: string;
   monthlyBudget?: number; // Orçamento teto mensal para categorias de despesa
+  isSystem?: boolean; // Categoria protegida do sistema (não pode ser excluída nem renomeada)
 }
 
 export interface Transaction {
@@ -31,6 +46,7 @@ export interface Transaction {
   type: TransactionType;
   status: TransactionStatus;
   date: string; // YYYY-MM-DD
+  paidAt?: string; // YYYY-MM-DD: quando foi pago/recebido (a data acima é a de vencimento)
   categoryId: string;
   accountId: string;
   notes?: string;
@@ -41,13 +57,22 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface ExchangeRate {
+  from: string; // Ex: 'USD', 'EUR', 'BTC' (código em maiúsculas)
+  to: string;   // Ex: 'BRL', 'USD' (código em maiúsculas)
+  rate: number; // 1 from = rate to (ex: 1 USD = 5.85 BRL)
+  updatedAt: string;
+  source?: 'manual' | 'agent' | 'mcp';
+}
+
 export interface VaultSettings {
   currency: string;
   autoLockMinutes: number;
   hideValuesByDefault: boolean;
   vaultName: string;
-  usdToBrlRate?: number; // Cotação de conversão opcional
+  usdToBrlRate?: number; // Cotação de conversão USD/BRL legada (sincronizada com exchangeRates)
   usdRateUpdatedAt?: string;
+  exchangeRates?: ExchangeRate[]; // Cotações de moedas pareadas (offline, gerenciadas pelo usuário ou MCP)
   lastBackupAt?: string; // Data do último download do backup cifrado
   mcpEnabled?: boolean; // Modo MCP local — desligado por padrão
   mcpToken?: string; // Código de pareamento com o servidor MCP local
