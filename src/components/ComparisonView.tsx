@@ -1,8 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { Sparkles, TriangleAlert, X, ArrowUpRight, ArrowDownRight, Bot } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Sparkles,
+  TriangleAlert,
+  X,
+  ArrowUpRight,
+  ArrowDownRight,
+  Bot,
+} from 'lucide-react';
 import type { Category, MonthInsight, Transaction } from '../types/finance';
 import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
 import { buildMonthComparison, type MonthComparison } from '../utils/comparison';
+import { InsightAudioPlayer } from './InsightAudioPlayer';
 
 interface ComparisonViewProps {
   selectedYearMonth: string;
@@ -11,7 +19,7 @@ interface ComparisonViewProps {
   insights: MonthInsight[];
   hideValues: boolean;
   usdToBrlRate?: number;
-  onDeleteInsight: (month: string) => void;
+  onDeleteInsight?: (month: string) => void | Promise<void>;
 }
 
 const RANGE_OPTIONS = [6, 12];
@@ -20,6 +28,32 @@ const SHORT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'S
 function shortMonth(ym: string): string {
   const [y, m] = ym.split('-');
   return `${SHORT_MONTHS[Number(m) - 1]}/${y.slice(2)}`;
+}
+
+const CATEGORY_LIMIT = 4;
+
+/** Maiores categorias de saída do mês (cada informação aparece uma única vez no cartão). */
+function expenseCategories(r: MonthComparison) {
+  return r.categories.filter((c) => c.type === 'expense').slice(0, CATEGORY_LIMIT);
+}
+
+function hiddenCategories(r: MonthComparison): number {
+  return Math.max(0, r.categories.filter((c) => c.type === 'expense').length - CATEGORY_LIMIT);
+}
+
+/**
+ * Só faz sentido mostrar a variação se o mês anterior tinha valor: quando era zero, a
+ * variação é igual ao total e só repetiria o número.
+ */
+function hadPrevious(current: number, delta: number): boolean {
+  return Math.abs(current - delta) > 0.004;
+}
+
+/** Leitura curta do resultado: quanto das entradas sobra (ou quanto falta). */
+function resultNote(r: MonthComparison): string | null {
+  if (r.income.total <= 0) return r.expense.total > 0 ? 'Sem entradas no mês' : null;
+  const pct = Math.round((r.net / r.income.total) * 100);
+  return r.net >= 0 ? `Sobram ${pct}% das entradas` : `Faltam ${Math.abs(pct)}% das entradas`;
 }
 
 function formatDateTime(iso: string): string {
@@ -56,9 +90,10 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   insights,
   hideValues,
   usdToBrlRate,
-  onDeleteInsight,
 }) => {
   const [range, setRange] = useState(6);
+  const [readingInsightMonth, setReadingInsightMonth] = useState<string | null>(null);
+  const [readingSegmentIndex, setReadingSegmentIndex] = useState<number | null>(null);
 
   const rows = useMemo(
     () => buildMonthComparison(transactions, categories, selectedYearMonth, range, usdToBrlRate),
@@ -69,6 +104,33 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   // Cartões só para meses com lançamentos; os vazios viram uma linha compacta
   const recentFirst = [...rows].reverse().filter((r) => r.transactionCount > 0);
   const emptyMonths = rows.filter((r) => r.transactionCount === 0).map((r) => r.month);
+
+  const activeInsight = readingInsightMonth ? insightByMonth.get(readingInsightMonth) : null;
+  const activeRow = activeInsight ? rows.find((r) => r.month === activeInsight.month) : null;
+  const isActiveOutdated = Boolean(
+    activeInsight && activeRow && activeInsight.dataSignature !== activeRow.signature
+  );
+
+  const handleOpenInsight = (month: string) => {
+    setReadingSegmentIndex(null);
+    setReadingInsightMonth(month);
+  };
+
+  const handleCloseInsight = () => {
+    setReadingSegmentIndex(null);
+    setReadingInsightMonth(null);
+  };
+
+  useEffect(() => {
+    if (!readingInsightMonth) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseInsight();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [readingInsightMonth]);
 
   return (
     <div className="cmp-stack">
@@ -161,7 +223,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                   {r.income.pending > 0 && (
                     <em>{formatBRL(r.income.pending, hideValues)} a receber</em>
                   )}
-                  {r.vsPrevious && (
+                  {r.vsPrevious && hadPrevious(r.income.total, r.vsPrevious.income) && (
                     <Delta value={r.vsPrevious.income} goodWhenUp hideValues={hideValues} />
                   )}
                 </div>
@@ -171,7 +233,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                   {r.expense.pending > 0 && (
                     <em>{formatBRL(r.expense.pending, hideValues)} a pagar</em>
                   )}
-                  {r.vsPrevious && (
+                  {r.vsPrevious && hadPrevious(r.expense.total, r.vsPrevious.expense) && (
                     <Delta value={r.vsPrevious.expense} goodWhenUp={false} hideValues={hideValues} />
                   )}
                 </div>
@@ -181,73 +243,187 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                     {r.net >= 0 ? '+' : '−'}
                     {formatBRL(Math.abs(r.net), hideValues)}
                   </strong>
-                  {r.vsPrevious && <Delta value={r.vsPrevious.net} goodWhenUp hideValues={hideValues} />}
+                  {resultNote(r) && <em className="cmp-result-note">{resultNote(r)}</em>}
+                  {r.vsPrevious && hadPrevious(r.net, r.vsPrevious.net) && (
+                    <Delta value={r.vsPrevious.net} goodWhenUp hideValues={hideValues} />
+                  )}
                 </div>
               </div>
 
-              {r.topChanges.length > 0 && (
-                <div className="cmp-changes">
-                  <span className="eyebrow">O QUE MAIS MUDOU NAS SAÍDAS</span>
+              {expenseCategories(r).length > 0 && (
+                <div className="cmp-cats">
+                  <span className="eyebrow">SAÍDAS POR CATEGORIA</span>
                   <ul>
-                    {r.topChanges.map((c) => (
+                    {expenseCategories(r).map((c) => (
                       <li key={c.categoryId}>
                         <span className="chip-dot" style={{ backgroundColor: c.color }} />
-                        <span className="cmp-change-name">{c.name}</span>
-                        <Delta value={c.delta} goodWhenUp={false} hideValues={hideValues} />
+                        <span className="cmp-cat-name">{c.name}</span>
+                        <span className="cmp-cat-share">{Math.round(c.share ?? 0)}%</span>
+                        <span className="cmp-cat-total">{formatBRL(c.total, hideValues)}</span>
+                        <span className="cmp-cat-delta">
+                          {c.delta !== null && c.delta !== undefined &&
+                            (hadPrevious(c.total, c.delta) ? (
+                              <Delta value={c.delta} goodWhenUp={false} hideValues={hideValues} />
+                            ) : (
+                              <span className="cmp-new">novo</span>
+                            ))}
+                        </span>
+                        <span className="cmp-cat-bar" aria-hidden>
+                          <i style={{ width: `${Math.min(100, c.share ?? 0)}%`, backgroundColor: c.color }} />
+                        </span>
                       </li>
                     ))}
                   </ul>
+                  {hiddenCategories(r) > 0 && (
+                    <span className="field-hint">
+                      {hiddenCategories(r) === 1
+                        ? '+ 1 categoria menor'
+                        : `+ ${hiddenCategories(r)} categorias menores`}
+                    </span>
+                  )}
                 </div>
               )}
 
-              {/* Insight do assistente */}
-              {insight ? (
-                <div className={`cmp-insight ${outdated ? 'outdated' : ''}`}>
-                  <div className="cmp-insight-head">
-                    <Sparkles size={15} />
-                    <strong>{insight.title}</strong>
-                    <button
-                      type="button"
-                      className="cmp-insight-delete"
-                      onClick={() => onDeleteInsight(insight.month)}
-                      aria-label={`Remover o insight de ${formatMonthYearLabel(insight.month)}`}
-                      title="Remover insight"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                  {insight.body.split(/\n\s*\n/).map((para, i) => (
-                    <p key={i}>{para}</p>
-                  ))}
-                  {insight.highlights && insight.highlights.length > 0 && (
-                    <ul className="cmp-insight-highlights">
-                      {insight.highlights.map((h, i) => (
-                        <li key={i}>{h}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <footer>
-                    <Bot size={13} /> Escrito pelo assistente · atualizado em {formatDateTime(insight.updatedAt)}
-                    {outdated && (
-                      <span className="cmp-outdated">
-                        <TriangleAlert size={13} /> Os lançamentos do mês mudaram depois deste insight
-                      </span>
-                    )}
-                  </footer>
-                </div>
-              ) : (
-                <div className="cmp-insight empty">
-                  <Sparkles size={15} />
-                  <span>
-                    Sem insight. Peça ao assistente (MCP):{' '}
-                    <q>gere o insight de {formatMonthYearLabel(r.month).toLowerCase()}</q>.
-                  </span>
+              {/* Insight da IA: resumo compacto com abertura de modal */}
+              {insight && (
+                <div className={`cmp-insight-trigger ${outdated ? 'outdated' : ''}`}>
+                  <button
+                    type="button"
+                    className="cmp-insight-trigger-btn"
+                    onClick={() => handleOpenInsight(r.month)}
+                    title={`Ler análise completa de ${formatMonthYearLabel(r.month)}`}
+                  >
+                    <div className="cmp-insight-trigger-badge">
+                      <Sparkles size={13} />
+                      <span>INSIGHT DA IA</span>
+                      {outdated && (
+                        <span className="cmp-outdated-tag">
+                          <TriangleAlert size={10} /> Desatualizado
+                        </span>
+                      )}
+                    </div>
+                    <strong className="cmp-insight-trigger-title">{insight.title}</strong>
+                    <span className="cmp-insight-trigger-cta">
+                      Ler análise completa &rarr;
+                    </span>
+                  </button>
                 </div>
               )}
             </article>
           );
         })}
       </div>
+
+      {/* Modal de Leitura do Insight da IA */}
+      {activeInsight && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCloseInsight();
+          }}
+        >
+          <div
+            className="modal-card cmp-insight-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cmp-insight-modal-title"
+          >
+            <header className="modal-header cmp-insight-modal-header">
+              <div className="cmp-insight-modal-title-wrap">
+                <div className="cmp-insight-modal-eyebrow">
+                  <Sparkles size={13} />
+                  <span>INSIGHT DA IA</span>
+                  <span className="cmp-insight-modal-dot">•</span>
+                  <span>{formatMonthYearLabel(activeInsight.month)}</span>
+                </div>
+                <h2 id="cmp-insight-modal-title">{activeInsight.title}</h2>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={handleCloseInsight}
+                aria-label="Fechar"
+                title="Fechar (Esc)"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="modal-body cmp-insight-modal-body">
+              {/* Player de áudio Web Speech API */}
+              <InsightAudioPlayer
+                title={activeInsight.title}
+                paragraphs={activeInsight.body.split(/\n\s*\n/).filter(Boolean)}
+                highlights={activeInsight.highlights}
+                monthLabel={formatMonthYearLabel(activeInsight.month)}
+                currentReadingIndex={readingSegmentIndex ?? undefined}
+                onReadingIndexChange={setReadingSegmentIndex}
+              />
+
+              {isActiveOutdated && (
+                <div className="cmp-modal-outdated-alert">
+                  <TriangleAlert size={16} />
+                  <div>
+                    <strong>Lançamentos do mês foram alterados</strong>
+                    <p>
+                      Esta análise foi elaborada com dados anteriores de {formatMonthYearLabel(activeInsight.month)}. Os totais ou percentuais podem não refletir o estado atual do cofre.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="cmp-modal-paragraphs">
+                {activeInsight.body
+                  .split(/\n\s*\n/)
+                  .filter(Boolean)
+                  .map((para, i) => {
+                    const isReading = readingSegmentIndex === i + 1;
+                    return (
+                      <p key={i} className={isReading ? 'cmp-para-reading' : ''}>
+                        {para}
+                      </p>
+                    );
+                  })}
+              </div>
+
+              {activeInsight.highlights && activeInsight.highlights.length > 0 && (
+                <div
+                  className={`cmp-modal-highlights ${
+                    readingSegmentIndex ===
+                    activeInsight.body.split(/\n\s*\n/).filter(Boolean).length + 1
+                      ? 'cmp-para-reading'
+                      : ''
+                  }`}
+                >
+                  <span className="eyebrow">PONTOS DE DESTAQUE</span>
+                  <ul>
+                    {activeInsight.highlights.map((h, i) => (
+                      <li key={i}>{h}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="cmp-modal-meta">
+                <Bot size={14} />
+                <span>
+                  Análise gerada pelo assistente local via MCP · Atualizada em {formatDateTime(activeInsight.updatedAt || activeInsight.createdAt)}
+                </span>
+              </div>
+            </div>
+
+            <footer className="modal-footer cmp-insight-modal-footer">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCloseInsight}
+              >
+                Fechar
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

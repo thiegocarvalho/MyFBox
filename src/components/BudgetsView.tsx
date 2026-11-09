@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Target,
   Plus,
@@ -8,8 +8,14 @@ import {
   Trash2,
   Edit3,
   X,
+  TrendingDown,
+  ShieldCheck,
+  Search,
+  ArrowUpDown,
+  Filter,
 } from 'lucide-react';
 import type { Category, Transaction, TransactionType } from '../types/finance';
+import { isProtectedCategory } from '../utils/categories';
 import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
 import { parseDecimalInput, txAmountInBrl } from '../utils/money';
 
@@ -35,6 +41,9 @@ const PRESET_COLORS = [
   '#EC4899',
 ];
 
+type StatusFilter = 'all' | 'ok' | 'warn' | 'over' | 'no-goal';
+type SortField = 'pct' | 'spent' | 'limit' | 'name';
+
 export const BudgetsView: React.FC<BudgetsViewProps> = ({
   selectedYearMonth,
   categories,
@@ -45,15 +54,43 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   onAddCategory,
   onDeleteCategory,
 }) => {
+  // Estado de edição de categoria de despesa
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = useState<string>('');
   const [nameDraft, setNameDraft] = useState<string>('');
+  const [colorDraft, setColorDraft] = useState<string>('');
+
+  // Estado de edição de categoria de receita
+  const [editingIncomeCatId, setEditingIncomeCatId] = useState<string | null>(null);
+  const [incomeNameDraft, setIncomeNameDraft] = useState<string>('');
+  const [incomeColorDraft, setIncomeColorDraft] = useState<string>('');
+
+  // Modal de confirmação de exclusão de categoria
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+
+  useEffect(() => {
+    if (!categoryToDelete) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCategoryToDelete(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [categoryToDelete]);
+
+  // Filtros e busca
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortField>('pct');
 
   // Form para nova categoria
   const [newCatName, setNewCatName] = useState('');
   const [newCatType, setNewCatType] = useState<TransactionType>('expense');
-  const [newCatBudget, setNewCatBudget] = useState('500');
+  const [newCatBudget, setNewCatBudget] = useState('');
   const [newCatColor, setNewCatColor] = useState(PRESET_COLORS[0]);
+
+  const newCatInputRef = useRef<HTMLInputElement>(null);
 
   const monthTransactions = useMemo(
     () => transactions.filter((t) => t.date.startsWith(selectedYearMonth)),
@@ -93,32 +130,68 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     });
   }, [categories, monthTransactions, usdToBrlRate]);
 
-  const incomeCategories = useMemo(
-    () => categories.filter((c) => c.type === 'income'),
-    [categories]
-  );
+  const incomeCategoriesWithStats = useMemo(() => {
+    const incCats = categories.filter((c) => c.type === 'income');
+    return incCats.map((cat) => {
+      let paid = 0;
+      let pending = 0;
+      let count = 0;
+      for (const tx of monthTransactions) {
+        if (tx.categoryId === cat.id && tx.type === 'income') {
+          const valueBrl = txAmountInBrl(tx, usdToBrlRate);
+          if (tx.status === 'paid') paid += valueBrl;
+          else pending += valueBrl;
+          count++;
+        }
+      }
+      return {
+        cat,
+        paid,
+        pending,
+        total: paid + pending,
+        count,
+      };
+    });
+  }, [categories, monthTransactions, usdToBrlRate]);
 
   const totals = useMemo(() => {
-    // Só categorias com meta entram no comparativo planejado vs. gasto
     const withGoal = expenseCategoriesWithStats.filter((i) => i.limit > 0);
     const totalBudget = withGoal.reduce((acc, i) => acc + i.limit, 0);
     const totalSpent = withGoal.reduce((acc, i) => acc + i.totalSpent, 0);
-    const overCount = expenseCategoriesWithStats.filter(
-      (i) => i.limit > 0 && i.totalSpent > i.limit
-    ).length;
+    const paidTotal = withGoal.reduce((acc, i) => acc + i.paid, 0);
+    const pendingTotal = withGoal.reduce((acc, i) => acc + i.pending, 0);
+    const overCount = withGoal.filter((i) => i.totalSpent > i.limit).length;
+    const warnCount = withGoal.filter((i) => i.totalSpent <= i.limit && i.pct >= 80).length;
+    const okCount = withGoal.filter((i) => i.totalSpent <= i.limit && i.pct < 80).length;
+    const withoutGoalCount = expenseCategoriesWithStats.filter((i) => i.limit === 0).length;
+    const txCount = withGoal.reduce((acc, i) => acc + i.count, 0);
+
     return {
       totalBudget,
       totalSpent,
+      paidTotal,
+      pendingTotal,
       remaining: totalBudget - totalSpent,
       pct: totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0,
       overCount,
+      warnCount,
+      okCount,
+      withGoalCount: withGoal.length,
+      withoutGoalCount,
+      allExpensesCount: expenseCategoriesWithStats.length,
+      txCount,
     };
   }, [expenseCategoriesWithStats]);
 
   const startEditing = (cat: Category) => {
     setEditingCatId(cat.id);
     setNameDraft(cat.name);
-    setBudgetDraft(String(cat.monthlyBudget || 0));
+    setBudgetDraft(cat.monthlyBudget ? String(cat.monthlyBudget) : '');
+    setColorDraft(cat.color || PRESET_COLORS[0]);
+  };
+
+  const cancelEditing = () => {
+    setEditingCatId(null);
   };
 
   const saveEditing = (cat: Category) => {
@@ -126,326 +199,671 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     onUpdateCategory({
       ...cat,
       name: nameDraft.trim() || cat.name,
+      color: colorDraft || cat.color,
       monthlyBudget: cat.type === 'expense' && parsedBudget > 0 ? parsedBudget : undefined,
     });
     setEditingCatId(null);
   };
 
-  // Remove só a meta (teto); a categoria continua existindo para os lançamentos
   const removeGoal = (cat: Category) => {
     onUpdateCategory({ ...cat, monthlyBudget: undefined });
     if (editingCatId === cat.id) setEditingCatId(null);
   };
 
+  const startEditingIncome = (cat: Category) => {
+    setEditingIncomeCatId(cat.id);
+    setIncomeNameDraft(cat.name);
+    setIncomeColorDraft(cat.color || PRESET_COLORS[0]);
+  };
+
+  const cancelEditingIncome = () => {
+    setEditingIncomeCatId(null);
+  };
+
+  const saveEditingIncome = (cat: Category) => {
+    onUpdateCategory({
+      ...cat,
+      name: incomeNameDraft.trim() || cat.name,
+      color: incomeColorDraft || cat.color,
+    });
+    setEditingIncomeCatId(null);
+  };
+
   const handleCreateCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    const parsedBudget = Math.max(0, parseDecimalInput(newCatBudget) || 0);
+    const parsedBudget = newCatBudget.trim() ? Math.max(0, parseDecimalInput(newCatBudget) || 0) : 0;
     const created: Category = {
       id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name: newCatName.trim(),
       type: newCatType,
       color: newCatColor,
       icon: 'Tag',
-      monthlyBudget: newCatType === 'expense' ? parsedBudget : undefined,
+      monthlyBudget: newCatType === 'expense' && parsedBudget > 0 ? parsedBudget : undefined,
     };
     onAddCategory(created);
     setNewCatName('');
-    setNewCatBudget('500');
+    setNewCatBudget('');
   };
+
+  const scrollToNewCategory = () => {
+    newCatInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    newCatInputRef.current?.focus();
+  };
+
+  // Filtragem e ordenação dos cards
+  const filteredExpenseCategories = useMemo(() => {
+    let list = expenseCategoriesWithStats;
+
+    // Filtro de status
+    if (statusFilter === 'ok') {
+      list = list.filter((i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct < 80) || editingCatId === i.cat.id);
+    } else if (statusFilter === 'warn') {
+      list = list.filter((i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct >= 80) || editingCatId === i.cat.id);
+    } else if (statusFilter === 'over') {
+      list = list.filter((i) => (i.limit > 0 && i.totalSpent > i.limit) || editingCatId === i.cat.id);
+    } else if (statusFilter === 'no-goal') {
+      list = list.filter((i) => i.limit === 0 || editingCatId === i.cat.id);
+    }
+
+    // Busca textual
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((i) => i.cat.name.toLowerCase().includes(q));
+    }
+
+    // Ordenação
+    return [...list].sort((a, b) => {
+      if (sortBy === 'pct') {
+        return b.pct - a.pct;
+      }
+      if (sortBy === 'spent') {
+        return b.totalSpent - a.totalSpent;
+      }
+      if (sortBy === 'limit') {
+        return b.limit - a.limit;
+      }
+      if (sortBy === 'name') {
+        return a.cat.name.localeCompare(b.cat.name);
+      }
+      return 0;
+    });
+  }, [expenseCategoriesWithStats, statusFilter, searchQuery, sortBy, editingCatId]);
 
   return (
     <div className="budgets-view-stack">
-      {/* Resumo Global das Metas do Mês (só quando há alguma meta) */}
-      {totals.totalBudget > 0 && (
-      <section className="panel-card budget-overview-banner">
-        <div className="budget-overview-top">
-          <div>
-            <span className="eyebrow">
-              TETO DE GASTOS • {formatMonthYearLabel(selectedYearMonth).toUpperCase()}
+      {/* 4 KPIs Brutalistas com contadores .01, .02, .03, .04 */}
+      <section className="kpi-grid-4">
+        <article className="kpi-card">
+          <div className="kpi-card-top">
+            <span className="kpi-label">TETO MENSAL TOTAL</span>
+            <Target size={17} className="kpi-icon teal" />
+          </div>
+          <div className="kpi-value mono">{formatBRL(totals.totalBudget, hideValues)}</div>
+          <div className="kpi-sub">
+            <span>
+              {totals.withGoalCount}{' '}
+              {totals.withGoalCount === 1 ? 'categoria com meta ativa' : 'categorias com meta ativa'}
             </span>
-            <h3>Orçamento Planejado vs. Despesas Comprometidas</h3>
           </div>
-          <div className="budget-overview-kpis mono">
-            <div>
-              <span>Orçamento Total:</span>
-              <strong>{formatBRL(totals.totalBudget, hideValues)}</strong>
-            </div>
-            <div>
-              <span>Gasto no Mês:</span>
-              <strong className={totals.totalSpent > totals.totalBudget ? 'negative' : ''}>
-                {formatBRL(totals.totalSpent, hideValues)} ({totals.pct.toFixed(0)}%)
-              </strong>
-            </div>
-            <div>
-              <span>Margem Restante:</span>
-              <strong className={totals.remaining >= 0 ? 'positive' : 'negative'}>
-                {formatBRL(totals.remaining, hideValues)}
-              </strong>
-            </div>
-          </div>
-        </div>
+        </article>
 
-        <div className="horizon-bar-track">
+        <article className="kpi-card">
+          <div className="kpi-card-top">
+            <span className="kpi-label">TOTAL COMPROMETIDO</span>
+            <TrendingDown
+              size={17}
+              className={`kpi-icon ${
+                totals.totalSpent > totals.totalBudget && totals.totalBudget > 0 ? 'coral' : 'teal'
+              }`}
+            />
+          </div>
+          <div className="kpi-value mono">{formatBRL(totals.totalSpent, hideValues)}</div>
+          <div className="kpi-sub">
+            <span>
+              {totals.totalBudget > 0
+                ? `${totals.pct.toFixed(0)}% do orçamento estipulado`
+                : 'Sem teto definido'}
+            </span>
+          </div>
+        </article>
+
+        <article className="kpi-card">
+          <div className="kpi-card-top">
+            <span className="kpi-label">MARGEM RESTANTE</span>
+            <ShieldCheck
+              size={17}
+              className={`kpi-icon ${totals.remaining >= 0 ? 'green' : 'coral'}`}
+            />
+          </div>
           <div
-            className="horizon-segment"
-            style={{
-              width: `${Math.min(100, totals.pct)}%`,
-              backgroundColor:
-                totals.pct > 100 ? '#F43F5E' : totals.pct >= 80 ? '#F59E0B' : 'var(--color-accent)',
-            }}
-          />
-        </div>
+            className={`kpi-value mono ${
+              totals.remaining < 0 ? 'negative' : totals.remaining === 0 ? '' : 'positive'
+            }`}
+          >
+            {formatBRL(totals.remaining, hideValues)}
+          </div>
+          <div className="kpi-sub">
+            <span>
+              {totals.totalBudget === 0
+                ? 'Defina tetos nas categorias abaixo'
+                : totals.remaining >= 0
+                ? 'Saldo disponível dentro do teto'
+                : `Excedido em ${formatBRL(Math.abs(totals.remaining), hideValues)}`}
+            </span>
+          </div>
+        </article>
+
+        <article className="kpi-card">
+          <div className="kpi-card-top">
+            <span className="kpi-label">SAÚDE DAS METAS</span>
+            <AlertTriangle
+              size={17}
+              className={`kpi-icon ${
+                totals.overCount > 0 ? 'coral' : totals.warnCount > 0 ? 'amber' : 'green'
+              }`}
+            />
+          </div>
+          <div className="kpi-value mono">
+            {totals.overCount > 0
+              ? `${totals.overCount} ESTOURADA${totals.overCount > 1 ? 'S' : ''}`
+              : totals.warnCount > 0
+              ? `${totals.warnCount} EM ALERTA`
+              : '100% NO TETO'}
+          </div>
+          <div className="kpi-sub">
+            <span>
+              {totals.okCount} no teto · {totals.withoutGoalCount} sem meta definida
+            </span>
+          </div>
+        </article>
       </section>
+
+      {/* Banner de Execução e Teto Global */}
+      {totals.totalBudget > 0 && (
+        <section className="budget-execution-banner">
+          <header className="budget-execution-header">
+            <div>
+              <span className="eyebrow">
+                EXECUÇÃO ORÇAMENTÁRIA • {formatMonthYearLabel(selectedYearMonth).toUpperCase()}
+              </span>
+              <h3>Consumo Global do Teto de Gastos</h3>
+            </div>
+
+            <div>
+              {totals.pct > 100 ? (
+                <span className="budget-badge danger">
+                  <AlertTriangle size={13} />
+                  EXCEDIDO EM {formatBRL(Math.abs(totals.remaining), hideValues)} ({totals.pct.toFixed(0)}%)
+                </span>
+              ) : totals.pct >= 80 ? (
+                <span className="budget-badge warn">
+                  <AlertTriangle size={13} />
+                  ATENÇÃO: {totals.pct.toFixed(0)}% DO TETO ATINGIDO
+                </span>
+              ) : (
+                <span className="budget-badge ok">
+                  <CheckCircle2 size={13} />
+                  NO TETO: {totals.pct.toFixed(0)}% CONSUMIDO
+                </span>
+              )}
+            </div>
+          </header>
+
+          <div className="budget-track-wrap">
+            <div className="budget-track">
+              <div
+                className={`budget-track-fill ${
+                  totals.pct > 100 ? 'danger' : totals.pct >= 80 ? 'warn' : 'ok'
+                }`}
+                style={{ width: `${Math.min(100, Math.max(0, totals.pct))}%` }}
+              />
+              <span className="budget-track-marker marker-80" data-label="80% ALERTA" />
+              <span className="budget-track-marker marker-100" data-label="100% LIMITE" />
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* Grid de Metas: só categorias com meta, com gasto no mês ou em edição */}
-      {(() => {
-        const visibleIds = new Set(
-          expenseCategoriesWithStats
-            .filter((i) => i.limit > 0 || i.totalSpent > 0 || editingCatId === i.cat.id)
-            .map((i) => i.cat.id)
-        );
-        const withoutGoal = expenseCategoriesWithStats.filter((i) => !visibleIds.has(i.cat.id));
-        return (
-          <>
-            {visibleIds.size === 0 && (
-              <section className="panel-card budgets-empty">
-                <Target size={20} />
-                <div>
-                  <strong>Nenhuma meta definida</strong>
-                  <span>
-                    {withoutGoal.length > 0
-                      ? 'Escolha uma categoria abaixo para definir um teto mensal de gastos.'
-                      : 'Crie uma categoria de despesa abaixo e defina um teto mensal.'}
-                  </span>
-                </div>
-              </section>
+      {/* Toolbar Brutalista: Filtros, Busca e Ordenação */}
+      <section className="budgets-toolbar">
+        <div className="budgets-filter-tabs">
+          <button
+            type="button"
+            className={`budget-filter-tab ${statusFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('all')}
+          >
+            <Filter size={12} />
+            <span>Todas</span>
+            <span className="budget-filter-count">({expenseCategoriesWithStats.length})</span>
+          </button>
+
+          <button
+            type="button"
+            className={`budget-filter-tab ${statusFilter === 'ok' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('ok')}
+          >
+            <span>No Teto</span>
+            <span className="budget-filter-count">({totals.okCount})</span>
+          </button>
+
+          <button
+            type="button"
+            className={`budget-filter-tab ${statusFilter === 'warn' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('warn')}
+          >
+            <span>Atenção 80%+</span>
+            <span className="budget-filter-count">({totals.warnCount})</span>
+          </button>
+
+          <button
+            type="button"
+            className={`budget-filter-tab ${statusFilter === 'over' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('over')}
+          >
+            <span>Excedidas</span>
+            <span className="budget-filter-count">({totals.overCount})</span>
+          </button>
+
+          <button
+            type="button"
+            className={`budget-filter-tab ${statusFilter === 'no-goal' ? 'active' : ''}`}
+            onClick={() => setStatusFilter('no-goal')}
+          >
+            <span>Sem Meta</span>
+            <span className="budget-filter-count">({totals.withoutGoalCount})</span>
+          </button>
+        </div>
+
+        <div className="budgets-toolbar-actions">
+          <div className="budget-search-box">
+            <Search size={14} />
+            <input
+              type="text"
+              placeholder="Buscar categoria..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="icon-btn-xs"
+                onClick={() => setSearchQuery('')}
+                title="Limpar busca"
+              >
+                <X size={12} />
+              </button>
             )}
+          </div>
 
-            {withoutGoal.length > 0 && (
-              <section className="panel-card budgets-no-goal">
-                <span className="eyebrow">SEM META</span>
-                <div className="chip-grid">
-                  {withoutGoal.map((i) => (
-                    <button
-                      key={i.cat.id}
-                      type="button"
-                      className="chip chip-ghost"
-                      onClick={() => startEditing(i.cat)}
-                      title="Definir teto mensal para esta categoria"
-                    >
-                      <span className="chip-dot" style={{ backgroundColor: i.cat.color }} />
-                      {i.cat.name}
-                      <Plus size={13} />
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-      <div className="budgets-cards-grid">
-        {expenseCategoriesWithStats.filter((i) => visibleIds.has(i.cat.id)).map((item) => {
-          const isEditing = editingCatId === item.cat.id;
-          const isOver = item.limit > 0 && item.totalSpent > item.limit;
-          const isWarn = item.limit > 0 && !isOver && item.pct >= 80;
-
-          return (
-            <article
-              key={item.cat.id}
-              className={`panel-card budget-cat-card ${
-                isOver ? 'border-danger' : isWarn ? 'border-warn' : ''
-              }`}
+          <div className="budget-sort-wrap">
+            <ArrowUpDown size={13} style={{ color: 'var(--text-muted)', marginRight: 4 }} />
+            <select
+              className="budget-sort-select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortField)}
             >
-              <header className="budget-cat-header">
-                <div className="budget-cat-title">
-                  <span
-                    className="cat-color-dot lg"
-                    style={{ backgroundColor: item.cat.color }}
-                  />
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      className="inline-edit-input"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                    />
-                  ) : (
-                    <strong>{item.cat.name}</strong>
-                  )}
-                </div>
+              <option value="pct">% Consumido</option>
+              <option value="spent">Maior Gasto</option>
+              <option value="limit">Maior Teto</option>
+              <option value="name">Ordem Alfabética</option>
+            </select>
+          </div>
 
-                <div className="row-actions">
-                  {isEditing ? (
-                    <>
-                      <button
-                        type="button"
-                        className="btn-settle-xs"
-                        onClick={() => saveEditing(item.cat)}
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ padding: '6px 14px', fontSize: '11px' }}
+            onClick={scrollToNewCategory}
+          >
+            <Plus size={14} /> Nova Categoria
+          </button>
+        </div>
+      </section>
+
+      {/* Grid Principal de Metas */}
+      {filteredExpenseCategories.length === 0 ? (
+        <section className="panel-card budgets-empty-panel">
+          <Target size={28} style={{ color: 'var(--color-accent)' }} />
+          <div>
+            <h4>Nenhuma categoria encontrada</h4>
+            <p>
+              {searchQuery || statusFilter !== 'all'
+                ? 'Nenhuma categoria corresponde aos filtros aplicados. Redefina a busca ou selecione "Todas".'
+                : 'Crie sua primeira categoria de despesa no formulário abaixo e estipule um teto mensal.'}
+            </p>
+            {(searchQuery || statusFilter !== 'all') && (
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ marginTop: 10 }}
+                onClick={() => {
+                  setStatusFilter('all');
+                  setSearchQuery('');
+                }}
+              >
+                Limpar Filtros
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        <div className="budgets-cards-grid">
+          {filteredExpenseCategories.map((item) => {
+            const isEditing = editingCatId === item.cat.id;
+            const isProtected = isProtectedCategory(item.cat);
+            const hasLimit = item.limit > 0;
+            const isOver = hasLimit && item.totalSpent > item.limit;
+            const isWarn = hasLimit && !isOver && item.pct >= 80;
+
+            return (
+              <article
+                key={item.cat.id}
+                className={`budget-cat-card ${
+                  isOver ? 'is-over' : isWarn ? 'is-warn' : hasLimit ? 'is-ok' : 'is-none'
+                }`}
+              >
+                <header className="budget-cat-header">
+                  <div className="budget-cat-title">
+                    <span
+                      className="cat-color-square"
+                      style={{ backgroundColor: isEditing ? colorDraft : item.cat.color }}
+                    />
+                    <strong>{item.cat.name}</strong>
+                    {isProtected && (
+                      <span
+                        className="budget-status-chip system-badge"
+                        title="Categoria permanente do sistema (não pode ser excluída)"
+                        style={{ fontSize: '9px', padding: '1px 5px', opacity: 0.75, letterSpacing: '0.05em' }}
                       >
-                        <Check size={13} /> Salvar
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn-sm danger"
-                        onClick={() => onDeleteCategory(item.cat.id)}
-                        title="Excluir a categoria (os lançamentos vão para outra categoria de despesa)"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="icon-btn-sm"
-                        onClick={() => startEditing(item.cat)}
-                        title="Editar meta mensal ou nome"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      {item.limit > 0 && (
+                        SISTEMA
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="row-actions">
+                    {!isEditing ? (
+                      <>
+                        {hasLimit && (
+                          isOver ? (
+                            <span className="budget-status-chip danger">
+                              +{formatBRL(Math.abs(item.remaining), hideValues)}
+                            </span>
+                          ) : isWarn ? (
+                            <span className="budget-status-chip warn">
+                              {item.pct.toFixed(0)}%
+                            </span>
+                          ) : (
+                            <span className="budget-status-chip ok">
+                              {item.pct.toFixed(0)}%
+                            </span>
+                          )
+                        )}
+
                         <button
                           type="button"
-                          className="icon-btn-sm danger"
-                          onClick={() => removeGoal(item.cat)}
-                          title="Remover meta (a categoria continua existindo)"
+                          className="icon-btn-sm"
+                          onClick={() => startEditing(item.cat)}
+                          title="Ajustar teto mensal ou dados"
                         >
-                          <X size={14} />
+                          <Edit3 size={13} />
                         </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </header>
 
-              <div className="budget-cat-numbers mono">
-                <div>
-                  <span className="sub-label">Utilizado ({item.count} lanç.)</span>
-                  <strong className="spent-val">
-                    {formatBRL(item.totalSpent, hideValues)}
-                  </strong>
-                  {item.pending > 0 && (
-                    <span className="sub-label">
-                      Pago {formatBRL(item.paid, hideValues)} · a vencer{' '}
-                      {formatBRL(item.pending, hideValues)}
-                    </span>
-                  )}
-                </div>
+                        {hasLimit && (
+                          <button
+                            type="button"
+                            className="icon-btn-sm"
+                            onClick={() => removeGoal(item.cat)}
+                            title="Remover meta mensal (mantém os lançamentos)"
+                          >
+                            <X size={13} />
+                          </button>
+                        )}
 
-                <div className="align-right">
-                  <span className="sub-label">Teto Mensal (Meta)</span>
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      step="10"
-                      min="0"
-                      className="inline-budget-input mono"
-                      value={budgetDraft}
-                      onChange={(e) => setBudgetDraft(e.target.value)}
-                      autoFocus
-                    />
-                  ) : (
-                    <strong
-                      className="limit-val clickable"
-                      onClick={() => startEditing(item.cat)}
-                      title="Clique para ajustar o teto mensal"
-                    >
-                      {item.limit > 0 ? formatBRL(item.limit, hideValues) : 'Sem limite'}
-                    </strong>
-                  )}
-                </div>
-              </div>
+                        {!isProtected ? (
+                          <button
+                            type="button"
+                            className="icon-btn-sm danger"
+                            onClick={() => setCategoryToDelete(item.cat)}
+                            title="Excluir categoria"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : (
+                          <span
+                            className="icon-btn-sm disabled"
+                            style={{
+                              opacity: 0.35,
+                              cursor: 'not-allowed',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            title="Categoria do sistema permanente (não pode ser excluída)"
+                          >
+                            <ShieldCheck size={13} />
+                          </span>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </header>
 
-              <div className="cat-progress-track lg">
-                <div
-                  className="cat-progress-fill"
-                  style={{
-                    width: `${Math.min(100, item.pct)}%`,
-                    backgroundColor: isOver
-                      ? '#F43F5E'
-                      : isWarn
-                      ? '#F59E0B'
-                      : item.cat.color,
-                  }}
-                />
-              </div>
+                {isEditing ? (
+                  <div className="budget-card-edit-box">
+                    <div className="budget-edit-field">
+                      <label>Nome da Categoria {isProtected && <span style={{ opacity: 0.6 }}>(Fixo)</span>}</label>
+                      <input
+                        type="text"
+                        value={isProtected ? item.cat.name : nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        placeholder="Nome da categoria"
+                        disabled={isProtected}
+                        title={isProtected ? 'O nome da categoria do sistema é fixo ("Outros")' : undefined}
+                        style={isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+                        autoFocus={!isProtected}
+                      />
+                    </div>
 
-              <footer className="budget-cat-footer">
-                {item.limit === 0 ? (
-                  <span className="status-note muted">
-                    Clique no lápis para definir uma meta mensal
-                  </span>
-                ) : isOver ? (
-                  <span className="status-note danger">
-                    <AlertTriangle size={13} /> Excedido em{' '}
-                    <strong className="mono">
-                      {formatBRL(Math.abs(item.remaining), hideValues)}
-                    </strong>{' '}
-                    ({item.pct.toFixed(0)}%)
-                  </span>
-                ) : isWarn ? (
-                  <span className="status-note warn">
-                    <AlertTriangle size={13} /> Atenção: restam{' '}
-                    <strong className="mono">{formatBRL(item.remaining, hideValues)}</strong> (
-                    {item.pct.toFixed(0)}%)
-                  </span>
+                    <div className="budget-edit-field">
+                      <label>Teto Mensal (R$)</label>
+                      <input
+                        type="number"
+                        step="10"
+                        min="0"
+                        className="mono"
+                        value={budgetDraft}
+                        onChange={(e) => setBudgetDraft(e.target.value)}
+                        placeholder="Ex: 800"
+                      />
+                    </div>
+
+                    <div className="budget-edit-field">
+                      <label>Cor Identificadora</label>
+                      <div className="color-swatches-grid">
+                        {PRESET_COLORS.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            className={`color-swatch-box ${colorDraft === c ? 'selected' : ''}`}
+                            style={{ backgroundColor: c }}
+                            onClick={() => setColorDraft(c)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="budget-edit-actions">
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ padding: '6px 14px', fontSize: '11px' }}
+                          onClick={() => saveEditing(item.cat)}
+                        >
+                          <Check size={13} /> Salvar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '11px' }}
+                          onClick={cancelEditing}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {hasLimit && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '11px', color: 'var(--text-secondary)' }}
+                            onClick={() => removeGoal(item.cat)}
+                            title="Remover apenas o teto mensal"
+                          >
+                            Remover Meta
+                          </button>
+                        )}
+                        {!isProtected && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: '6px 10px', fontSize: '11px', color: 'var(--color-coral)' }}
+                            onClick={() => setCategoryToDelete(item.cat)}
+                            title="Excluir categoria"
+                          >
+                            <Trash2 size={12} /> Excluir
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <span className="status-note ok">
-                    <CheckCircle2 size={13} /> Disponível:{' '}
-                    <strong className="mono">{formatBRL(item.remaining, hideValues)}</strong> (
-                    {item.pct.toFixed(0)}%)
-                  </span>
-                )}
-              </footer>
-            </article>
-          );
-        })}
-      </div>
-          </>
-        );
-      })()}
+                  <div className="budget-cat-body">
+                    {/* 1. GASTO NO MÊS - Limpo e sem ruído */}
+                    <div className="budget-cat-spend-hero">
+                      <div className="budget-spend-top-row">
+                        <span className="budget-spend-label">Gasto no Mês</span>
+                        {hasLimit && (
+                          <div
+                            className="budget-cat-limit-tag clickable"
+                            onClick={() => startEditing(item.cat)}
+                            title="Clique para ajustar o teto desta categoria"
+                          >
+                            <span className="sub-tag">TETO:</span>
+                            <strong className="mono">{formatBRL(item.limit, hideValues)}</strong>
+                          </div>
+                        )}
+                      </div>
 
-      {/* Seção Inferior: Nova Categoria + Categorias de Receita */}
+                      <div className="budget-spend-amount mono">
+                        {formatBRL(item.totalSpent, hideValues)}
+                      </div>
+                    </div>
+
+                    {/* 2. ITEM MARGEM COMO UMA BARRA FICANDO CHEIA (Apenas com teto definido) */}
+                    {hasLimit && (
+                      <div className="budget-margin-block">
+                        <div className="budget-margin-header">
+                          <span className="budget-margin-label">Margem</span>
+                          <strong
+                            className={`budget-margin-val mono ${
+                              item.remaining < 0 ? 'neg' : 'pos'
+                            }`}
+                          >
+                            {item.remaining < 0
+                              ? `-${formatBRL(Math.abs(item.remaining), hideValues)} (${item.pct.toFixed(0)}% do teto)`
+                              : `+${formatBRL(item.remaining, hideValues)} livres (${(100 - item.pct).toFixed(0)}% livre)`}
+                          </strong>
+                        </div>
+
+                        <div className="budget-margin-bar-track">
+                          <div
+                            className={`budget-margin-bar-fill ${
+                              isOver ? 'danger' : isWarn ? 'warn' : 'ok'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(0, item.pct))}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Rodapé do Card com feedback contextual (Apenas com teto definido) */}
+                    {hasLimit && (
+                      <footer className="budget-cat-footer">
+                        {isOver ? (
+                          <span className="status-note danger">
+                            <AlertTriangle size={12} />
+                            Teto estourado em {formatBRL(Math.abs(item.remaining), hideValues)}
+                          </span>
+                        ) : isWarn ? (
+                          <span className="status-note warn">
+                            <AlertTriangle size={12} />
+                            Atenção: restam {formatBRL(item.remaining, hideValues)}
+                          </span>
+                        ) : (
+                          <span className="status-note ok">
+                            <CheckCircle2 size={12} />
+                            Disponível: {formatBRL(item.remaining, hideValues)}
+                          </span>
+                        )}
+                      </footer>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Seção Inferior: Nova Categoria & Categorias de Receita */}
       <div className="dashboard-bottom-grid">
+        {/* Painel: Nova Categoria & Meta */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
-              <span className="eyebrow">PERSONALIZAÇÃO</span>
+              <span className="eyebrow">CADASTRO RÁPIDO</span>
               <h3>Nova Categoria & Meta</h3>
             </div>
             <Target size={18} style={{ color: 'var(--color-accent)' }} />
           </header>
 
           <form onSubmit={handleCreateCategory} className="compact-stack-form">
+            <div className="form-type-toggle">
+              <button
+                type="button"
+                className={`form-type-tab ${newCatType === 'expense' ? 'active' : ''}`}
+                onClick={() => setNewCatType('expense')}
+              >
+                Despesa
+              </button>
+              <button
+                type="button"
+                className={`form-type-tab ${newCatType === 'income' ? 'active' : ''}`}
+                onClick={() => setNewCatType('income')}
+              >
+                Receita / Entrada
+              </button>
+            </div>
+
             <div className="form-grid-2">
               <div className="form-field">
                 <label>Nome da Categoria</label>
                 <input
+                  ref={newCatInputRef}
                   type="text"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
-                  placeholder="Ex: Educação, Pets, Impostos..."
+                  placeholder="Ex: Transporte, Pets, Moradia..."
                   required
                 />
               </div>
 
-              <div className="form-field">
-                <label>Tipo</label>
-                <select
-                  value={newCatType}
-                  onChange={(e) => setNewCatType(e.target.value as TransactionType)}
-                >
-                  <option value="expense">Despesa (com Meta Mensal)</option>
-                  <option value="income">Receita / Entrada</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="form-grid-2">
-              {newCatType === 'expense' && (
+              {newCatType === 'expense' ? (
                 <div className="form-field">
-                  <label>Meta Mensal (R$)</label>
+                  <label>Meta Mensal (R$, opcional)</label>
                   <input
                     type="number"
                     step="10"
@@ -453,23 +871,34 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     className="mono"
                     value={newCatBudget}
                     onChange={(e) => setNewCatBudget(e.target.value)}
+                    placeholder="Sem meta (opcional)"
+                  />
+                </div>
+              ) : (
+                <div className="form-field">
+                  <label>Finalidade</label>
+                  <input
+                    type="text"
+                    disabled
+                    value="Entradas & Salários"
+                    style={{ opacity: 0.6 }}
                   />
                 </div>
               )}
+            </div>
 
-              <div className="form-field">
-                <label>Cor Identificadora</label>
-                <div className="color-swatches-row">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      type="button"
-                      key={color}
-                      className={`color-swatch-btn ${newCatColor === color ? 'selected' : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setNewCatColor(color)}
-                    />
-                  ))}
-                </div>
+            <div className="form-field">
+              <label>Cor Identificadora</label>
+              <div className="color-swatches-grid">
+                {PRESET_COLORS.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    className={`color-swatch-box ${newCatColor === color ? 'selected' : ''}`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setNewCatColor(color)}
+                  />
+                ))}
               </div>
             </div>
 
@@ -479,37 +908,228 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           </form>
         </section>
 
+        {/* Painel: Categorias de Receita */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
               <span className="eyebrow">FONTES DE ENTRADA</span>
-              <h3>Categorias de Receita ({incomeCategories.length})</h3>
+              <h3>Categorias de Receita ({incomeCategoriesWithStats.length})</h3>
             </div>
+            <TrendingDown size={18} style={{ color: 'var(--color-accent)', transform: 'rotate(180deg)' }} />
           </header>
 
           <div className="accounts-mini-list">
-            {incomeCategories.map((cat) => (
-              <div key={cat.id} className="account-mini-row">
-                <div className="account-mini-info">
-                  <span
-                    className="cat-color-dot lg"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <strong>{cat.name}</strong>
+            {incomeCategoriesWithStats.map((item) => {
+              const isEditing = editingIncomeCatId === item.cat.id;
+              const isProtected = isProtectedCategory(item.cat);
+
+              return (
+                <div key={item.cat.id} className="account-mini-row">
+                  <div className="account-mini-info" style={{ minWidth: 0, flex: 1 }}>
+                    <span
+                      className="cat-color-square"
+                      style={{ backgroundColor: isEditing ? incomeColorDraft : item.cat.color }}
+                    />
+                    {isEditing ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, paddingRight: 10 }}>
+                        <input
+                          type="text"
+                          value={isProtected ? item.cat.name : incomeNameDraft}
+                          onChange={(e) => setIncomeNameDraft(e.target.value)}
+                          placeholder="Nome da categoria"
+                          disabled={isProtected}
+                          title={isProtected ? 'O nome da categoria do sistema é fixo ("Outros")' : undefined}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '13px',
+                            ...(isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : {}),
+                          }}
+                        />
+                        <div className="color-swatches-grid">
+                          {PRESET_COLORS.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              className={`color-swatch-box ${incomeColorDraft === c ? 'selected' : ''}`}
+                              style={{ backgroundColor: c, width: 18, height: 18 }}
+                              onClick={() => setIncomeColorDraft(c)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong>{item.cat.name}</strong>
+                          {isProtected && (
+                            <span
+                              className="budget-status-chip system-badge"
+                              title="Categoria permanente do sistema (não pode ser excluída)"
+                              style={{ fontSize: '9px', padding: '1px 5px', opacity: 0.75, letterSpacing: '0.05em' }}
+                            >
+                              SISTEMA
+                            </span>
+                          )}
+                        </div>
+                        <span className="sub-label mono" style={{ fontSize: '11px' }}>
+                          Recebido: {formatBRL(item.paid, hideValues)}
+                          {item.pending > 0 && ` · A receber: ${formatBRL(item.pending, hideValues)}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="row-actions">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                          onClick={() => saveEditingIncome(item.cat)}
+                        >
+                          <Check size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: '4px 8px', fontSize: '11px' }}
+                          onClick={cancelEditingIncome}
+                        >
+                          <X size={12} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-btn-sm"
+                          onClick={() => startEditingIncome(item.cat)}
+                          title="Editar categoria de receita"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        {!isProtected ? (
+                          <button
+                            type="button"
+                            className="icon-btn-sm danger"
+                            onClick={() => setCategoryToDelete(item.cat)}
+                            title="Excluir categoria de receita"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        ) : (
+                          <span
+                            className="icon-btn-sm disabled"
+                            style={{
+                              opacity: 0.35,
+                              cursor: 'not-allowed',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            title="Categoria do sistema permanente (não pode ser excluída)"
+                          >
+                            <ShieldCheck size={13} />
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  className="icon-btn-sm danger"
-                  onClick={() => onDeleteCategory(cat.id)}
-                  title="Excluir categoria"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
+
+      {/* Modal de Confirmação de Exclusão Brutalista */}
+      {categoryToDelete && !isProtectedCategory(categoryToDelete) && (() => {
+        const linkedCount = transactions.filter((t) => t.categoryId === categoryToDelete.id).length;
+        const isExpense = categoryToDelete.type === 'expense';
+
+        return (
+          <div className="modal-backdrop" onClick={() => setCategoryToDelete(null)}>
+            <div
+              className="modal-card modal-delete-confirm"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-cat-title"
+            >
+              <header className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <AlertTriangle size={18} style={{ color: 'var(--color-coral)' }} />
+                  <h2 id="delete-cat-title">Excluir Categoria</h2>
+                </div>
+                <button
+                  type="button"
+                  className="icon-action-btn"
+                  onClick={() => setCategoryToDelete(null)}
+                  title="Fechar (Esc)"
+                >
+                  <X size={16} />
+                </button>
+              </header>
+
+              <div className="modal-body" style={{ padding: '22px 24px' }}>
+                <div className="delete-confirm-box">
+                  <div className="delete-confirm-cat-preview">
+                    <span
+                      className="cat-color-square"
+                      style={{ backgroundColor: categoryToDelete.color, width: 14, height: 14 }}
+                    />
+                    <strong>{categoryToDelete.name}</strong>
+                    <span className="eyebrow" style={{ marginLeft: 'auto' }}>
+                      {isExpense ? 'DESPESA' : 'RECEITA'}
+                    </span>
+                  </div>
+
+                  <p className="delete-confirm-desc">
+                    Tem certeza de que deseja excluir a categoria <strong>{categoryToDelete.name}</strong>?
+                  </p>
+
+                  <div className="delete-confirm-impact">
+                    {linkedCount > 0 ? (
+                      <p>
+                        ⚠️ Esta categoria possui <strong>{linkedCount} {linkedCount === 1 ? 'lançamento associado' : 'lançamentos associados'}</strong>.
+                        Seus dados não serão apagados: os lançamentos serão transferidos <strong>obrigatoriamente para a categoria "Outros"</strong> ({isExpense ? 'despesas' : 'receitas'}).
+                      </p>
+                    ) : (
+                      <p>
+                        ✓ Nenhum lançamento está vinculado a esta categoria. Ela será removida com segurança.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <footer className="modal-footer" style={{ padding: '16px 24px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setCategoryToDelete(null)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => {
+                    onDeleteCategory(categoryToDelete.id);
+                    if (editingCatId === categoryToDelete.id) setEditingCatId(null);
+                    if (editingIncomeCatId === categoryToDelete.id) setEditingIncomeCatId(null);
+                    setCategoryToDelete(null);
+                  }}
+                  autoFocus
+                >
+                  <Trash2 size={14} /> Confirmar Exclusão
+                </button>
+              </footer>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

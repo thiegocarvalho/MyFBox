@@ -25,6 +25,7 @@ import {
   formatMonthYearLabel,
 } from '../utils/formatters';
 import { predictCategory } from '../utils/categorizer';
+import { getDefaultCategoryId } from '../utils/categories';
 import { accountCurrency, isValidRate, parseDecimalInput } from '../utils/money';
 
 const REPEAT_OPTIONS = [1, 2, 3, 6, 12];
@@ -120,7 +121,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   );
 
   const [categoryId, setCategoryId] = useState(
-    editingTransaction?.categoryId || filteredCategories[0]?.id || ''
+    editingTransaction?.categoryId || getDefaultCategoryId(categories, type)
   );
   const [userSelectedCategoryManually, setUserSelectedCategoryManually] = useState(isEdit);
   const [suggestedCategoryName, setSuggestedCategoryName] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     setSuggestedCategoryName(null);
     const matchingCats = categories.filter((c) => c.type === newType);
     if (!matchingCats.some((c) => c.id === categoryId)) {
-      setCategoryId(matchingCats[0]?.id || '');
+      setCategoryId(getDefaultCategoryId(categories, newType));
     }
   };
 
@@ -162,6 +163,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setSuggestedCategoryName(prediction.categoryName);
       } else if (!prediction) {
         setSuggestedCategoryName(null);
+        // Sem predição ativa, retorna para a categoria padrão ("Outros")
+        const defaultCatId = getDefaultCategoryId(categories, type);
+        if (categoryId !== defaultCatId) {
+          setCategoryId(defaultCatId);
+        }
       }
     }
   };
@@ -448,7 +454,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       setRateInput(e.target.value);
                     }}
                     placeholder="5,40"
-                    title="Cotação fixada para este lançamento (AwesomeAPI por padrão)"
+                    title="Cotação fixada para este lançamento (cotação do cofre por padrão)"
                   />
                 </div>
               </div>

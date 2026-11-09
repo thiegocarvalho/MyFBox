@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -6,21 +6,21 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
+  Undo2,
   LayoutDashboard,
   BarChart3,
   ReceiptText,
   Target,
   Wallet,
-  DatabaseBackup,
+  Settings,
   Plus,
-  Download,
-  RefreshCw,
 } from 'lucide-react';
 import type {
   Account,
   Category,
   CryptoSession,
   EncryptedVaultEnvelope,
+  InitialAccountData,
   Transaction,
   TransactionType,
   VaultPayload,
@@ -36,13 +36,25 @@ import {
   needsKdfUpgrade,
 } from './services/cryptoVault';
 import { createInitialVaultPayload } from './services/defaultData';
+import {
+  ensureSystemCategories,
+  findOrCreateOutrosCategory,
+  getDefaultCategoryId,
+  isProtectedCategory,
+} from './utils/categories';
 import { downloadEncryptedBackupFile } from './services/importExport';
 import {
   formatMonthYearLabel,
   getCurrentYearMonth,
   shiftYearMonth,
 } from './utils/formatters';
-import { fetchLiveUsdRate } from './services/currencyService';
+import {
+  formatRate,
+  formatRateDate,
+  normalizeCurrency,
+  removeExchangeRate,
+  upsertExchangeRate,
+} from './services/currencyService';
 import { accountCurrency, convertAmount, isValidRate } from './utils/money';
 import {
   startMcpBridge,
@@ -50,8 +62,6 @@ import {
   type McpBridgeStatus,
   type McpPairingRequest,
 } from './services/mcpBridge';
-import { McpPairDialog } from './components/McpPairDialog';
-import { ComparisonView } from './components/ComparisonView';
 import {
   requestPersistentStorage,
   type StoragePersistStatus,
@@ -60,18 +70,47 @@ import { runMcpAction } from './services/mcpActions';
 
 const DEFAULT_MCP_PORT = 4777;
 
+// Telas carregadas sob demanda: a tela de entrada não baixa o código do app inteiro (LCP).
+// Depois do desbloqueio elas são pré-carregadas em segundo plano (troca de aba sem espera).
+const viewLoaders = {
+  DashboardView: () => import('./components/DashboardView'),
+  TransactionsView: () => import('./components/TransactionsView'),
+  ComparisonView: () => import('./components/ComparisonView'),
+  BudgetsView: () => import('./components/BudgetsView'),
+  AccountsView: () => import('./components/AccountsView'),
+  BackupSecurityView: () => import('./components/BackupSecurityView'),
+  TransactionModal: () => import('./components/TransactionModal'),
+  McpPairDialog: () => import('./components/McpPairDialog'),
+};
+const DashboardView = lazy(() => viewLoaders.DashboardView().then((m) => ({ default: m.DashboardView })));
+const TransactionsView = lazy(() =>
+  viewLoaders.TransactionsView().then((m) => ({ default: m.TransactionsView }))
+);
+const ComparisonView = lazy(() => viewLoaders.ComparisonView().then((m) => ({ default: m.ComparisonView })));
+const BudgetsView = lazy(() => viewLoaders.BudgetsView().then((m) => ({ default: m.BudgetsView })));
+const AccountsView = lazy(() => viewLoaders.AccountsView().then((m) => ({ default: m.AccountsView })));
+const BackupSecurityView = lazy(() =>
+  viewLoaders.BackupSecurityView().then((m) => ({ default: m.BackupSecurityView }))
+);
+const TransactionModal = lazy(() =>
+  viewLoaders.TransactionModal().then((m) => ({ default: m.TransactionModal }))
+);
+const McpPairDialog = lazy(() => viewLoaders.McpPairDialog().then((m) => ({ default: m.McpPairDialog })));
+
+function prefetchViews() {
+  const run = () => Object.values(viewLoaders).forEach((load) => void load());
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 2000 });
+  else setTimeout(run, 300);
+}
+
+
 function localTodayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 import { VaultLockScreen } from './components/VaultLockScreen';
-import { DashboardView } from './components/DashboardView';
-import { TransactionsView } from './components/TransactionsView';
-import { BudgetsView } from './components/BudgetsView';
-import { AccountsView } from './components/AccountsView';
-import { BackupSecurityView } from './components/BackupSecurityView';
-import { TransactionModal } from './components/TransactionModal';
 import { MyFBoxLogo } from './components/MyFBoxLogo';
+import { MobileMenu, MobileMenuButton, type NavItem } from './components/MobileMenu';
 
 type ActiveTab = 'dashboard' | 'transactions' | 'compare' | 'budgets' | 'accounts' | 'security';
 
@@ -167,61 +206,80 @@ export function App() {
     };
   }, [session, vault, lockVault]);
 
-  // Cotação USD/BRL via AwesomeAPI
-  const [usdRate, setUsdRate] = useState<number | null>(() => vault?.settings.usdToBrlRate || null);
-  const [rateRefreshing, setRateRefreshing] = useState(false);
+  // Cotações de Câmbio offline (100% locais — sem APIs externas)
+  const usdRate = vault?.settings.usdToBrlRate ?? null;
 
   useEffect(() => {
     vaultRef.current = vault;
   }, [vault]);
 
-  useEffect(() => {
-    if (!session) return;
-    let isMounted = true;
-    fetchLiveUsdRate(false).then((info) => {
-      if (!isMounted || !info) return;
-      setUsdRate(info.rate);
-      const currentVault = vaultRef.current;
-      if (currentVault && currentVault.settings.usdToBrlRate !== info.rate) {
-        persistVaultUpdate({
-          ...currentVault,
-          settings: {
-            ...currentVault.settings,
-            usdToBrlRate: info.rate,
-            usdRateUpdatedAt: info.updatedAt,
-          },
-        });
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [session, persistVaultUpdate]);
+  const handleSaveExchangeRate = useCallback(
+    async (fromRaw: string, toRaw: string, newRate: number) => {
+      if (newRate <= 0 || !Number.isFinite(newRate)) return;
+      const from = normalizeCurrency(fromRaw);
+      const to = normalizeCurrency(toRaw);
+      if (from === to) return;
 
-  const handleRefreshUsdRate = useCallback(async () => {
-    setRateRefreshing(true);
-    const info = await fetchLiveUsdRate(true);
-    if (info) {
-      setUsdRate(info.rate);
-      // Lê o cofre atual (não o capturado antes do await) para não sobrescrever
-      // lançamentos salvos enquanto a cotação estava sendo buscada.
       const currentVault = vaultRef.current;
       if (currentVault) {
+        const nextRates = upsertExchangeRate(
+          currentVault.settings.exchangeRates,
+          from,
+          to,
+          newRate,
+          'manual'
+        );
+        const nextSettings: VaultSettings = { ...currentVault.settings, exchangeRates: nextRates };
+
+        if (from === 'USD' && to === 'BRL') {
+          nextSettings.usdToBrlRate = newRate;
+          nextSettings.usdRateUpdatedAt = `${formatRateDate()} (manual)`;
+        } else if (from === 'BRL' && to === 'USD') {
+          const inv = Math.round((1 / newRate) * 10000) / 10000;
+          nextSettings.usdToBrlRate = inv;
+          nextSettings.usdRateUpdatedAt = `${formatRateDate()} (manual)`;
+        }
+
         await persistVaultUpdate({
           ...currentVault,
-          settings: {
-            ...currentVault.settings,
-            usdToBrlRate: info.rate,
-            usdRateUpdatedAt: info.updatedAt,
-          },
+          settings: nextSettings,
         });
+        showToast(`Cotação salva: 1 ${from} = ${formatRate(newRate)} ${to}`);
       }
-      showToast(`Cotação atualizada: 1 USD = R$ ${info.rate.toFixed(2)}`);
-    } else {
-      showToast('Não foi possível obter a cotação no momento.');
-    }
-    setRateRefreshing(false);
-  }, [persistVaultUpdate, showToast]);
+    },
+    [persistVaultUpdate, showToast]
+  );
+
+  const handleDeleteExchangeRate = useCallback(
+    async (fromRaw: string, toRaw: string) => {
+      const from = normalizeCurrency(fromRaw);
+      const to = normalizeCurrency(toRaw);
+      const currentVault = vaultRef.current;
+      if (currentVault) {
+        const nextRates = removeExchangeRate(currentVault.settings.exchangeRates, from, to);
+        const nextSettings: VaultSettings = { ...currentVault.settings, exchangeRates: nextRates };
+
+        if (from === 'USD' && to === 'BRL') {
+          delete nextSettings.usdToBrlRate;
+          delete nextSettings.usdRateUpdatedAt;
+        }
+
+        await persistVaultUpdate({
+          ...currentVault,
+          settings: nextSettings,
+        });
+        showToast(`Cotação ${from}/${to} removida`);
+      }
+    },
+    [persistVaultUpdate, showToast]
+  );
+
+  const handleUpdateManualUsdRate = useCallback(
+    async (newRate: number) => {
+      await handleSaveExchangeRate('USD', 'BRL', newRate);
+    },
+    [handleSaveExchangeRate]
+  );
 
   // ---------- Armazenamento persistente (o navegador não apaga o cofre sem o usuário) ----------
   const [storageStatus, setStorageStatus] = useState<StoragePersistStatus>('unsupported');
@@ -339,6 +397,25 @@ export function App() {
     setTxModalOpen(true);
   }, []);
 
+  useEffect(() => {
+    if (session) prefetchViews();
+  }, [session]);
+
+  // Menu do celular (overlay em tela cheia)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => {
+    setMenuOpen(false);
+    menuButtonRef.current?.focus(); // devolve o foco ao botão MENU
+  }, []);
+
+  // No celular as abas rolam na horizontal: mantém a aba ativa visível
+  useEffect(() => {
+    document
+      .querySelector('.workspace-tabs .ws-tab.active')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeTab, session]);
+
   // Atalho global de teclado: Pressione 'N' para novo lançamento
   useEffect(() => {
     if (!session || !vault) return;
@@ -350,14 +427,14 @@ export function App() {
         activeEl instanceof HTMLSelectElement ||
         activeEl?.getAttribute('contenteditable') === 'true';
 
-      if (!isInput && !txModalOpen && (e.key === 'n' || e.key === 'N')) {
+      if (!isInput && !txModalOpen && !menuOpen && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
         handleOpenNewTransaction('expense');
       }
     };
     window.addEventListener('keydown', handleGlobalKey);
     return () => window.removeEventListener('keydown', handleGlobalKey);
-  }, [session, vault, txModalOpen, handleOpenNewTransaction]);
+  }, [session, vault, txModalOpen, menuOpen, handleOpenNewTransaction]);
 
   // Handlers de Autenticação e Criptografia
   const handleUnlockVault = async (password: string) => {
@@ -366,27 +443,32 @@ export function App() {
       envelope,
       password
     );
+    // Garante que as categorias do sistema ("Outros" para despesa e receita) existam no cofre
+    const { categories: ensuredCats, changed: catsChanged } = ensureSystemCategories(payload.categories);
+    const safePayload: VaultPayload = catsChanged ? { ...payload, categories: ensuredCats } : payload;
+
     // Cofres antigos (menos iterações PBKDF2) são recifrados com o padrão atual e sal novo
     const activeSession = needsKdfUpgrade(unlockedSession)
       ? await createNewCryptoSession(password)
       : unlockedSession;
-    if (activeSession !== unlockedSession) {
-      const upgraded = await encryptPayloadToEnvelope(payload, activeSession);
+    if (catsChanged || activeSession !== unlockedSession) {
+      const upgraded = await encryptPayloadToEnvelope(safePayload, activeSession);
       await saveEncryptedEnvelopeToDisk(upgraded);
       envelopeRef.current = upgraded;
       setEnvelope(upgraded);
     }
     setSession(activeSession);
-    setVault(payload);
-    setHideValues(payload.settings.hideValuesByDefault || false);
+    setVault(safePayload);
+    setHideValues(safePayload.settings.hideValuesByDefault || false);
   };
 
   const handleCreateVault = async (
     password: string,
-    vaultName: string
+    vaultName: string,
+    initialAccount?: InitialAccountData
   ) => {
     const newSession = await createNewCryptoSession(password);
-    const initialPayload = createInitialVaultPayload(vaultName);
+    const initialPayload = createInitialVaultPayload(vaultName, initialAccount);
     const newEnv = await encryptPayloadToEnvelope(initialPayload, newSession);
     await saveEncryptedEnvelopeToDisk(newEnv);
     setEnvelope(newEnv);
@@ -403,15 +485,19 @@ export function App() {
       importedEnvelope,
       password
     );
+    // Garante categorias essenciais do sistema ("Outros")
+    const { categories: ensuredCats } = ensureSystemCategories(payload.categories);
+    const safePayload: VaultPayload = { ...payload, categories: ensuredCats };
+
     // Backup antigo: regrava já com o KDF atual (mesma senha, sal novo)
     const restoredSession = needsKdfUpgrade(unlockedSession)
       ? await createNewCryptoSession(password)
       : unlockedSession;
-    const freshEnvelope = await encryptPayloadToEnvelope(payload, restoredSession);
+    const freshEnvelope = await encryptPayloadToEnvelope(safePayload, restoredSession);
     await saveEncryptedEnvelopeToDisk(freshEnvelope);
     setEnvelope(freshEnvelope);
     setSession(restoredSession);
-    setVault(payload);
+    setVault(safePayload);
     setActiveTab('dashboard');
   };
 
@@ -471,12 +557,17 @@ export function App() {
     setEditingTx(null);
   };
 
-  const handleToggleTransactionStatus = async (txId: string) => {
+  // Muda a situação de um lançamento. Ao pagar, registra a data do pagamento (paidAt) sem
+  // mexer na data de vencimento; ao voltar para pendente, a data do pagamento é apagada.
+  const setTransactionStatus = async (
+    txId: string,
+    nextStatus: Transaction['status'],
+    paidAt?: string
+  ) => {
     if (!vault) return;
     const liveRate = usdRate || vault.settings.usdToBrlRate;
     const nextTransactions = vault.transactions.map((t): Transaction => {
       if (t.id !== txId) return t;
-      const nextStatus = t.status === 'paid' ? 'pending' : 'paid';
       // Ao liquidar um lançamento em USD sem cotação fixada, fixa a cotação do dia
       const account = vault.accounts.find((a) => a.id === t.accountId);
       const involvesUsd = t.currency === 'USD' || accountCurrency(account ?? {}) === 'USD';
@@ -485,6 +576,7 @@ export function App() {
       return {
         ...t,
         status: nextStatus,
+        paidAt: nextStatus === 'paid' ? paidAt ?? localTodayStr() : undefined,
         exchangeRate: shouldFixRate ? liveRate : t.exchangeRate,
       };
     });
@@ -492,6 +584,16 @@ export function App() {
       ...vault,
       transactions: nextTransactions,
     });
+  };
+
+  const handleToggleTransactionStatus = async (txId: string) => {
+    const tx = vault?.transactions.find((t) => t.id === txId);
+    if (!tx) return;
+    await setTransactionStatus(txId, tx.status === 'paid' ? 'pending' : 'paid');
+  };
+
+  const handleSettleTransaction = async (txId: string, paidAt: string) => {
+    await setTransactionStatus(txId, 'paid', paidAt);
   };
 
   const handleDeleteTransaction = async (txId: string) => {
@@ -519,9 +621,15 @@ export function App() {
   // Handlers de Categorias e Metas
   const handleUpdateCategory = async (updatedCat: Category) => {
     if (!vault) return;
+    const original = vault.categories.find((c) => c.id === updatedCat.id);
+    // Se for categoria protegida do sistema, o nome é fixo ("Outros") e isSystem permanece true
+    const safeCat: Category = original && isProtectedCategory(original)
+      ? { ...updatedCat, name: 'Outros', isSystem: true }
+      : updatedCat;
+
     await persistVaultUpdate({
       ...vault,
-      categories: vault.categories.map((c) => (c.id === updatedCat.id ? updatedCat : c)),
+      categories: vault.categories.map((c) => (c.id === safeCat.id ? safeCat : c)),
     });
   };
 
@@ -537,30 +645,28 @@ export function App() {
     if (!vault) return;
     const deleted = vault.categories.find((c) => c.id === catId);
     if (!deleted) return;
-    let remaining = vault.categories.filter((c) => c.id !== catId);
-    const isInUse = vault.transactions.some((t) => t.categoryId === catId);
-    // Lançamentos vão para uma categoria do MESMO tipo (nunca despesa → receita).
-    // Se não houver nenhuma e a categoria estiver em uso, cria "Outros" desse tipo.
-    let fallback = remaining.find((c) => c.type === deleted.type);
-    if (!fallback && isInUse) {
-      fallback = {
-        id: `cat_other_${deleted.type}_${Date.now()}`,
-        name: 'Outros',
-        type: deleted.type,
-        color: '#8C8C8C',
-        icon: 'Tag',
-      };
-      remaining = [...remaining, fallback];
+
+    // Categoria protegida do sistema ("Outros") nunca pode ser excluída
+    if (isProtectedCategory(deleted)) {
+      return;
     }
-    const fallbackId = fallback?.id;
-    const nextTransactions = fallbackId
-      ? vault.transactions.map((t) =>
-          t.categoryId === catId ? { ...t, categoryId: fallbackId } : t
-        )
-      : vault.transactions;
+
+    const remainingWithoutDeleted = vault.categories.filter((c) => c.id !== catId);
+
+    // Garante que a categoria "Outros" do mesmo tipo exista para absorver os lançamentos
+    const { target: outrosCategory, categories: nextCategories } = findOrCreateOutrosCategory(
+      remainingWithoutDeleted,
+      deleted.type
+    );
+
+    // Todos os lançamentos vinculados à categoria apagada vão OBRIGATORIAMENTE para a categoria "Outros"
+    const nextTransactions = vault.transactions.map((t) =>
+      t.categoryId === catId ? { ...t, categoryId: outrosCategory.id } : t
+    );
+
     await persistVaultUpdate({
       ...vault,
-      categories: remaining,
+      categories: nextCategories,
       transactions: nextTransactions,
     });
   };
@@ -626,10 +732,8 @@ export function App() {
     const isCrossCurrency = fromCurrency !== toCurrency;
     const fixedRate = isCrossCurrency && isValidRate(rate) ? rate : undefined;
     const inAmount = Math.round(convertedAmount * 100) / 100;
-    const expCat =
-      vault.categories.find((c) => c.type === 'expense')?.id || vault.categories[0]?.id || '';
-    const incCat =
-      vault.categories.find((c) => c.type === 'income')?.id || vault.categories[0]?.id || '';
+    const expCat = getDefaultCategoryId(vault.categories, 'expense');
+    const incCat = getDefaultCategoryId(vault.categories, 'income');
     const nowIso = new Date().toISOString();
 
     const outTx: Transaction = {
@@ -688,6 +792,16 @@ export function App() {
     );
   }
 
+  // Seções do app: usadas pelas abas (desktop) e pelo menu em tela cheia (celular)
+  const navItems: NavItem<ActiveTab>[] = [
+    { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+    { id: 'transactions', label: 'Lançamentos', icon: ReceiptText, count: vault.transactions.length },
+    { id: 'compare', label: 'Comparativos', icon: BarChart3 },
+    { id: 'budgets', label: 'Metas', icon: Target },
+    { id: 'accounts', label: 'Contas', icon: Wallet, count: vault.accounts.length },
+    { id: 'security', label: 'Configurações', icon: Settings },
+  ];
+
   return (
     <div className="app-shell">
       {/* Topbar Unificada e Limpa */}
@@ -698,13 +812,17 @@ export function App() {
               <MyFBoxLogo size={40} />
             </div>
             <div className="brand-text">
-              <span className="brand-title">MyFBox</span>
-              <span className="vault-name-badge">{vault.settings.vaultName}</span>
+              <span className="brand-title">
+                My<span className="brand-highlight">F</span>Box
+              </span>
+              <span className="brand-tagline">My Financial Box</span>
             </div>
           </div>
 
           {/* Seletor de Mês Compacto */}
-          <div className="month-navigator">
+          <div
+            className={`month-navigator ${selectedYearMonth !== getCurrentYearMonth() ? 'is-away' : ''}`}
+          >
             <button
               type="button"
               className="month-nav-btn"
@@ -729,84 +847,53 @@ export function App() {
                 type="button"
                 className="month-today-btn"
                 onClick={() => setSelectedYearMonth(getCurrentYearMonth())}
-                title="Voltar ao mês atual"
+                aria-label={`Voltar para ${formatMonthYearLabel(getCurrentYearMonth())}`}
+                title={`Voltar para ${formatMonthYearLabel(getCurrentYearMonth())}`}
               >
-                Atual
+                <Undo2 size={15} strokeWidth={2.5} aria-hidden />
+                <span className="month-today-long">Mês atual</span>
+                <span className="month-today-short">Atual</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Abas de Navegação Centrais */}
-        <nav className="workspace-tabs">
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            <LayoutDashboard size={15} /> Visão Geral
-          </button>
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'transactions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('transactions')}
-          >
-            <ReceiptText size={15} /> Lançamentos ({vault.transactions.length})
-          </button>
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'compare' ? 'active' : ''}`}
-            onClick={() => setActiveTab('compare')}
-          >
-            <BarChart3 size={15} /> Comparativos
-          </button>
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'budgets' ? 'active' : ''}`}
-            onClick={() => setActiveTab('budgets')}
-          >
-            <Target size={15} /> Metas
-          </button>
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'accounts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accounts')}
-          >
-            <Wallet size={15} /> Contas ({vault.accounts.length})
-          </button>
-          <button
-            type="button"
-            className={`ws-tab ${activeTab === 'security' ? 'active' : ''}`}
-            onClick={() => setActiveTab('security')}
-            title="Backups, Importação e Segurança"
-          >
-            <DatabaseBackup size={15} /> Backups
-          </button>
+        <nav className="workspace-tabs" aria-label="Seções do app">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`ws-tab ${activeTab === item.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(item.id)}
+                aria-current={activeTab === item.id ? 'page' : undefined}
+              >
+                <Icon size={15} /> {item.label}
+                {item.count !== undefined ? ` (${item.count})` : ''}
+              </button>
+            );
+          })}
         </nav>
+
+        {/* Celular: um botão MENU de largura total abre a navegação em tela cheia */}
+        <MobileMenuButton
+          ref={menuButtonRef}
+          onClick={() => setMenuOpen(true)}
+          currentLabel={navItems.find((i) => i.id === activeTab)?.label ?? ''}
+          expanded={menuOpen}
+        />
+        <MobileMenu
+          open={menuOpen}
+          items={navItems}
+          active={activeTab}
+          onSelect={setActiveTab}
+          onClose={closeMenu}
+        />
 
         {/* Ações Rápidas no Topo */}
         <div className="header-right">
-          {/* Cotação USD/BRL da AwesomeAPI */}
-          <button
-            type="button"
-            className="currency-rate-chip"
-            onClick={handleRefreshUsdRate}
-            title={
-              vault.settings.usdRateUpdatedAt
-                ? `Cotação AwesomeAPI (USD Comercial)\nAtualizado em: ${vault.settings.usdRateUpdatedAt}\nClique para atualizar cotação`
-                : 'Cotação AwesomeAPI (USD Comercial)\nClique para atualizar cotação'
-            }
-          >
-            <span className="rate-chip-flag">🇺🇸</span>
-            <span className="rate-chip-label">USD</span>
-            <span className="rate-chip-val mono">
-              {usdRate || vault.settings.usdToBrlRate
-                ? `R$ ${(usdRate || vault.settings.usdToBrlRate)?.toFixed(2)}`
-                : 'R$ —'}
-            </span>
-            <RefreshCw size={11} className={`rate-chip-icon ${rateRefreshing ? 'spinning' : ''}`} />
-          </button>
-
           <button
             type="button"
             className="icon-action-btn"
@@ -815,17 +902,6 @@ export function App() {
           >
             {hideValues ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
-
-          {envelope && (
-            <button
-              type="button"
-              className="icon-action-btn"
-              onClick={handleDownloadBackup}
-              title="Baixar Backup Criptografado (.myfbox.json)"
-            >
-              <Download size={16} />
-            </button>
-          )}
 
           <button
             type="button"
@@ -849,6 +925,7 @@ export function App() {
 
       {/* Conteúdo Principal */}
       <main className="workspace-main">
+        <Suspense fallback={<div className="view-loading" aria-busy="true" />}>
         {activeTab === 'dashboard' && (
           <DashboardView
             selectedYearMonth={selectedYearMonth}
@@ -858,7 +935,7 @@ export function App() {
             accounts={vault.accounts}
             hideValues={hideValues}
             usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            onToggleTransactionStatus={handleToggleTransactionStatus}
+            onSettleTransaction={handleSettleTransaction}
             onOpenNewTransaction={handleOpenNewTransaction}
             onNavigateTab={(tab) => setActiveTab(tab)}
           />
@@ -867,10 +944,12 @@ export function App() {
         {activeTab === 'transactions' && (
           <TransactionsView
             selectedYearMonth={selectedYearMonth}
+            onSelectYearMonth={setSelectedYearMonth}
             transactions={vault.transactions}
             categories={vault.categories}
             accounts={vault.accounts}
             hideValues={hideValues}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
             onOpenNewTransaction={handleOpenNewTransaction}
             onEditTransaction={(tx) => {
               setEditingTx(tx);
@@ -903,12 +982,6 @@ export function App() {
             insights={vault.insights ?? []}
             hideValues={hideValues}
             usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            onDeleteInsight={(month) =>
-              persistVaultUpdate({
-                ...vault,
-                insights: (vault.insights ?? []).filter((i) => i.month !== month),
-              })
-            }
           />
         )}
 
@@ -939,12 +1012,6 @@ export function App() {
                 settings: { ...vault.settings, autoLockMinutes: mins },
               })
             }
-            onImportTransactions={(newTxs) =>
-              persistVaultUpdate({
-                ...vault,
-                transactions: [...newTxs, ...vault.transactions],
-              })
-            }
             onChangeMasterPassword={handleChangeMasterPassword}
             onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
             onDeleteVault={handleDeleteVault}
@@ -961,6 +1028,12 @@ export function App() {
                   : 'O navegador recusou por enquanto. Favoritar o app ou usá-lo com frequência costuma liberar.'
               );
             }}
+            usdRate={usdRate || vault.settings.usdToBrlRate}
+            usdRateUpdatedAt={vault.settings.usdRateUpdatedAt}
+            exchangeRates={vault.settings.exchangeRates}
+            onSaveExchangeRate={handleSaveExchangeRate}
+            onDeleteExchangeRate={handleDeleteExchangeRate}
+            onUpdateManualUsdRate={handleUpdateManualUsdRate}
             mcp={{
               enabled: mcpEnabled,
               token: mcpToken,
@@ -971,8 +1044,10 @@ export function App() {
             onUpdateMcpSettings={handleUpdateMcpSettings}
           />
         )}
+        </Suspense>
       </main>
 
+      <Suspense fallback={null}>
       {/* Modal de Criar / Editar Lançamento */}
       {txModalOpen && (
         <TransactionModal
@@ -1011,6 +1086,7 @@ export function App() {
           }}
         />
       )}
+      </Suspense>
 
       {/* Toast de Feedback */}
       {toastMessage && (

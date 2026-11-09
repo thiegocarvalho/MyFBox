@@ -8,6 +8,10 @@ export interface MonthCategoryTotal {
   color: string;
   type: 'income' | 'expense';
   total: number;
+  /** Variação vs. mês anterior (null quando o mês anterior não tem lançamentos) */
+  delta?: number | null;
+  /** Participação no total de saídas (ou entradas) do mês, em % */
+  share?: number;
 }
 
 export interface MonthCategoryChange extends MonthCategoryTotal {
@@ -152,7 +156,14 @@ export function buildMonthComparison(
       expense: cur.expense,
       net,
       transactionCount: cur.count,
-      categories: cur.categories,
+      categories: cur.categories.map((c) => {
+        const bucketTotal = c.type === 'expense' ? cur.expense.total : cur.income.total;
+        return {
+          ...c,
+          share: bucketTotal > 0 ? round2((c.total / bucketTotal) * 100) : 0,
+          delta: prevHasData ? round2(c.total - (prevByCat.get(c.categoryId) ?? 0)) : null,
+        };
+      }),
       vsPrevious: prevHasData
         ? {
             income: round2(cur.income.total - prev.income.total),

@@ -1,21 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   TrendingUp,
   TrendingDown,
   Wallet,
   Scale,
   CheckCircle2,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
+  Calendar,
+  X,
+  ArrowRight,
 } from 'lucide-react';
 import type { Account, Category, Transaction, TransactionType } from '../types/finance';
 import {
   formatBRL,
   formatMoney,
   formatMonthYearLabel,
-  formatShortDate,
-  shiftYearMonth,
+  getCurrentYearMonth,
 } from '../utils/formatters';
 import {
   computeAccountBalance,
@@ -26,6 +25,21 @@ import {
   txAmountInBrl,
 } from '../utils/money';
 
+const PENDING_PREVIEW = 6;
+const MONTHS_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** Dias de `from` até `to` (datas AAAA-MM-DD); positivo quando `from` já passou. */
+function daysBetween(from: string, to: string): number {
+  const [y1, m1, d1] = from.split('-').map(Number);
+  const [y2, m2, d2] = to.split('-').map(Number);
+  return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
+}
+
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface DashboardViewProps {
   selectedYearMonth: string;
   onSelectYearMonth: (ym: string) => void;
@@ -34,7 +48,8 @@ interface DashboardViewProps {
   accounts: Account[];
   hideValues: boolean;
   usdToBrlRate?: number;
-  onToggleTransactionStatus: (txId: string) => void;
+  /** Dá baixa registrando a data do pagamento (AAAA-MM-DD) */
+  onSettleTransaction: (txId: string, paidAt: string) => void;
   onOpenNewTransaction: (type: TransactionType) => void;
   onNavigateTab: (tab: 'transactions' | 'budgets' | 'accounts') => void;
 }
@@ -47,12 +62,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   accounts,
   hideValues,
   usdToBrlRate,
-  onToggleTransactionStatus,
+  onSettleTransaction,
   onOpenNewTransaction,
   onNavigateTab,
 }) => {
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const todayStr = localToday();
+
+  // Quitar abre popup de confirmação com data do pagamento
+  const [settlingTransaction, setSettlingTransaction] = useState<Transaction | null>(null);
+  const [paidOn, setPaidOn] = useState(todayStr);
+
+  const handleOpenSettleModal = (tx: Transaction) => {
+    setPaidOn(todayStr);
+    setSettlingTransaction(tx);
+  };
+
+  const handleCloseSettleModal = () => {
+    setSettlingTransaction(null);
+  };
+
+  const handleConfirmSettle = () => {
+    if (!settlingTransaction || !paidOn || paidOn > todayStr) return;
+    onSettleTransaction(settlingTransaction.id, paidOn);
+    setSettlingTransaction(null);
+  };
   const accMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+
+  const actualCurrentYearMonth = useMemo(() => getCurrentYearMonth(), []);
 
   const monthTransactions = useMemo(
     () => transactions.filter((t) => t.date.startsWith(selectedYearMonth)),
@@ -112,11 +149,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const usdText = (value: number | null) =>
     value === null ? 'US$ — (sem cotação)' : formatMoney(value, 'USD', hideValues);
 
-  // Evolução de Fluxo de Caixa (6 meses centrados/terminando no mês selecionado)
-  const sixMonthSeries = useMemo(() => {
-    const months = [-4, -3, -2, -1, 0, 1].map((offset) =>
-      shiftYearMonth(selectedYearMonth, offset)
-    );
+  // Evolução de Fluxo de Caixa (12 meses do ano selecionado)
+  const twelveMonthSeries = useMemo(() => {
+    const [year] = selectedYearMonth.split('-');
+    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
     return months.map((ym) => {
       let inc = 0;
       let exp = 0;
@@ -128,23 +164,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         }
       }
       const [, mStr] = ym.split('-');
-      const shortLabels = [
-        'Jan',
-        'Fev',
-        'Mar',
-        'Abr',
-        'Mai',
-        'Jun',
-        'Jul',
-        'Ago',
-        'Set',
-        'Out',
-        'Nov',
-        'Dez',
-      ];
       return {
         ym,
-        label: shortLabels[parseInt(mStr, 10) - 1] || ym,
+        label: MONTHS_SHORT[parseInt(mStr, 10) - 1] || ym,
         income: inc,
         expense: exp,
         net: inc - exp,
@@ -155,10 +177,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const maxChartValue = useMemo(() => {
     const m = Math.max(
       100,
-      ...sixMonthSeries.flatMap((s) => [s.income, s.expense])
+      ...twelveMonthSeries.flatMap((s) => [s.income, s.expense])
     );
     return m;
-  }, [sixMonthSeries]);
+  }, [twelveMonthSeries]);
 
   // Despesas por categoria no mês selecionado
   const categoryBreakdown = useMemo(() => {
@@ -202,6 +224,101 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       .filter((t) => t.status === 'pending')
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [monthTransactions]);
+
+  const h1Series = useMemo(() => twelveMonthSeries.slice(0, 6), [twelveMonthSeries]);
+  const h2Series = useMemo(() => twelveMonthSeries.slice(6, 12), [twelveMonthSeries]);
+
+  const h1Net = useMemo(() => h1Series.reduce((sum, m) => sum + m.net, 0), [h1Series]);
+  const h2Net = useMemo(() => h2Series.reduce((sum, m) => sum + m.net, 0), [h2Series]);
+
+  const renderCashflowMonth = (item: (typeof twelveMonthSeries)[number]) => {
+    const incHeight = Math.max(4, Math.round((item.income / maxChartValue) * 100));
+    const expHeight = Math.max(4, Math.round((item.expense / maxChartValue) * 100));
+    const isSelected = item.ym === selectedYearMonth;
+    const isActualCurrent = item.ym === actualCurrentYearMonth;
+
+    return (
+      <button
+        type="button"
+        key={item.ym}
+        className={`cashflow-col-btn ${isSelected ? 'selected' : ''} ${
+          isActualCurrent ? 'is-actual-current' : ''
+        }`}
+        onClick={() => onSelectYearMonth(item.ym)}
+        aria-pressed={isSelected}
+      >
+        {/* Tooltip com valores detalhados no hover */}
+        <div className="cf-tooltip" role="tooltip" aria-hidden="true">
+          <div className="cf-tooltip-header">
+            <span className="cf-tooltip-title">{formatMonthYearLabel(item.ym)}</span>
+            {isActualCurrent && <span className="cf-tooltip-badge">Atual</span>}
+            {isSelected && <span className="cf-tooltip-badge focal">Foco</span>}
+          </div>
+          <div className="cf-tooltip-body">
+            <div className="cf-tooltip-row pos">
+              <span className="cf-tooltip-label">
+                <i className="cf-tooltip-dot income" /> Receitas
+              </span>
+              <span className="mono">{formatBRL(item.income, hideValues)}</span>
+            </div>
+            <div className="cf-tooltip-row neg">
+              <span className="cf-tooltip-label">
+                <i className="cf-tooltip-dot expense" /> Despesas
+              </span>
+              <span className="mono">{formatBRL(item.expense, hideValues)}</span>
+            </div>
+            <div className="cf-tooltip-divider" />
+            <div className={`cf-tooltip-row net ${item.net >= 0 ? 'pos' : 'neg'}`}>
+              <span className="cf-tooltip-label">Saldo</span>
+              <strong className="mono">
+                {item.net > 0 ? '+' : ''}
+                {formatBRL(item.net, hideValues)}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div className="cf-col-badge-wrapper">
+          {isActualCurrent ? (
+            <span className="cf-col-badge-current">ATUAL</span>
+          ) : isSelected ? (
+            <span className="cf-col-badge-selected">FOCO</span>
+          ) : (
+            <span className="cf-col-badge-spacer" />
+          )}
+        </div>
+
+        <div
+          className={`cashflow-col-net mono ${isSelected ? 'is-selected' : ''} ${
+            item.net > 0 ? 'pos' : item.net < 0 ? 'neg' : ''
+          }`}
+        >
+          {item.net === 0
+            ? '—'
+            : `${item.net > 0 ? '+' : ''}${Math.round(item.net / 100) / 10}k`}
+        </div>
+
+        <div className="cashflow-bars-pair">
+          <div
+            className="cf-bar income"
+            style={{ height: `${item.income > 0 ? incHeight : 3}px` }}
+            title={`Receitas: ${formatBRL(item.income, hideValues)}`}
+          />
+          <div
+            className="cf-bar expense"
+            style={{ height: `${item.expense > 0 ? expHeight : 3}px` }}
+            title={`Despesas: ${formatBRL(item.expense, hideValues)}`}
+          />
+        </div>
+
+        <div className="cashflow-col-bottom">
+          <span className={`cashflow-col-label mono ${isSelected ? 'selected-pill' : ''}`}>
+            {item.label}
+          </span>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="dashboard-stack">
@@ -291,12 +408,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Grid Principal: Evolução do Fluxo de Caixa (6 Meses) + Despesas por Categoria */}
       <div className="dashboard-main-grid">
-        {/* Gráfico de Fluxo de Caixa Comparativo */}
-        <section className="panel-card">
-          <header className="panel-header">
+        {/* Gráfico de Fluxo de Caixa Comparativo (12 Meses em 2 Linhas) */}
+        <section className="panel-card cashflow-panel-card">
+          <header className="panel-header cashflow-panel-header">
             <div>
               <span className="eyebrow">HISTÓRICO E PROJEÇÃO</span>
-              <h3>Fluxo de Caixa Comparativo (6 Meses)</h3>
+              <div className="cashflow-title-row">
+                <h3>Fluxo de Caixa Comparativo (12 Meses)</h3>
+                {selectedYearMonth === actualCurrentYearMonth ? (
+                  <span className="cf-current-pill" title="Visualizando o mês atual do calendário">
+                    <span className="cf-pulse-dot" />
+                    Mês Atual
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="cf-current-quick-btn"
+                    onClick={() => onSelectYearMonth(actualCurrentYearMonth)}
+                    title="Voltar visualização para o mês atual"
+                  >
+                    <Calendar size={13} />
+                    Ir para Mês Atual
+                  </button>
+                )}
+              </div>
             </div>
             <div className="chart-legend-inline">
               <span>
@@ -308,45 +443,131 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </header>
 
-          <div className="cashflow-bars-stage">
-            {sixMonthSeries.map((item) => {
-              const incHeight = Math.max(4, Math.round((item.income / maxChartValue) * 150));
-              const expHeight = Math.max(4, Math.round((item.expense / maxChartValue) * 150));
-              const isCurrent = item.ym === selectedYearMonth;
+          <div className="cashflow-2row-stage">
+            <div className="cf-semester-block">
+              <div className="cf-semester-header">
+                <div className="cf-semester-title-wrap">
+                  <span className="cf-semester-tag">1º Semestre</span>
+                  <span className="cf-semester-meta">Jan – Jun</span>
+                </div>
+                <div className="cf-semester-summary mono">
+                  <span className="cf-sem-label">Saldo Semestral:</span>
+                  <strong className={h1Net >= 0 ? 'pos' : 'neg'}>
+                    {h1Net > 0 ? '+' : ''}{formatBRL(h1Net, hideValues)}
+                  </strong>
+                </div>
+              </div>
+              <div className="cashflow-bars-stage">
+                {h1Series.map(renderCashflowMonth)}
+              </div>
+            </div>
 
-              return (
-                <button
-                  type="button"
-                  key={item.ym}
-                  className={`cashflow-col-btn ${isCurrent ? 'selected' : ''}`}
-                  onClick={() => onSelectYearMonth(item.ym)}
-                  title={`${item.ym}: Receitas ${formatBRL(item.income)} | Despesas ${formatBRL(
-                    item.expense
-                  )}`}
-                >
-                  <div className="cashflow-col-net mono">
-                    {item.net === 0
-                      ? '—'
-                      : `${item.net > 0 ? '+' : ''}${Math.round(item.net / 100) / 10}k`}
-                  </div>
-                  <div className="cashflow-bars-pair">
-                    <div
-                      className="cf-bar income"
-                      style={{ height: `${item.income > 0 ? incHeight : 3}px` }}
-                    />
-                    <div
-                      className="cf-bar expense"
-                      style={{ height: `${item.expense > 0 ? expHeight : 3}px` }}
-                    />
-                  </div>
-                  <span className="cashflow-col-label mono">{item.label}</span>
-                </button>
-              );
-            })}
+            <div className="cf-semester-block">
+              <div className="cf-semester-header">
+                <div className="cf-semester-title-wrap">
+                  <span className="cf-semester-tag">2º Semestre</span>
+                  <span className="cf-semester-meta">Jul – Dez</span>
+                </div>
+                <div className="cf-semester-summary mono">
+                  <span className="cf-sem-label">Saldo Semestral:</span>
+                  <strong className={h2Net >= 0 ? 'pos' : 'neg'}>
+                    {h2Net > 0 ? '+' : ''}{formatBRL(h2Net, hideValues)}
+                  </strong>
+                </div>
+              </div>
+              <div className="cashflow-bars-stage">
+                {h2Series.map(renderCashflowMonth)}
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Despesas por Categoria e Status das Metas */}
+        {/* Compromissos Pendentes no Mês (Liquidação Rápida) */}
+        <section className="panel-card">
+          <header className="panel-header">
+            <div>
+              <span className="eyebrow">LIQUIDAÇÃO RÁPIDA</span>
+              <h3>Pendentes neste Mês ({pendingTransactions.length})</h3>
+            </div>
+            <button
+              type="button"
+              className="panel-header-action"
+              onClick={() => onNavigateTab('transactions')}
+            >
+              <span>Ver todos os lançamentos</span>
+              <ArrowRight size={13} className="action-arrow" aria-hidden />
+            </button>
+          </header>
+
+          {pendingTransactions.length === 0 ? (
+            <div className="empty-state-compact">
+              <CheckCircle2 size={22} style={{ color: 'var(--color-accent)' }} />
+              <p>Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.</p>
+            </div>
+          ) : (
+            <>
+              <ul className="pending-quick-list">
+                {pendingTransactions.slice(0, PENDING_PREVIEW).map((tx) => {
+                  const cat = catMap.get(tx.categoryId);
+                  const acc = accMap.get(tx.accountId);
+                  const daysLate = daysBetween(tx.date, todayStr);
+                  const [, mm, dd] = tx.date.split('-');
+                  return (
+                    <li key={tx.id} className={`pq-item ${daysLate > 0 ? 'late' : ''}`}>
+                      <span className="pq-date" aria-hidden>
+                        <span className="pq-day">{dd}</span>
+                        <span className="pq-month">{MONTHS_SHORT[Number(mm) - 1]}</span>
+                      </span>
+                      <div className="pq-info">
+                        <strong className="pq-title">{tx.description}</strong>
+                        <span className="pq-meta">
+                          {daysLate > 0 && (
+                            <span className="pq-late">
+                              {daysLate === 1 ? 'Venceu ontem' : `Venceu há ${daysLate} dias`}
+                            </span>
+                          )}
+                          {daysLate === 0 && <span className="pq-today">Vence hoje</span>}
+                          <span>{cat?.name || 'Geral'}</span>
+                          {accounts.length > 1 && <span>{acc?.name || 'Conta'}</span>}
+                        </span>
+                      </div>
+                      <span
+                        className={`mono pq-amount ${tx.type === 'income' ? 'positive' : 'negative'}`}
+                      >
+                        {tx.type === 'income' ? '+' : '−'}
+                        {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
+                      </span>
+                      <button
+                        type="button"
+                        className="pq-action"
+                        onClick={() => handleOpenSettleModal(tx)}
+                        aria-label={`${tx.type === 'income' ? 'Receber' : 'Quitar'}: ${tx.description}`}
+                      >
+                        <CheckCircle2 size={15} aria-hidden />
+                        {tx.type === 'income' ? 'Receber' : 'Quitar'}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {pendingTransactions.length > PENDING_PREVIEW && (
+                <button
+                  type="button"
+                  className="btn-link-sm pq-more"
+                  onClick={() => onNavigateTab('transactions')}
+                >
+                  <span>Ver mais {pendingTransactions.length - PENDING_PREVIEW} pendentes</span>
+                  <ArrowRight size={13} className="action-arrow" aria-hidden />
+                </button>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+
+      {/* Linha Inferior: Despesas por Categoria (Esquerda) + Contas & Carteiras (Direita) */}
+      <div className="dashboard-bottom-grid">
+        {/* Despesas por Categoria e Status das Metas (Distribuição de Gastos) */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -355,10 +576,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <button
               type="button"
-              className="btn-link-sm"
+              className="panel-header-action"
               onClick={() => onNavigateTab('budgets')}
             >
-              Configurar Metas →
+              <span>Configurar Metas</span>
+              <ArrowRight size={13} className="action-arrow" aria-hidden />
             </button>
           </header>
 
@@ -430,11 +652,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           )}
         </section>
-      </div>
 
-      {/* Linha Inferior: Contas & Carteiras + Pendências do Mês */}
-      <div className="dashboard-bottom-grid">
-        {/* Saldos por Conta */}
+        {/* Saldos por Conta (Patrimônio Disponível) */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -443,10 +662,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <button
               type="button"
-              className="btn-link-sm"
+              className="panel-header-action"
               onClick={() => onNavigateTab('accounts')}
             >
-              Gerenciar Contas →
+              <span>Gerenciar Contas</span>
+              <ArrowRight size={13} className="action-arrow" aria-hidden />
             </button>
           </header>
 
@@ -487,78 +707,124 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ))}
           </div>
         </section>
-
-        {/* Compromissos Pendentes no Mês */}
-        <section className="panel-card">
-          <header className="panel-header">
-            <div>
-              <span className="eyebrow">LIQUIDAÇÃO RÁPIDA</span>
-              <h3>Pendentes neste Mês ({pendingTransactions.length})</h3>
-            </div>
-            <button
-              type="button"
-              className="btn-link-sm"
-              onClick={() => onNavigateTab('transactions')}
-            >
-              Ver todos os lançamentos →
-            </button>
-          </header>
-
-          {pendingTransactions.length === 0 ? (
-            <div className="empty-state-compact">
-              <CheckCircle2 size={22} style={{ color: 'var(--color-accent)' }} />
-              <p>Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.</p>
-            </div>
-          ) : (
-            <div className="pending-quick-list">
-              {pendingTransactions.slice(0, 6).map((tx) => {
-                const cat = catMap.get(tx.categoryId);
-                const acc = accMap.get(tx.accountId);
-                return (
-                  <div key={tx.id} className="pending-item-row">
-                    <div className="pending-item-left">
-                      <span className="pending-date-chip mono">
-                        <Clock size={12} /> {formatShortDate(tx.date)}
-                      </span>
-                      <div>
-                        <strong>{tx.description}</strong>
-                        <span className="pending-meta-sub">
-                          {cat?.name || 'Geral'} • {acc?.name || 'Conta'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="pending-item-right">
-                      <span
-                        className={`mono pending-amt ${
-                          tx.type === 'income' ? 'positive' : 'negative'
-                        }`}
-                      >
-                        {tx.type === 'income' ? (
-                          <ArrowUpRight size={14} />
-                        ) : (
-                          <ArrowDownRight size={14} />
-                        )}
-                        {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
-                        {tx.currency === 'USD' && <span className="badge-usd-sm">USD</span>}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn-settle-xs"
-                        onClick={() => onToggleTransactionStatus(tx.id)}
-                        title="Marcar como Pago / Recebido"
-                      >
-                        <CheckCircle2 size={13} />{' '}
-                        {tx.type === 'income' ? 'Receber' : 'Quitar'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
       </div>
+
+      {/* Popup / Modal de confirmação de baixa / quitação */}
+      {settlingTransaction && (
+        <div
+          className="modal-backdrop"
+          onClick={handleCloseSettleModal}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') handleCloseSettleModal();
+          }}
+        >
+          <div
+            className="modal-card settle-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settle-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-header">
+              <h2 id="settle-title">
+                {settlingTransaction.type === 'income' ? 'Confirmar Recebimento' : 'Confirmar Quitação'}
+              </h2>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={handleCloseSettleModal}
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </header>
+
+            <form
+              className="modal-body"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleConfirmSettle();
+              }}
+            >
+              <div className="settle-modal-summary">
+                <div className="settle-modal-main">
+                  <span className="eyebrow">
+                    {settlingTransaction.type === 'income' ? 'RECEITA A RECEBER' : 'DESPESA A QUITAR'}
+                  </span>
+                  <h3 className="settle-modal-title">{settlingTransaction.description}</h3>
+                  <div
+                    className={`settle-modal-amount mono ${
+                      settlingTransaction.type === 'income' ? 'positive' : 'negative'
+                    }`}
+                  >
+                    {settlingTransaction.type === 'income' ? '+' : '−'}
+                    {formatMoney(
+                      settlingTransaction.amount,
+                      settlingTransaction.currency || 'BRL',
+                      hideValues
+                    )}
+                  </div>
+                </div>
+
+                <div className="settle-modal-meta">
+                  <span className="settle-modal-meta-item">
+                    <span
+                      className="cat-color-dot"
+                      style={{
+                        backgroundColor:
+                          catMap.get(settlingTransaction.categoryId)?.color || '#94A3B8',
+                      }}
+                    />
+                    {catMap.get(settlingTransaction.categoryId)?.name || 'Geral'}
+                  </span>
+                  <span className="settle-modal-meta-item">
+                    {accMap.get(settlingTransaction.accountId)?.name || 'Conta principal'}
+                  </span>
+                  <span className="settle-modal-meta-item">
+                    Vencimento: {settlingTransaction.date.split('-').reverse().join('/')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor="settle-paid-on">
+                  {settlingTransaction.type === 'income' ? 'Data do recebimento' : 'Data do pagamento'}
+                </label>
+                <input
+                  id="settle-paid-on"
+                  type="date"
+                  value={paidOn}
+                  max={todayStr}
+                  onChange={(e) => setPaidOn(e.target.value)}
+                  required
+                  autoFocus
+                />
+                <span className="field-hint">
+                  A data não pode ser futura. Padrão: hoje ({todayStr.split('-').reverse().join('/')}).
+                </span>
+              </div>
+
+              <footer className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleCloseSettleModal}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={!paidOn || paidOn > todayStr}
+                >
+                  <CheckCircle2 size={15} />
+                  {settlingTransaction.type === 'income' ? 'Confirmar Recebimento' : 'Confirmar Quitação'}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
