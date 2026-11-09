@@ -15,9 +15,11 @@ import {
   Filter,
 } from 'lucide-react';
 import type { Category, Transaction, TransactionType } from '../types/finance';
+import { generateEntityId } from '../domain/id';
 import { isProtectedCategory } from '../utils/categories';
 import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
 import { parseDecimalInput, txAmountInBrl } from '../utils/money';
+import type { ExchangeRateSource } from '../services/currencyService';
 
 interface BudgetsViewProps {
   selectedYearMonth: string;
@@ -25,6 +27,7 @@ interface BudgetsViewProps {
   transactions: Transaction[];
   hideValues: boolean;
   usdToBrlRate?: number;
+  rateSource?: ExchangeRateSource;
   onUpdateCategory: (updated: Category) => void;
   onAddCategory: (newCat: Category) => void;
   onDeleteCategory: (catId: string) => void;
@@ -50,22 +53,22 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   transactions,
   hideValues,
   usdToBrlRate,
+  rateSource,
   onUpdateCategory,
   onAddCategory,
   onDeleteCategory,
 }) => {
-  // Estado de edição de categoria de despesa
+  const effectiveRates = rateSource ?? usdToBrlRate;
+
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [budgetDraft, setBudgetDraft] = useState<string>('');
   const [nameDraft, setNameDraft] = useState<string>('');
   const [colorDraft, setColorDraft] = useState<string>('');
 
-  // Estado de edição de categoria de receita
   const [editingIncomeCatId, setEditingIncomeCatId] = useState<string | null>(null);
   const [incomeNameDraft, setIncomeNameDraft] = useState<string>('');
   const [incomeColorDraft, setIncomeColorDraft] = useState<string>('');
 
-  // Modal de confirmação de exclusão de categoria
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
   useEffect(() => {
@@ -79,12 +82,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [categoryToDelete]);
 
-  // Filtros e busca
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortField>('pct');
 
-  // Form para nova categoria
   const [newCatName, setNewCatName] = useState('');
   const [newCatType, setNewCatType] = useState<TransactionType>('expense');
   const [newCatBudget, setNewCatBudget] = useState('');
@@ -92,67 +93,55 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
   const newCatInputRef = useRef<HTMLInputElement>(null);
 
-  const monthTransactions = useMemo(
-    () => transactions.filter((t) => t.date.startsWith(selectedYearMonth)),
-    [transactions, selectedYearMonth]
-  );
+  const monthStatsByCategory = useMemo(() => {
+    const map = new Map<string, { paid: number; pending: number; count: number }>();
+    for (const tx of transactions) {
+      if (!tx.date.startsWith(selectedYearMonth)) continue;
+      const valueBrl = txAmountInBrl(tx, effectiveRates);
+      const entry = map.get(tx.categoryId) || { paid: 0, pending: 0, count: 0 };
+      if (tx.status === 'paid') entry.paid += valueBrl;
+      else entry.pending += valueBrl;
+      entry.count++;
+      map.set(tx.categoryId, entry);
+    }
+    return map;
+  }, [transactions, selectedYearMonth, effectiveRates]);
 
   const expenseCategoriesWithStats = useMemo(() => {
     const expCats = categories.filter((c) => c.type === 'expense');
     return expCats.map((cat) => {
-      let paid = 0;
-      let pending = 0;
-      let count = 0;
-      for (const tx of monthTransactions) {
-        if (tx.categoryId === cat.id && tx.type === 'expense') {
-          // Orçamentos são em R$: gastos em US$ entram convertidos
-          const valueBrl = txAmountInBrl(tx, usdToBrlRate);
-          if (tx.status === 'paid') paid += valueBrl;
-          else pending += valueBrl;
-          count++;
-        }
-      }
-      const totalSpent = paid + pending;
+      const stats = monthStatsByCategory.get(cat.id) || { paid: 0, pending: 0, count: 0 };
+      const totalSpent = stats.paid + stats.pending;
       const limit = cat.monthlyBudget || 0;
       const remaining = limit - totalSpent;
       const pct = limit > 0 ? (totalSpent / limit) * 100 : 0;
 
       return {
         cat,
-        paid,
-        pending,
+        paid: stats.paid,
+        pending: stats.pending,
         totalSpent,
         limit,
         remaining,
         pct,
-        count,
+        count: stats.count,
       };
     });
-  }, [categories, monthTransactions, usdToBrlRate]);
+  }, [categories, monthStatsByCategory]);
 
   const incomeCategoriesWithStats = useMemo(() => {
     const incCats = categories.filter((c) => c.type === 'income');
     return incCats.map((cat) => {
-      let paid = 0;
-      let pending = 0;
-      let count = 0;
-      for (const tx of monthTransactions) {
-        if (tx.categoryId === cat.id && tx.type === 'income') {
-          const valueBrl = txAmountInBrl(tx, usdToBrlRate);
-          if (tx.status === 'paid') paid += valueBrl;
-          else pending += valueBrl;
-          count++;
-        }
-      }
+      const stats = monthStatsByCategory.get(cat.id) || { paid: 0, pending: 0, count: 0 };
       return {
         cat,
-        paid,
-        pending,
-        total: paid + pending,
-        count,
+        paid: stats.paid,
+        pending: stats.pending,
+        total: stats.paid + stats.pending,
+        count: stats.count,
       };
     });
-  }, [categories, monthTransactions, usdToBrlRate]);
+  }, [categories, monthStatsByCategory]);
 
   const totals = useMemo(() => {
     const withGoal = expenseCategoriesWithStats.filter((i) => i.limit > 0);
@@ -232,9 +221,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   const handleCreateCategory = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) return;
-    const parsedBudget = newCatBudget.trim() ? Math.max(0, parseDecimalInput(newCatBudget) || 0) : 0;
+    const parsedBudget = newCatBudget.trim()
+      ? Math.max(0, parseDecimalInput(newCatBudget) || 0)
+      : 0;
     const created: Category = {
-      id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: generateEntityId('cat'),
       name: newCatName.trim(),
       type: newCatType,
       color: newCatColor,
@@ -251,48 +242,39 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     newCatInputRef.current?.focus();
   };
 
-  // Filtragem e ordenação dos cards
   const filteredExpenseCategories = useMemo(() => {
     let list = expenseCategoriesWithStats;
 
-    // Filtro de status
     if (statusFilter === 'ok') {
-      list = list.filter((i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct < 80) || editingCatId === i.cat.id);
+      list = list.filter(
+        (i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct < 80) || editingCatId === i.cat.id
+      );
     } else if (statusFilter === 'warn') {
-      list = list.filter((i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct >= 80) || editingCatId === i.cat.id);
+      list = list.filter(
+        (i) => (i.limit > 0 && i.totalSpent <= i.limit && i.pct >= 80) || editingCatId === i.cat.id
+      );
     } else if (statusFilter === 'over') {
       list = list.filter((i) => (i.limit > 0 && i.totalSpent > i.limit) || editingCatId === i.cat.id);
     } else if (statusFilter === 'no-goal') {
       list = list.filter((i) => i.limit === 0 || editingCatId === i.cat.id);
     }
 
-    // Busca textual
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((i) => i.cat.name.toLowerCase().includes(q));
     }
 
-    // Ordenação
     return [...list].sort((a, b) => {
-      if (sortBy === 'pct') {
-        return b.pct - a.pct;
-      }
-      if (sortBy === 'spent') {
-        return b.totalSpent - a.totalSpent;
-      }
-      if (sortBy === 'limit') {
-        return b.limit - a.limit;
-      }
-      if (sortBy === 'name') {
-        return a.cat.name.localeCompare(b.cat.name);
-      }
+      if (sortBy === 'pct') return b.pct - a.pct;
+      if (sortBy === 'spent') return b.totalSpent - a.totalSpent;
+      if (sortBy === 'limit') return b.limit - a.limit;
+      if (sortBy === 'name') return a.cat.name.localeCompare(b.cat.name);
       return 0;
     });
   }, [expenseCategoriesWithStats, statusFilter, searchQuery, sortBy, editingCatId]);
 
   return (
     <div className="budgets-view-stack">
-      {/* 4 KPIs Brutalistas com contadores .01, .02, .03, .04 */}
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
@@ -303,7 +285,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           <div className="kpi-sub">
             <span>
               {totals.withGoalCount}{' '}
-              {totals.withGoalCount === 1 ? 'categoria com meta ativa' : 'categorias com meta ativa'}
+              {totals.withGoalCount === 1
+                ? 'categoria com meta ativa'
+                : 'categorias com meta ativa'}
             </span>
           </div>
         </article>
@@ -348,8 +332,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               {totals.totalBudget === 0
                 ? 'Defina tetos nas categorias abaixo'
                 : totals.remaining >= 0
-                ? 'Saldo disponível dentro do teto'
-                : `Excedido em ${formatBRL(Math.abs(totals.remaining), hideValues)}`}
+                  ? 'Saldo disponível dentro do teto'
+                  : `Excedido em ${formatBRL(Math.abs(totals.remaining), hideValues)}`}
             </span>
           </div>
         </article>
@@ -368,8 +352,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             {totals.overCount > 0
               ? `${totals.overCount} ESTOURADA${totals.overCount > 1 ? 'S' : ''}`
               : totals.warnCount > 0
-              ? `${totals.warnCount} EM ALERTA`
-              : '100% NO TETO'}
+                ? `${totals.warnCount} EM ALERTA`
+                : '100% NO TETO'}
           </div>
           <div className="kpi-sub">
             <span>
@@ -379,7 +363,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </article>
       </section>
 
-      {/* Banner de Execução e Teto Global */}
       {totals.totalBudget > 0 && (
         <section className="budget-execution-banner">
           <header className="budget-execution-header">
@@ -394,7 +377,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               {totals.pct > 100 ? (
                 <span className="budget-badge danger">
                   <AlertTriangle size={13} />
-                  EXCEDIDO EM {formatBRL(Math.abs(totals.remaining), hideValues)} ({totals.pct.toFixed(0)}%)
+                  EXCEDIDO EM {formatBRL(Math.abs(totals.remaining), hideValues)} (
+                  {totals.pct.toFixed(0)}%)
                 </span>
               ) : totals.pct >= 80 ? (
                 <span className="budget-badge warn">
@@ -425,7 +409,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </section>
       )}
 
-      {/* Toolbar Brutalista: Filtros, Busca e Ordenação */}
       <section className="budgets-toolbar">
         <div className="budgets-filter-tabs">
           <button
@@ -521,7 +504,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </div>
       </section>
 
-      {/* Grid Principal de Metas */}
       {filteredExpenseCategories.length === 0 ? (
         <section className="panel-card budgets-empty-panel">
           <Target size={28} style={{ color: 'var(--color-accent)' }} />
@@ -574,7 +556,12 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       <span
                         className="budget-status-chip system-badge"
                         title="Categoria permanente do sistema (não pode ser excluída)"
-                        style={{ fontSize: '9px', padding: '1px 5px', opacity: 0.75, letterSpacing: '0.05em' }}
+                        style={{
+                          fontSize: '9px',
+                          padding: '1px 5px',
+                          opacity: 0.75,
+                          letterSpacing: '0.05em',
+                        }}
                       >
                         SISTEMA
                       </span>
@@ -584,8 +571,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   <div className="row-actions">
                     {!isEditing ? (
                       <>
-                        {hasLimit && (
-                          isOver ? (
+                        {hasLimit &&
+                          (isOver ? (
                             <span className="budget-status-chip danger">
                               +{formatBRL(Math.abs(item.remaining), hideValues)}
                             </span>
@@ -597,8 +584,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             <span className="budget-status-chip ok">
                               {item.pct.toFixed(0)}%
                             </span>
-                          )
-                        )}
+                          ))}
 
                         <button
                           type="button"
@@ -652,14 +638,21 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 {isEditing ? (
                   <div className="budget-card-edit-box">
                     <div className="budget-edit-field">
-                      <label>Nome da Categoria {isProtected && <span style={{ opacity: 0.6 }}>(Fixo)</span>}</label>
+                      <label>
+                        Nome da Categoria{' '}
+                        {isProtected && <span style={{ opacity: 0.6 }}>(Fixo)</span>}
+                      </label>
                       <input
                         type="text"
                         value={isProtected ? item.cat.name : nameDraft}
                         onChange={(e) => setNameDraft(e.target.value)}
                         placeholder="Nome da categoria"
                         disabled={isProtected}
-                        title={isProtected ? 'O nome da categoria do sistema é fixo ("Outros")' : undefined}
+                        title={
+                          isProtected
+                            ? 'O nome da categoria do sistema é fixo ("Outros")'
+                            : undefined
+                        }
                         style={isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                         autoFocus={!isProtected}
                       />
@@ -718,7 +711,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           <button
                             type="button"
                             className="btn-secondary"
-                            style={{ padding: '6px 10px', fontSize: '11px', color: 'var(--text-secondary)' }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '11px',
+                              color: 'var(--text-secondary)',
+                            }}
                             onClick={() => removeGoal(item.cat)}
                             title="Remover apenas o teto mensal"
                           >
@@ -729,7 +726,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           <button
                             type="button"
                             className="btn-secondary"
-                            style={{ padding: '6px 10px', fontSize: '11px', color: 'var(--color-coral)' }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '11px',
+                              color: 'var(--color-coral)',
+                            }}
                             onClick={() => setCategoryToDelete(item.cat)}
                             title="Excluir categoria"
                           >
@@ -741,7 +742,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   </div>
                 ) : (
                   <div className="budget-cat-body">
-                    {/* 1. GASTO NO MÊS - Limpo e sem ruído */}
                     <div className="budget-cat-spend-hero">
                       <div className="budget-spend-top-row">
                         <span className="budget-spend-label">Gasto no Mês</span>
@@ -762,7 +762,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       </div>
                     </div>
 
-                    {/* 2. ITEM MARGEM COMO UMA BARRA FICANDO CHEIA (Apenas com teto definido) */}
                     {hasLimit && (
                       <div className="budget-margin-block">
                         <div className="budget-margin-header">
@@ -789,7 +788,6 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       </div>
                     )}
 
-                    {/* 3. Rodapé do Card com feedback contextual (Apenas com teto definido) */}
                     {hasLimit && (
                       <footer className="budget-cat-footer">
                         {isOver ? (
@@ -818,9 +816,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </div>
       )}
 
-      {/* Seção Inferior: Nova Categoria & Categorias de Receita */}
       <div className="dashboard-bottom-grid">
-        {/* Painel: Nova Categoria & Meta */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -908,14 +904,16 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           </form>
         </section>
 
-        {/* Painel: Categorias de Receita */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
               <span className="eyebrow">FONTES DE ENTRADA</span>
               <h3>Categorias de Receita ({incomeCategoriesWithStats.length})</h3>
             </div>
-            <TrendingDown size={18} style={{ color: 'var(--color-accent)', transform: 'rotate(180deg)' }} />
+            <TrendingDown
+              size={18}
+              style={{ color: 'var(--color-accent)', transform: 'rotate(180deg)' }}
+            />
           </header>
 
           <div className="accounts-mini-list">
@@ -931,14 +929,26 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       style={{ backgroundColor: isEditing ? incomeColorDraft : item.cat.color }}
                     />
                     {isEditing ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, paddingRight: 10 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                          flex: 1,
+                          paddingRight: 10,
+                        }}
+                      >
                         <input
                           type="text"
                           value={isProtected ? item.cat.name : incomeNameDraft}
                           onChange={(e) => setIncomeNameDraft(e.target.value)}
                           placeholder="Nome da categoria"
                           disabled={isProtected}
-                          title={isProtected ? 'O nome da categoria do sistema é fixo ("Outros")' : undefined}
+                          title={
+                            isProtected
+                              ? 'O nome da categoria do sistema é fixo ("Outros")'
+                              : undefined
+                          }
                           style={{
                             padding: '4px 8px',
                             fontSize: '13px',
@@ -965,7 +975,12 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             <span
                               className="budget-status-chip system-badge"
                               title="Categoria permanente do sistema (não pode ser excluída)"
-                              style={{ fontSize: '9px', padding: '1px 5px', opacity: 0.75, letterSpacing: '0.05em' }}
+                              style={{
+                                fontSize: '9px',
+                                padding: '1px 5px',
+                                opacity: 0.75,
+                                letterSpacing: '0.05em',
+                              }}
                             >
                               SISTEMA
                             </span>
@@ -973,7 +988,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         </div>
                         <span className="sub-label mono" style={{ fontSize: '11px' }}>
                           Recebido: {formatBRL(item.paid, hideValues)}
-                          {item.pending > 0 && ` · A receber: ${formatBRL(item.pending, hideValues)}`}
+                          {item.pending > 0 &&
+                            ` · A receber: ${formatBRL(item.pending, hideValues)}`}
                         </span>
                       </div>
                     )}
@@ -1043,9 +1059,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         </section>
       </div>
 
-      {/* Modal de Confirmação de Exclusão Brutalista */}
       {categoryToDelete && !isProtectedCategory(categoryToDelete) && (() => {
-        const linkedCount = transactions.filter((t) => t.categoryId === categoryToDelete.id).length;
+        const linkedCount = transactions.filter(
+          (t) => t.categoryId === categoryToDelete.id
+        ).length;
         const isExpense = categoryToDelete.type === 'expense';
 
         return (
@@ -1086,18 +1103,28 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   </div>
 
                   <p className="delete-confirm-desc">
-                    Tem certeza de que deseja excluir a categoria <strong>{categoryToDelete.name}</strong>?
+                    Tem certeza de que deseja excluir a categoria{' '}
+                    <strong>{categoryToDelete.name}</strong>?
                   </p>
 
                   <div className="delete-confirm-impact">
                     {linkedCount > 0 ? (
                       <p>
-                        ⚠️ Esta categoria possui <strong>{linkedCount} {linkedCount === 1 ? 'lançamento associado' : 'lançamentos associados'}</strong>.
-                        Seus dados não serão apagados: os lançamentos serão transferidos <strong>obrigatoriamente para a categoria "Outros"</strong> ({isExpense ? 'despesas' : 'receitas'}).
+                        ⚠️ Esta categoria possui{' '}
+                        <strong>
+                          {linkedCount}{' '}
+                          {linkedCount === 1
+                            ? 'lançamento associado'
+                            : 'lançamentos associados'}
+                        </strong>
+                        . Seus dados não serão apagados: os lançamentos serão transferidos{' '}
+                        <strong>obrigatoriamente para a categoria "Outros"</strong> (
+                        {isExpense ? 'despesas' : 'receitas'}).
                       </p>
                     ) : (
                       <p>
-                        ✓ Nenhum lançamento está vinculado a esta categoria. Ela será removida com segurança.
+                        ✓ Nenhum lançamento está vinculado a esta categoria. Ela será removida com
+                        segurança.
                       </p>
                     )}
                   </div>

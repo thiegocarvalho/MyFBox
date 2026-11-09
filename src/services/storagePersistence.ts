@@ -1,8 +1,3 @@
-/**
- * Armazenamento persistente: sem isso, o navegador pode apagar o IndexedDB do app
- * (onde fica o cofre cifrado) quando o disco fica cheio. Com `persist()` concedido,
- * os dados só saem se o usuário limpar os dados do site.
- */
 export type StoragePersistStatus = 'persisted' | 'not-persisted' | 'unsupported';
 
 export async function getStoragePersistStatus(): Promise<StoragePersistStatus> {
@@ -14,7 +9,6 @@ export async function getStoragePersistStatus(): Promise<StoragePersistStatus> {
   }
 }
 
-/** Pede ao navegador para não apagar os dados. Alguns navegadores perguntam ao usuário. */
 export async function requestPersistentStorage(): Promise<StoragePersistStatus> {
   const current = await getStoragePersistStatus();
   if (current !== 'not-persisted' || !navigator.storage?.persist) return current;

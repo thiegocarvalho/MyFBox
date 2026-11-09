@@ -1,6 +1,36 @@
 import { getCurrencySymbol } from '../services/currencyService';
 import type { Currency } from '../types/finance';
 
+const MONTHS_SHORT = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+] as const;
+
+const MONTHS_FULL = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+] as const;
+
 export function formatMoney(
   value: number,
   currency: Currency = 'BRL',
@@ -33,9 +63,8 @@ export function formatBRL(value: number, hideValues: boolean = false): string {
 export function formatShortDate(dateStr: string): string {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr;
   const [, month, day] = dateStr.split('-');
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const mIndex = parseInt(month, 10) - 1;
-  return `${day} ${months[mIndex] || month}`;
+  return `${day} ${MONTHS_SHORT[mIndex] || month}`;
 }
 
 export function formatFullDateBR(dateStr: string): string {
@@ -46,21 +75,7 @@ export function formatFullDateBR(dateStr: string): string {
 
 export function formatMonthYearLabel(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number);
-  const months = [
-    'Janeiro',
-    'Fevereiro',
-    'Março',
-    'Abril',
-    'Maio',
-    'Junho',
-    'Julho',
-    'Agosto',
-    'Setembro',
-    'Outubro',
-    'Novembro',
-    'Dezembro',
-  ];
-  return `${months[(month || 1) - 1]} ${year}`;
+  return `${MONTHS_FULL[(month || 1) - 1]} ${year}`;
 }
 
 export function shiftYearMonth(yearMonth: string, deltaMonths: number): string {
@@ -76,6 +91,17 @@ export function getCurrentYearMonth(): string {
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
   return `${y}-${m}`;
+}
+
+export function localTodayStr(offsetDays: number = 0): string {
+  const d = new Date();
+  if (offsetDays !== 0) {
+    d.setDate(d.getDate() + offsetDays);
+  }
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 export function addMonthsToDateStr(dateStr: string, monthsToAdd: number): string {

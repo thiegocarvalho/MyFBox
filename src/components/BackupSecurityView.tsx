@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import {
   ShieldCheck,
   Download,
@@ -23,21 +23,18 @@ import {
   BookOpen,
   Check,
 } from 'lucide-react';
-import { McpInstructionsModal } from './McpInstructionsModal';
 import type {
   Account,
   Category,
   EncryptedVaultEnvelope,
   ExchangeRate,
   Transaction,
+  VaultSettings,
 } from '../types/finance';
-import {
-  exportTransactionsToCSV,
-} from '../services/importExport';
+import { exportTransactionsToCSV } from '../services/importExport';
 import { passwordStrength } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
 import { mcpShortCode, type McpBridgeStatus } from '../services/mcpBridge';
-import type { VaultSettings } from '../types/finance';
 import type { StoragePersistStatus } from '../services/storagePersistence';
 import {
   POPULAR_CURRENCIES,
@@ -46,6 +43,10 @@ import {
   getVaultExchangeRates,
   normalizeCurrency,
 } from '../services/currencyService';
+
+const McpInstructionsModal = lazy(() =>
+  import('./McpInstructionsModal').then((m) => ({ default: m.McpInstructionsModal }))
+);
 
 const MCP_STATUS_LABEL: Record<McpBridgeStatus, string> = {
   off: 'Desligado',
@@ -76,6 +77,8 @@ function describeBackupAge(days: number | null): string {
   if (days === 1) return 'Ontem';
   return `Há ${days} dias`;
 }
+
+type ConfigTab = 'all' | 'security' | 'backups' | 'currency' | 'mcp' | 'danger';
 
 interface BackupSecurityViewProps {
   envelope: EncryptedVaultEnvelope | null;
@@ -132,7 +135,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   mcp,
   onUpdateMcpSettings,
 }) => {
-  // Apagar este cofre (zona de perigo)
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -151,7 +153,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
     }
   };
 
-  // Código curto de conferência do pareamento atual (calculado de forma assíncrona)
   const [mcpCodeFor, setMcpCodeFor] = useState<{ token: string; code: string } | null>(null);
   useEffect(() => {
     if (!mcp.token) return;
@@ -169,22 +170,16 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [restoring, setRestoring] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [showMcpInstructions, setShowMcpInstructions] = useState(false);
-
-  // Navegação por abas / categorias de configuração
-  type ConfigTab = 'all' | 'security' | 'backups' | 'currency' | 'mcp' | 'danger';
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('all');
 
-  // Alterar Senha Mestra
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [changingPw, setChangingPw] = useState(false);
 
-  // Restaurar Backup .myfbox
   const [backupToRestore, setBackupToRestore] = useState<EncryptedVaultEnvelope | null>(null);
   const [backupFileName, setBackupFileName] = useState('');
   const [backupPassword, setBackupPassword] = useState('');
 
-  // Câmbio & Cotações Offline (qualquer par de moedas)
   const [isAddingRate, setIsAddingRate] = useState(false);
   const [editingPair, setEditingPair] = useState<string | null>(null);
   const [rateFromInput, setRateFromInput] = useState('USD');
@@ -196,10 +191,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
     exchangeRates,
     usdToBrlRate: usdRate,
     usdRateUpdatedAt,
-    currency: 'BRL',
-    autoLockMinutes: 15,
-    hideValuesByDefault: false,
-    vaultName: '',
   });
 
   const handleRateFormSubmit = async (e: React.FormEvent) => {
@@ -263,10 +254,20 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
+  const pwStrength = passwordStrength(newPassword);
+  const pwMatches = confirmNewPassword.length > 0 && confirmNewPassword === newPassword;
+
   const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword.length < 6) {
-      setFeedback({ type: 'err', text: 'A nova senha mestra deve ter pelo menos 6 caracteres.' });
+    if (newPassword.length < 8) {
+      setFeedback({ type: 'err', text: 'A nova senha mestra deve ter pelo menos 8 caracteres.' });
+      return;
+    }
+    if (pwStrength.score === 0) {
+      setFeedback({
+        type: 'err',
+        text: pwStrength.tip ?? 'Escolha uma senha mestra menos previsível.',
+      });
       return;
     }
     if (newPassword !== confirmNewPassword) {
@@ -356,10 +357,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
   const backupDays = daysSince(lastBackupAt);
   const backupIsStale = backupDays === null || backupDays > BACKUP_STALE_DAYS;
-  const pwStrength = passwordStrength(newPassword);
-  const pwMatches = confirmNewPassword.length > 0 && confirmNewPassword === newPassword;
 
-  // Renderizadores dos cartões de configuração
   const renderMcpCard = (num: string) => (
     <section className="panel-card bk-card" key="mcp-card">
       <header className="bk-card-header bk-mcp-card-header">
@@ -716,7 +714,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Mínimo 6 caracteres"
+            placeholder="Mínimo 8 caracteres"
             autoComplete="new-password"
             required
           />
@@ -741,9 +739,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               </div>
             </div>
 
-            {pwStrength.tip && (
-              <span className="gate-strength-tip">{pwStrength.tip}</span>
-            )}
+            {pwStrength.tip && <span className="gate-strength-tip">{pwStrength.tip}</span>}
           </div>
         )}
         <div className="form-field">
@@ -907,7 +903,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
   const renderDangerSection = (num1: string, num2: string) => (
     <div className="bk-grid" key="danger-grid">
-      {/* Auditoria Técnica (Card já expandido por padrão) */}
       <details className="panel-card bk-card bk-collapsible-card" open>
         <summary className="bk-collapsible-header">
           <span className="bk-num">{num1}</span>
@@ -951,7 +946,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       </details>
 
-      {/* Apagar Este Cofre */}
       <section className="panel-card bk-card bk-danger">
         <header className="bk-card-header">
           <span className="bk-num">{num2}</span>
@@ -1032,7 +1026,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       )}
 
-      {/* Faixa de status do cofre */}
       <section className="bk-status">
         <div className="bk-status-item">
           <ShieldCheck size={18} />
@@ -1082,7 +1075,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       </section>
 
-      {/* Menu de Categorias / Abas de Configuração */}
       <nav className="bk-tabs" aria-label="Categorias de configurações">
         <button
           type="button"
@@ -1128,7 +1120,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </button>
       </nav>
 
-      {/* 1. MCP (50%) + Bloqueio Automático (50%) */}
       {(activeConfigTab === 'all' || activeConfigTab === 'mcp' || activeConfigTab === 'security') && (
         <div className="bk-section">
           {activeConfigTab === 'all' ? (
@@ -1147,14 +1138,12 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       )}
 
-      {/* 2. Câmbio (100% da tela) */}
       {(activeConfigTab === 'all' || activeConfigTab === 'currency') && (
         <div className="bk-section">
           {renderCurrencyCard(activeConfigTab === 'all' ? '.03' : '.01')}
         </div>
       )}
 
-      {/* 3. Alterar senha mestra (33%), Exportar (33%) e Restaurar (33%) na mesma linha */}
       {(activeConfigTab === 'all' || activeConfigTab === 'backups') && (
         <div className="bk-section">
           {activeConfigTab === 'all' ? (
@@ -1172,7 +1161,6 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       )}
 
-      {/* 4. Restante fica igual: Auditoria Técnica & Zona de Perigo */}
       {(activeConfigTab === 'all' || activeConfigTab === 'danger') && (
         <div className="bk-section">
           {activeConfigTab === 'all' && (
@@ -1188,11 +1176,14 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       )}
 
-      {/* Modal de Instruções & Prompts do MCP */}
-      <McpInstructionsModal
-        isOpen={showMcpInstructions}
-        onClose={() => setShowMcpInstructions(false)}
-      />
+      {showMcpInstructions && (
+        <Suspense fallback={null}>
+          <McpInstructionsModal
+            isOpen={showMcpInstructions}
+            onClose={() => setShowMcpInstructions(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

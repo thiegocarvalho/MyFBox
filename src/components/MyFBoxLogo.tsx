@@ -5,12 +5,6 @@ interface MyFBoxLogoProps {
   className?: string;
 }
 
-/**
- * Marca MyFBox: caixa/cofre sólido em limão com alça reta,
- * cifrão em bloco centralizado e sombra branca sólida deslocada
- * (linguagem brutalista "neonzinho"). Desenhada em grade de 32×32 para ler
- * bem do favicon (16px) ao login (64px+).
- */
 export const MyFBoxLogo: React.FC<MyFBoxLogoProps> = ({ size = 28, className = '' }) => {
   const accent = 'var(--color-accent, #C8FF00)';
   const ink = 'var(--bg-app, #101010)';
@@ -25,10 +19,7 @@ export const MyFBoxLogo: React.FC<MyFBoxLogoProps> = ({ size = 28, className = '
       role="img"
       aria-label="MyFBox"
     >
-      {/* Sombra sólida deslocada */}
       <rect x="2" y="14" width="25" height="16" fill="#FFFFFF" />
-
-      {/* Alça */}
       <path
         d="M11.5 11V5.5H23.5V11"
         fill="none"
@@ -37,11 +28,7 @@ export const MyFBoxLogo: React.FC<MyFBoxLogoProps> = ({ size = 28, className = '
         strokeLinejoin="miter"
         strokeLinecap="butt"
       />
-
-      {/* Corpo da caixa */}
       <rect x="5" y="11" width="25" height="16" fill={accent} />
-
-      {/* Cifrão em bloco perfeitamente centralizado */}
       <path
         d="M20.5 15.8H14.5V19H20.5V22.2H14.5M17.5 14.2V23.8"
         fill="none"

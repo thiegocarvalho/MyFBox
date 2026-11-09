@@ -1,28 +1,4 @@
 #!/usr/bin/env node
-/**
- * Servidor MCP local do MyFBox.
- *
- * Fala MCP com o cliente (ex.: Claude Code) via stdio e abre uma ponte WebSocket
- * SOMENTE em 127.0.0.1. O app MyFBox — aberto, desbloqueado e com o "Modo MCP local"
- * ligado na aba Backups — conecta nessa ponte com o código de pareamento e executa
- * as ferramentas. Este processo nunca vê a senha nem a chave do cofre; só recebe o
- * resultado de cada ação.
- *
- * Pareamento por link (como o login do Claude Code): na primeira vez o servidor gera
- * um código secreto e o guarda em ~/.config/myfbox/mcp.json (permissão 600). Enquanto
- * o app não estiver pareado, as ferramentas devolvem um link
- *   <MYFBOX_APP_URL>/#mcp-pair=<código>&port=<porta>
- * que o usuário abre; o app pede confirmação mostrando um código curto (ex.: 3F9A-12C4)
- * igual ao exibido aqui. O segredo vai no fragmento (#), que não é enviado a servidores.
- *
- * Variáveis de ambiente (todas opcionais):
- *   MYFBOX_APP_URL              endereço do app (padrão http://localhost:41730)
- *   MYFBOX_MCP_PORT             porta da ponte (padrão 4777)
- *   MYFBOX_MCP_TOKEN            força um código específico em vez do arquivo de configuração
- *   MYFBOX_BACKUP_DIR           pasta dos backups cifrados (padrão <projeto>/vaults, fora do git)
- *   MYFBOX_MCP_ALLOWED_ORIGINS  origens extras permitidas, separadas por vírgula
- *                               (localhost, 127.0.0.1 e a origem de MYFBOX_APP_URL já são aceitas)
- */
 import { timingSafeEqual, randomUUID, randomBytes, createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
@@ -40,17 +16,15 @@ const CONFIG_DIR = join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'
 const CONFIG_FILE = join(CONFIG_DIR, 'mcp.json');
 const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BACKUP_DIR = process.env.MYFBOX_BACKUP_DIR || join(PROJECT_ROOT, 'vaults');
+const MAX_HTTP_BODY_BYTES = 1_048_576;
 
-/** Código secreto de pareamento: variável de ambiente, ou arquivo local, ou gera e salva. */
 function loadOrCreateToken() {
   const fromEnv = process.env.MYFBOX_MCP_TOKEN?.trim();
   if (fromEnv) return fromEnv;
   try {
     const saved = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
     if (typeof saved.token === 'string' && saved.token.startsWith('mfb_')) return saved.token;
-  } catch {
-    // primeiro uso: ainda não existe
-  }
+  } catch {}
   const token = `mfb_${randomBytes(18).toString('base64url')}`;
   mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
   writeFileSync(CONFIG_FILE, JSON.stringify({ token }, null, 2), { mode: 0o600 });
@@ -59,31 +33,41 @@ function loadOrCreateToken() {
 }
 
 const TOKEN = loadOrCreateToken();
-/** Código curto para conferência visual (mesmo cálculo do app: SHA-256 do segredo) */
 const SHORT_CODE = (() => {
   const hex = createHash('sha256').update(TOKEN).digest('hex').slice(0, 8).toUpperCase();
   return `${hex.slice(0, 4)}-${hex.slice(4)}`;
 })();
 const PAIR_LINK = `${APP_URL}/#mcp-pair=${encodeURIComponent(TOKEN)}&port=${PORT}`;
 
-const EXTRA_ORIGINS = [
-  ...(process.env.MYFBOX_MCP_ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()),
-  (() => {
-    try {
-      return new URL(APP_URL).origin;
-    } catch {
-      return '';
+function deriveAllowedOrigins() {
+  const allowed = new Set([
+    'http://localhost:41730',
+    'http://127.0.0.1:41730',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+  ]);
+  try {
+    const parsed = new URL(APP_URL);
+    allowed.add(parsed.origin);
+    if (parsed.hostname === 'localhost') {
+      allowed.add(`${parsed.protocol}//127.0.0.1${parsed.port ? `:${parsed.port}` : ''}`);
+    } else if (parsed.hostname === '127.0.0.1') {
+      allowed.add(`${parsed.protocol}//localhost${parsed.port ? `:${parsed.port}` : ''}`);
     }
-  })(),
-].filter(Boolean);
+  } catch {}
+  for (const extra of (process.env.MYFBOX_MCP_ALLOWED_ORIGINS || '').split(',')) {
+    const trimmed = extra.trim();
+    if (trimmed) allowed.add(trimmed);
+  }
+  return allowed;
+}
+
+const ALLOWED_ORIGINS = deriveAllowedOrigins();
 const CALL_TIMEOUT_MS = 20_000;
 const HELLO_TIMEOUT_MS = 5_000;
 
-const log = (...args) => console.error('[myfbox-mcp]', ...args); // stdout é do protocolo MCP
+const log = (...args) => console.error('[myfbox-mcp]', ...args);
 
-// ---------------------------------------------------------------------------
-// Ponte WebSocket com o app
-// ---------------------------------------------------------------------------
 let appSocket = null;
 let bridgeError = null;
 const pending = new Map();
@@ -96,54 +80,109 @@ function tokenMatches(candidate) {
 }
 
 function originAllowed(origin) {
-  if (!origin) return false; // só navegadores (o app) conectam
-  if (EXTRA_ORIGINS.includes(origin)) return true;
-  try {
-    const { protocol, hostname } = new URL(origin);
-    return (protocol === 'http:' || protocol === 'https:') && (hostname === 'localhost' || hostname === '127.0.0.1');
-  } catch {
-    return false;
-  }
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.has(origin);
+}
+
+function extractBearerToken(req) {
+  const auth = req.headers.authorization;
+  if (typeof auth !== 'string' || !auth.startsWith('Bearer ')) return null;
+  return auth.slice(7).trim();
 }
 
 const httpServer = createServer(async (req, res) => {
   const origin = req.headers.origin;
+  const fetchSite = req.headers['sec-fetch-site'];
+
+  if (origin && !originAllowed(origin)) {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'Origem não autorizada.' }));
+    return;
+  }
+
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'Requisição cross-site bloqueada.' }));
+    return;
+  }
+
   if (origin && originAllowed(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
+
   if (req.method === 'OPTIONS') {
     res.writeHead(204).end();
     return;
   }
-  if (req.method === 'GET' && req.url === '/status') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ connected: Boolean(appSocket), shortCode: SHORT_CODE, pairLink: PAIR_LINK }));
+
+  const bearer = extractBearerToken(req);
+  if (!tokenMatches(bearer)) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: 'Token de autenticação MCP inválido ou ausente.' }));
     return;
   }
+
+  if (req.method === 'GET' && req.url === '/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        connected: Boolean(appSocket),
+        shortCode: SHORT_CODE,
+        pairLink: PAIR_LINK,
+      })
+    );
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/call') {
     let body = '';
-    req.on('data', (chunk) => { body += chunk; });
+    let bodyBytes = 0;
+    let aborted = false;
+
+    req.on('data', (chunk) => {
+      if (aborted) return;
+      bodyBytes += chunk.length;
+      if (bodyBytes > MAX_HTTP_BODY_BYTES) {
+        aborted = true;
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Payload excede o limite permitido.' }));
+        req.destroy();
+        return;
+      }
+      body += chunk;
+    });
+
     req.on('end', async () => {
+      if (aborted) return;
       try {
         const { action, args } = JSON.parse(body || '{}');
+        if (typeof action !== 'string' || !action) {
+          throw new Error('Ação MCP inválida.');
+        }
         const data = await callApp(action, args ?? {});
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, data }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+        res.end(
+          JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        );
       }
     });
     return;
   }
+
   res.writeHead(404).end();
 });
 
 const wss = new WebSocketServer({
   server: httpServer,
-  maxPayload: 64 * 1024 * 1024, // o backup cifrado passa por aqui; cofres grandes passam de 1 MB
+  maxPayload: 64 * 1024 * 1024,
   verifyClient: ({ origin }) => {
     const ok = originAllowed(origin);
     if (!ok) log(`conexão recusada da origem "${origin ?? '(sem origem)'}"`);
@@ -221,19 +260,29 @@ function callApp(action, args) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Ferramentas MCP
-// ---------------------------------------------------------------------------
 const server = new McpServer({ name: 'myfbox', version: '1.0.0' });
 
 const ymd = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'use AAAA-MM-DD');
 const ym = z.string().regex(/^\d{4}-\d{2}$/, 'use AAAA-MM');
 const txType = z.enum(['income', 'expense']);
 const txStatus = z.enum(['paid', 'pending']);
-const currency = z.enum(['BRL', 'USD']);
 const popularCurrencyCodes = [
-  'BRL', 'USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD',
-  'CNY', 'ARS', 'CLP', 'UYU', 'MXN', 'BTC', 'ETH', 'USDT'
+  'BRL',
+  'USD',
+  'EUR',
+  'GBP',
+  'JPY',
+  'CHF',
+  'CAD',
+  'AUD',
+  'CNY',
+  'ARS',
+  'CLP',
+  'UYU',
+  'MXN',
+  'BTC',
+  'ETH',
+  'USDT',
 ];
 const popularCurrency = z.enum(popularCurrencyCodes);
 
@@ -243,14 +292,21 @@ function tool(name, description, inputSchema, { readOnly = false, destructive = 
     {
       description,
       inputSchema,
-      annotations: { readOnlyHint: readOnly, destructiveHint: destructive, openWorldHint: false },
+      annotations: {
+        readOnlyHint: readOnly,
+        destructiveHint: destructive,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       try {
         const data = await callApp(name, args ?? {});
         return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
       } catch (err) {
-        return { isError: true, content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }] };
+        return {
+          isError: true,
+          content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+        };
       }
     }
   );
@@ -285,7 +341,12 @@ tool(
   { readOnly: true }
 );
 
-tool('list_accounts', 'Lista as contas do cofre com moeda, saldo confirmado e saldo previsto.', {}, { readOnly: true });
+tool(
+  'list_accounts',
+  'Lista as contas do cofre com moeda, saldo confirmado e saldo previsto.',
+  {},
+  { readOnly: true }
+);
 
 tool(
   'list_categories',
@@ -339,8 +400,12 @@ tool(
     accountId: z.string().optional(),
     accountName: z.string().optional(),
     status: txStatus.optional(),
-    currency: currency.optional().describe('Padrão: moeda da conta'),
-    exchangeRate: z.number().positive().optional().describe('Cotação USD→BRL a fixar (só quando há dólar)'),
+    currency: popularCurrency.optional().describe('Padrão: moeda da conta'),
+    exchangeRate: z
+      .number()
+      .positive()
+      .optional()
+      .describe('Cotação para BRL a fixar (quando envolve moeda estrangeira)'),
     notes: z.string().optional(),
     repeatMonths: z.number().int().min(1).max(36).optional(),
   }
@@ -356,12 +421,14 @@ tool(
     type: txType.optional(),
     date: ymd.optional().describe('Data de vencimento/competência'),
     status: txStatus.optional(),
-    paidAt: ymd.optional().describe('Quando foi pago/recebido (padrão: hoje ao dar baixa); não pode ser futuro'),
+    paidAt: ymd
+      .optional()
+      .describe('Quando foi pago/recebido (padrão: hoje ao dar baixa); não pode ser futuro'),
     categoryId: z.string().optional(),
     categoryName: z.string().optional(),
     accountId: z.string().optional(),
     accountName: z.string().optional(),
-    currency: currency.optional(),
+    currency: popularCurrency.optional(),
     notes: z.string().optional(),
   }
 );
@@ -396,7 +463,11 @@ tool(
   {
     month: ym,
     title: z.string().min(1).max(120).describe('Frase curta com a conclusão principal'),
-    body: z.string().min(1).max(4000).describe('Análise em português; parágrafos separados por linha em branco'),
+    body: z
+      .string()
+      .min(1)
+      .max(4000)
+      .describe('Análise em português; parágrafos separados por linha em branco'),
     highlights: z.array(z.string().min(1).max(160)).max(6).optional().describe('Até 6 pontos curtos'),
   }
 );
@@ -419,8 +490,8 @@ tool(
   'set_exchange_rate',
   'Adiciona ou atualiza a cotação de qualquer par entre as moedas mais populares no mundo (BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT). 100% offline.',
   {
-    from: popularCurrency.describe('Código da moeda de origem (lista fechada das mais populares: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT)'),
-    to: popularCurrency.describe('Código da moeda de destino (lista fechada das mais populares: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT)'),
+    from: popularCurrency.describe('Código da moeda de origem'),
+    to: popularCurrency.describe('Código da moeda de destino'),
     rate: z.number().positive().describe('Taxa de câmbio: 1 [from] = rate [to] (número positivo)'),
   }
 );
@@ -475,7 +546,10 @@ server.registerTool(
       log(`backup cifrado salvo em ${file}`);
       return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
     } catch (err) {
-      return { isError: true, content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }] };
+      return {
+        isError: true,
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+      };
     }
   }
 );
@@ -484,8 +558,12 @@ await server.connect(new StdioServerTransport());
 log(`servidor MCP pronto — código ${SHORT_CODE}; link de pareamento: ${PAIR_LINK}`);
 
 const shutdown = () => {
-  try { httpServer.close(); } catch {}
-  try { wss.close(); } catch {}
+  try {
+    httpServer.close();
+  } catch {}
+  try {
+    wss.close();
+  } catch {}
   process.exit(0);
 };
 process.on('SIGINT', shutdown);

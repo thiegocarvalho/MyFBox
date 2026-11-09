@@ -10,6 +10,7 @@ import {
 import type { Category, MonthInsight, Transaction } from '../types/finance';
 import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
 import { buildMonthComparison, type MonthComparison } from '../utils/comparison';
+import type { ExchangeRateSource } from '../services/currencyService';
 import { InsightAudioPlayer } from './InsightAudioPlayer';
 
 interface ComparisonViewProps {
@@ -19,11 +20,24 @@ interface ComparisonViewProps {
   insights: MonthInsight[];
   hideValues: boolean;
   usdToBrlRate?: number;
-  onDeleteInsight?: (month: string) => void | Promise<void>;
+  rateSource?: ExchangeRateSource;
 }
 
 const RANGE_OPTIONS = [6, 12];
-const SHORT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const SHORT_MONTHS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
 
 function shortMonth(ym: string): string {
   const [y, m] = ym.split('-');
@@ -32,7 +46,6 @@ function shortMonth(ym: string): string {
 
 const CATEGORY_LIMIT = 4;
 
-/** Maiores categorias de saída do mês (cada informação aparece uma única vez no cartão). */
 function expenseCategories(r: MonthComparison) {
   return r.categories.filter((c) => c.type === 'expense').slice(0, CATEGORY_LIMIT);
 }
@@ -41,15 +54,10 @@ function hiddenCategories(r: MonthComparison): number {
   return Math.max(0, r.categories.filter((c) => c.type === 'expense').length - CATEGORY_LIMIT);
 }
 
-/**
- * Só faz sentido mostrar a variação se o mês anterior tinha valor: quando era zero, a
- * variação é igual ao total e só repetiria o número.
- */
 function hadPrevious(current: number, delta: number): boolean {
   return Math.abs(current - delta) > 0.004;
 }
 
-/** Leitura curta do resultado: quanto das entradas sobra (ou quanto falta). */
 function resultNote(r: MonthComparison): string | null {
   if (r.income.total <= 0) return r.expense.total > 0 ? 'Sem entradas no mês' : null;
   const pct = Math.round((r.net / r.income.total) * 100);
@@ -60,16 +68,20 @@ function formatDateTime(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ''
-    : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    : d.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
 }
 
-/** Variação com sinal e seta; `goodWhenUp` define a cor (ex.: saídas subindo é ruim). */
-const Delta: React.FC<{ value: number; goodWhenUp: boolean; hideValues: boolean; suffix?: string }> = ({
-  value,
-  goodWhenUp,
-  hideValues,
-  suffix,
-}) => {
+const Delta: React.FC<{
+  value: number;
+  goodWhenUp: boolean;
+  hideValues: boolean;
+  suffix?: string;
+}> = ({ value, goodWhenUp, hideValues, suffix }) => {
   if (value === 0) return <span className="cmp-delta neutral">= {suffix ?? 'igual'}</span>;
   const up = value > 0;
   const good = up === goodWhenUp;
@@ -90,18 +102,19 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   insights,
   hideValues,
   usdToBrlRate,
+  rateSource,
 }) => {
+  const effectiveRates = rateSource ?? usdToBrlRate;
   const [range, setRange] = useState(6);
   const [readingInsightMonth, setReadingInsightMonth] = useState<string | null>(null);
   const [readingSegmentIndex, setReadingSegmentIndex] = useState<number | null>(null);
 
   const rows = useMemo(
-    () => buildMonthComparison(transactions, categories, selectedYearMonth, range, usdToBrlRate),
-    [transactions, categories, selectedYearMonth, range, usdToBrlRate]
+    () => buildMonthComparison(transactions, categories, selectedYearMonth, range, effectiveRates),
+    [transactions, categories, selectedYearMonth, range, effectiveRates]
   );
   const insightByMonth = useMemo(() => new Map(insights.map((i) => [i.month, i])), [insights]);
   const maxValue = Math.max(1, ...rows.flatMap((r) => [r.income.total, r.expense.total]));
-  // Cartões só para meses com lançamentos; os vazios viram uma linha compacta
   const recentFirst = [...rows].reverse().filter((r) => r.transactionCount > 0);
   const emptyMonths = rows.filter((r) => r.transactionCount === 0).map((r) => r.month);
 
@@ -134,7 +147,6 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
 
   return (
     <div className="cmp-stack">
-      {/* Visão geral do período */}
       <section className="panel-card">
         <header className="panel-header">
           <div>
@@ -159,13 +171,16 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
 
         <div className="cmp-chart" role="img" aria-label="Entradas e saídas por mês">
           {rows.map((r) => (
-            <div key={r.month} className={`cmp-chart-col ${r.month === selectedYearMonth ? 'current' : ''}`}>
+            <div
+              key={r.month}
+              className={`cmp-chart-col ${r.month === selectedYearMonth ? 'current' : ''}`}
+            >
               <span className={`cmp-chart-net ${r.net >= 0 ? 'pos' : 'neg'}`}>
                 {r.transactionCount === 0
                   ? '—'
                   : hideValues
-                  ? '•••'
-                  : `${r.net >= 0 ? '+' : '−'}${(Math.abs(r.net) / 1000).toFixed(1)}k`}
+                    ? '•••'
+                    : `${r.net >= 0 ? '+' : '−'}${(Math.abs(r.net) / 1000).toFixed(1)}k`}
               </span>
               <div className="cmp-chart-bars">
                 <span
@@ -184,8 +199,12 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
           ))}
         </div>
         <div className="cmp-legend">
-          <span><i className="income" /> Entradas</span>
-          <span><i className="expense" /> Saídas</span>
+          <span>
+            <i className="income" /> Entradas
+          </span>
+          <span>
+            <i className="expense" /> Saídas
+          </span>
           <span className="cmp-legend-note">Totais do mês, pagos e pendentes</span>
         </div>
       </section>
@@ -196,7 +215,6 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
         </p>
       )}
 
-      {/* Um cartão por mês com dados, do mais recente ao mais antigo */}
       <div className="cmp-months">
         {recentFirst.map((r: MonthComparison, idx) => {
           const insight = insightByMonth.get(r.month);
@@ -261,7 +279,8 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                         <span className="cmp-cat-share">{Math.round(c.share ?? 0)}%</span>
                         <span className="cmp-cat-total">{formatBRL(c.total, hideValues)}</span>
                         <span className="cmp-cat-delta">
-                          {c.delta !== null && c.delta !== undefined &&
+                          {c.delta !== null &&
+                            c.delta !== undefined &&
                             (hadPrevious(c.total, c.delta) ? (
                               <Delta value={c.delta} goodWhenUp={false} hideValues={hideValues} />
                             ) : (
@@ -269,7 +288,12 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                             ))}
                         </span>
                         <span className="cmp-cat-bar" aria-hidden>
-                          <i style={{ width: `${Math.min(100, c.share ?? 0)}%`, backgroundColor: c.color }} />
+                          <i
+                            style={{
+                              width: `${Math.min(100, c.share ?? 0)}%`,
+                              backgroundColor: c.color,
+                            }}
+                          />
                         </span>
                       </li>
                     ))}
@@ -284,7 +308,6 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 </div>
               )}
 
-              {/* Insight da IA: resumo compacto com abertura de modal */}
               {insight && (
                 <div className={`cmp-insight-trigger ${outdated ? 'outdated' : ''}`}>
                   <button
@@ -303,9 +326,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                       )}
                     </div>
                     <strong className="cmp-insight-trigger-title">{insight.title}</strong>
-                    <span className="cmp-insight-trigger-cta">
-                      Ler análise completa &rarr;
-                    </span>
+                    <span className="cmp-insight-trigger-cta">Ler análise completa &rarr;</span>
                   </button>
                 </div>
               )}
@@ -314,7 +335,6 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
         })}
       </div>
 
-      {/* Modal de Leitura do Insight da IA */}
       {activeInsight && (
         <div
           className="modal-backdrop"
@@ -350,7 +370,6 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
             </header>
 
             <div className="modal-body cmp-insight-modal-body">
-              {/* Player de áudio Web Speech API */}
               <InsightAudioPlayer
                 title={activeInsight.title}
                 paragraphs={activeInsight.body.split(/\n\s*\n/).filter(Boolean)}
@@ -366,7 +385,9 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                   <div>
                     <strong>Lançamentos do mês foram alterados</strong>
                     <p>
-                      Esta análise foi elaborada com dados anteriores de {formatMonthYearLabel(activeInsight.month)}. Os totais ou percentuais podem não refletir o estado atual do cofre.
+                      Esta análise foi elaborada com dados anteriores de{' '}
+                      {formatMonthYearLabel(activeInsight.month)}. Os totais ou percentuais podem
+                      não refletir o estado atual do cofre.
                     </p>
                   </div>
                 </div>
@@ -407,17 +428,14 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
               <div className="cmp-modal-meta">
                 <Bot size={14} />
                 <span>
-                  Análise gerada pelo assistente local via MCP · Atualizada em {formatDateTime(activeInsight.updatedAt || activeInsight.createdAt)}
+                  Análise gerada pelo assistente local via MCP · Atualizada em{' '}
+                  {formatDateTime(activeInsight.updatedAt || activeInsight.createdAt)}
                 </span>
               </div>
             </div>
 
             <footer className="modal-footer cmp-insight-modal-footer">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleCloseInsight}
-              >
+              <button type="button" className="btn-primary" onClick={handleCloseInsight}>
                 Fechar
               </button>
             </footer>

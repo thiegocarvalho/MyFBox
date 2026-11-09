@@ -18,31 +18,34 @@ import type {
   TransactionStatus,
   TransactionType,
 } from '../types/finance';
+import { generateEntityId } from '../domain/id';
 import {
   addMonthsToDateStr,
   formatBRL,
   formatMoney,
   formatMonthYearLabel,
+  localTodayStr,
 } from '../utils/formatters';
 import { predictCategory } from '../utils/categorizer';
 import { getDefaultCategoryId } from '../utils/categories';
 import { accountCurrency, isValidRate, parseDecimalInput } from '../utils/money';
+import {
+  POPULAR_CURRENCIES,
+  findExchangeRate,
+  getCurrencySymbol,
+  type ExchangeRateSource,
+} from '../services/currencyService';
 
 const REPEAT_OPTIONS = [1, 2, 3, 6, 12];
-function newCategoryId(): string {
-  return `cat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-}
-
-const NEW_CATEGORY_COLORS = ['#C8FF00', '#7DD3FC', '#FFB020', '#B794FF', '#FF4D3D', '#F472B6', '#34D399'];
-
-function localDateStr(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+const NEW_CATEGORY_COLORS = [
+  '#C8FF00',
+  '#7DD3FC',
+  '#FFB020',
+  '#B794FF',
+  '#FF4D3D',
+  '#F472B6',
+  '#34D399',
+];
 
 interface TransactionModalProps {
   initialType?: TransactionType;
@@ -52,6 +55,7 @@ interface TransactionModalProps {
   transactions?: Transaction[];
   defaultYearMonth: string;
   usdToBrlRate?: number;
+  rateSource?: ExchangeRateSource;
   onCreateCategory?: (category: Category) => Promise<void> | void;
   onSave: (transactionsToSave: Transaction[], isEdit: boolean) => void;
   onClose: () => void;
@@ -65,11 +69,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   transactions = [],
   defaultYearMonth,
   usdToBrlRate,
+  rateSource,
   onCreateCategory,
   onSave,
   onClose,
 }) => {
   const isEdit = Boolean(editingTransaction);
+  const effectiveRates = rateSource ?? usdToBrlRate;
 
   const [type, setType] = useState<TransactionType>(editingTransaction?.type || initialType);
   const [description, setDescription] = useState(editingTransaction?.description || '');
@@ -79,21 +85,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const [date, setDate] = useState(() => {
     if (editingTransaction) return editingTransaction.date;
-    const nowStr = localDateStr(0);
+    const nowStr = localTodayStr(0);
     return nowStr.startsWith(defaultYearMonth) ? nowStr : `${defaultYearMonth}-10`;
   });
 
   const [status, setStatus] = useState<TransactionStatus>(
-    editingTransaction?.status || (date > localDateStr(0) ? 'pending' : 'paid')
+    editingTransaction?.status || (date > localTodayStr(0) ? 'pending' : 'paid')
   );
-  // Enquanto o usuário não escolher a situação, ela segue a data (futuro = pendente)
   const [statusChosenManually, setStatusChosenManually] = useState(isEdit);
 
   const [accountId, setAccountId] = useState(
     editingTransaction?.accountId || accounts[0]?.id || ''
   );
 
-  // Moeda livre por lançamento; o padrão é a moeda da conta selecionada
   const [currency, setCurrency] = useState<Currency>(() => {
     if (editingTransaction?.currency) return editingTransaction.currency;
     const initialAcc = accounts.find(
@@ -101,17 +105,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     );
     return accountCurrency(initialAcc ?? {});
   });
+
   const selectedAccountCurrency = accountCurrency(
     accounts.find((a) => a.id === accountId) ?? {}
   );
-  // Precisa de cotação quando há dólar envolvido (no lançamento ou na conta)
-  const needsRate = currency === 'USD' || selectedAccountCurrency === 'USD';
+  const needsRate = currency !== 'BRL' || selectedAccountCurrency !== 'BRL';
+  const foreignCurrency: Currency = currency !== 'BRL' ? currency : selectedAccountCurrency;
+  const defaultForeignToBrlRate = useMemo(() => {
+    if (!needsRate) return undefined;
+    return findExchangeRate(effectiveRates, foreignCurrency, 'BRL');
+  }, [needsRate, effectiveRates, foreignCurrency]);
 
-  // null = usuário não mexeu no campo (usa a cotação fixada ou a atual)
   const [rateInput, setRateInput] = useState<string | null>(
     editingTransaction?.exchangeRate ? String(editingTransaction.exchangeRate) : null
   );
-  const rateFieldValue = rateInput ?? (isValidRate(usdToBrlRate) ? String(usdToBrlRate) : '');
+  const rateFieldValue =
+    rateInput ?? (isValidRate(defaultForeignToBrlRate) ? String(defaultForeignToBrlRate) : '');
   const parsedRate = rateFieldValue.trim() ? parseDecimalInput(rateFieldValue) : undefined;
   const effectiveExchangeRate = isValidRate(parsedRate) ? parsedRate : undefined;
 
@@ -135,12 +144,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const amountInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-foco no valor ao abrir
   useEffect(() => {
     amountInputRef.current?.focus();
   }, []);
 
-  // Ao alternar o tipo (Despesa / Receita)
   const handleTypeSwitch = (newType: TransactionType) => {
     setType(newType);
     setUserSelectedCategoryManually(false);
@@ -151,7 +158,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   };
 
-  // Sugestão preditiva de categoria ao digitar a descrição
   const handleDescriptionChange = (newDesc: string) => {
     setDescription(newDesc);
     setError(null);
@@ -163,7 +169,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setSuggestedCategoryName(prediction.categoryName);
       } else if (!prediction) {
         setSuggestedCategoryName(null);
-        // Sem predição ativa, retorna para a categoria padrão ("Outros")
         const defaultCatId = getDefaultCategoryId(categories, type);
         if (categoryId !== defaultCatId) {
           setCategoryId(defaultCatId);
@@ -182,7 +187,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       handleSelectCategory(existing.id);
     } else {
       const newCat: Category = {
-        id: newCategoryId(),
+        id: generateEntityId('cat'),
         name,
         type,
         color: NEW_CATEGORY_COLORS[categories.length % NEW_CATEGORY_COLORS.length],
@@ -213,7 +218,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const handleDateChange = (newDate: string) => {
     setDate(newDate);
     if (!statusChosenManually && newDate) {
-      setStatus(newDate > localDateStr(0) ? 'pending' : 'paid');
+      setStatus(newDate > localTodayStr(0) ? 'pending' : 'paid');
     }
   };
 
@@ -223,10 +228,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   };
 
   const quickDates = [
-    { label: 'Ontem', value: localDateStr(-1) },
-    { label: 'Hoje', value: localDateStr(0) },
-    { label: 'Amanhã', value: localDateStr(1) },
+    { label: 'Ontem', value: localTodayStr(-1) },
+    { label: 'Hoje', value: localTodayStr(0) },
+    { label: 'Amanhã', value: localTodayStr(1) },
   ];
+
+  const otherCurrencies = useMemo(
+    () => POPULAR_CURRENCIES.filter((c) => c.code !== 'BRL' && c.code !== 'USD'),
+    []
+  );
 
   const executeSave = (andKeepOpen: boolean = false): boolean => {
     const normalizedAmount = Math.round(parsedAmount * 100) / 100;
@@ -253,13 +263,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
 
     if (needsRate && parsedRate !== undefined && !isValidRate(parsedRate)) {
-      setError('Informe uma cotação USD/BRL maior que zero ou deixe o campo vazio.');
+      setError(`Informe uma cotação ${foreignCurrency}/BRL maior que zero ou deixe o campo vazio.`);
       return false;
     }
 
     const nowIso = new Date().toISOString();
-    // A cotação só é fixada quando o lançamento já está pago ou o usuário a
-    // digitou. Pendentes seguem a cotação atual até serem liquidados.
     const rateFor = (itemStatus: TransactionStatus) =>
       needsRate && (rateInput !== null || itemStatus === 'paid')
         ? effectiveExchangeRate
@@ -285,7 +293,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
 
     const totalRepeats = Math.max(1, Math.min(36, repeatMonths));
-    const recurrenceGroupId = totalRepeats > 1 ? `rec_${Date.now()}` : undefined;
+    const recurrenceGroupId = totalRepeats > 1 ? generateEntityId('rec') : undefined;
     const createdList: Transaction[] = [];
 
     for (let i = 0; i < totalRepeats; i++) {
@@ -297,11 +305,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           : description.trim();
 
       createdList.push({
-        id: `tx_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+        id: generateEntityId('tx'),
         description: itemDesc,
         amount: normalizedAmount,
         currency,
-        // Parcelas futuras não têm cotação conhecida: só a primeira pode fixar a taxa
         exchangeRate: i === 0 ? rateFor(itemStatus) : undefined,
         type,
         status: itemStatus,
@@ -319,7 +326,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     onSave(createdList, false);
 
     if (andKeepOpen) {
-      // Limpa os dados para o próximo lançamento mantendo data, conta e tipo
       setDescription('');
       setAmountStr('');
       setNotes('');
@@ -339,9 +345,27 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Enter') {
+      e.preventDefault();
+      executeSave(!isEdit);
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       executeSave(false);
+    } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      executeSave(!isEdit);
+    } else if (
+      (e.altKey && (e.key === '1' || e.key === 'd' || e.key === 'D')) ||
+      ((e.ctrlKey || e.metaKey) && e.key === 'ArrowDown')
+    ) {
+      e.preventDefault();
+      handleTypeSwitch('expense');
+    } else if (
+      (e.altKey && (e.key === '2' || e.key === 'r' || e.key === 'R')) ||
+      ((e.ctrlKey || e.metaKey) && e.key === 'ArrowUp')
+    ) {
+      e.preventDefault();
+      handleTypeSwitch('income');
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -361,7 +385,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <form onSubmit={handleSubmit} className="modal-body">
           {error && <div className="vault-alert-error">{error}</div>}
 
-          {/* 1. Tipo: Despesa / Receita */}
           <div className="seg-group seg-lg" role="radiogroup" aria-label="Tipo de lançamento">
             <button
               type="button"
@@ -369,6 +392,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               aria-checked={type === 'expense'}
               className={`seg-btn tone-danger ${type === 'expense' ? 'active' : ''}`}
               onClick={() => handleTypeSwitch('expense')}
+              title="Alternar para Despesa (Alt+1 ou Alt+D)"
             >
               <ArrowDownCircle size={18} /> Despesa
             </button>
@@ -378,29 +402,64 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               aria-checked={type === 'income'}
               className={`seg-btn ${type === 'income' ? 'active' : ''}`}
               onClick={() => handleTypeSwitch('income')}
+              title="Alternar para Receita (Alt+2 ou Alt+R)"
             >
               <ArrowUpCircle size={18} /> Receita
             </button>
           </div>
 
-          {/* 2. Valor com seletor de moeda integrado */}
           <div className="form-field">
             <label htmlFor="tx-amount">Valor</label>
             <div className="amount-field">
-              <div className="amount-currency" role="radiogroup" aria-label="Moeda">
+              <div className="amount-currency" role="group" aria-label="Moeda">
                 {(['BRL', 'USD'] as Currency[]).map((c) => (
                   <button
                     key={c}
                     type="button"
-                    role="radio"
-                    aria-checked={currency === c}
+                    aria-pressed={currency === c}
                     className={`amount-currency-btn ${currency === c ? 'active' : ''}`}
                     onClick={() => setCurrency(c)}
-                    title={c === 'BRL' ? 'Real brasileiro' : 'Dólar americano'}
+                    title={c === 'BRL' ? 'Real brasileiro (BRL)' : 'Dólar americano (USD)'}
                   >
                     {c === 'BRL' ? 'R$' : 'US$'}
                   </button>
                 ))}
+                <select
+                  aria-label="Outras moedas"
+                  className={`amount-currency-btn ${
+                    currency !== 'BRL' && currency !== 'USD' ? 'active' : ''
+                  }`}
+                  style={{
+                    background:
+                      currency !== 'BRL' && currency !== 'USD'
+                        ? 'var(--color-accent)'
+                        : 'transparent',
+                    color:
+                      currency !== 'BRL' && currency !== 'USD'
+                        ? 'var(--color-accent-ink)'
+                        : 'var(--text-secondary)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0 8px',
+                    minWidth: 54,
+                  }}
+                  value={currency !== 'BRL' && currency !== 'USD' ? currency : ''}
+                  onChange={(e) => {
+                    if (e.target.value) setCurrency(e.target.value as Currency);
+                  }}
+                  title="Selecionar outra moeda (EUR, GBP, CHF...)"
+                >
+                  <option value="" disabled>
+                    {currency !== 'BRL' && currency !== 'USD'
+                      ? getCurrencySymbol(currency)
+                      : '+ Moeda'}
+                  </option>
+                  {otherCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} ({c.symbol})
+                    </option>
+                  ))}
+                </select>
               </div>
               <input
                 ref={amountInputRef}
@@ -433,14 +492,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   {(() => {
                     if (!effectiveExchangeRate) return 'Sem cotação definida';
                     const value = amountIsValid ? parsedAmount : 0;
-                    // Equivalente na outra moeda (BRL→USD numa conta em dólar)
                     return currency === 'BRL'
-                      ? `≈ ${formatMoney(value / effectiveExchangeRate, 'USD')} na conta`
+                      ? `≈ ${formatMoney(value / effectiveExchangeRate, selectedAccountCurrency)} na conta`
                       : `≈ ${formatBRL(value * effectiveExchangeRate)}`;
                   })()}
                 </span>
                 <label htmlFor="tx-fx-rate" className="fx-label">
-                  Cotação US$ 1 =
+                  Cotação {getCurrencySymbol(foreignCurrency)} 1 =
                 </label>
                 <div className="fx-input">
                   <span>R$</span>
@@ -461,7 +519,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             )}
           </div>
 
-          {/* 3. Descrição com auto-categorização */}
           <div className="form-field">
             <div className="label-with-quick-actions">
               <label htmlFor="tx-desc">Descrição</label>
@@ -486,7 +543,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             />
           </div>
 
-          {/* 4. Categoria */}
           <div className="form-field">
             <label id="tx-cat-label">Categoria</label>
             <div className="chip-grid" role="radiogroup" aria-labelledby="tx-cat-label">
@@ -547,13 +603,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
             {filteredCategories.length === 0 && (
               <span className="field-hint">
-                Você ainda não tem categorias de {type === 'expense' ? 'despesa' : 'receita'}.
-                Crie uma aqui mesmo.
+                Você ainda não tem categorias de {type === 'expense' ? 'despesa' : 'receita'}. Crie
+                uma aqui mesmo.
               </span>
             )}
           </div>
 
-          {/* 5. Data e situação */}
           <div className="form-grid-2">
             <div className="form-field">
               <label htmlFor="tx-date">Data</label>
@@ -580,7 +635,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
             <div className="form-field">
               <label id="tx-status-label">Situação</label>
-              <div className="seg-group seg-stack" role="radiogroup" aria-labelledby="tx-status-label">
+              <div
+                className="seg-group seg-stack"
+                role="radiogroup"
+                aria-labelledby="tx-status-label"
+              >
                 <button
                   type="button"
                   role="radio"
@@ -600,13 +659,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   <Clock size={15} /> {type === 'income' ? 'A receber' : 'A pagar'}
                 </button>
               </div>
-              {!statusChosenManually && date > localDateStr(0) && (
+              {!statusChosenManually && date > localTodayStr(0) && (
                 <span className="field-hint">Data futura: marcado como pendente</span>
               )}
             </div>
           </div>
 
-          {/* 6. Conta */}
           <div className="form-field">
             <label id="tx-acc-label" htmlFor={accounts.length > 4 ? 'tx-acc' : undefined}>
               Conta
@@ -646,7 +704,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             )}
           </div>
 
-          {/* 7. Repetição (só para novos) */}
           {!isEdit && (
             <div className="form-field">
               <label id="tx-repeat-label">
@@ -684,14 +741,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 <span className="field-hint">
                   {repeatMonths} lançamentos
                   {amountIsValid ? ` de ${formatMoney(parsedAmount, currency)}` : ''} · último em{' '}
-                  {formatMonthYearLabel(addMonthsToDateStr(date, repeatMonths - 1).slice(0, 7))}.
-                  Os seguintes ao primeiro ficam pendentes.
+                  {formatMonthYearLabel(addMonthsToDateStr(date, repeatMonths - 1).slice(0, 7))}. Os
+                  seguintes ao primeiro ficam pendentes.
                 </span>
               )}
             </div>
           )}
 
-          {/* 8. Observações */}
           <div className="form-field">
             <label htmlFor="tx-notes">
               Observações <span className="label-optional">opcional</span>
@@ -715,7 +771,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 type="button"
                 className="btn-secondary"
                 onClick={() => executeSave(true)}
-                title="Salva este lançamento e abre espaço para o próximo sem fechar a janela"
+                title="Salva este lançamento e abre espaço para o próximo sem fechar a janela (Ctrl+Shift+Enter ou Alt+N)"
               >
                 <Plus size={15} /> Salvar e Novo
               </button>
@@ -725,8 +781,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               {isEdit
                 ? 'Salvar Alterações'
                 : repeatMonths > 1
-                ? `Gerar ${repeatMonths} Lançamentos`
-                : 'Registrar no Cofre'}
+                  ? `Gerar ${repeatMonths} Lançamentos`
+                  : 'Registrar no Cofre'}
             </button>
           </footer>
         </form>

@@ -17,11 +17,6 @@ interface MobileMenuProps<T extends string> {
   onClose: () => void;
 }
 
-/**
- * Menu de navegação do celular: overlay de tela inteira na cor de destaque, com uma
- * seção por linha. Diálogo modal acessível (Esc fecha, foco vai para a seção atual e
- * volta ao botão MENU ao fechar, página de trás não rola).
- */
 export function MobileMenu<T extends string>({
   open,
   items,
@@ -43,7 +38,6 @@ export function MobileMenu<T extends string>({
         onClose();
         return;
       }
-      // Mantém o Tab dentro do menu enquanto ele está aberto
       if (e.key === 'Tab' && panelRef.current) {
         const focusables = panelRef.current.querySelectorAll<HTMLButtonElement>('button');
         const first = focusables[0];
@@ -113,7 +107,6 @@ export function MobileMenu<T extends string>({
   );
 }
 
-/** Botão MENU de largura total (visível só no celular). */
 export const MobileMenuButton = React.forwardRef<
   HTMLButtonElement,
   { onClick: () => void; currentLabel: string; expanded: boolean }

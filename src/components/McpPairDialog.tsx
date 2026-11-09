@@ -8,7 +8,6 @@ interface McpPairDialogProps {
   onReject: () => void;
 }
 
-/** Confirmação do pareamento por link (#mcp-pair=...) com o servidor MCP local. */
 export const McpPairDialog: React.FC<McpPairDialogProps> = ({ request, onApprove, onReject }) => {
   const [code, setCode] = useState<string | null>(null);
 

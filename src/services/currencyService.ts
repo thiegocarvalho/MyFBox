@@ -1,11 +1,4 @@
-/**
- * Gerenciamento local e offline de Cotações de Câmbio.
- *
- * O MyFBox é 100% offline — não consulta APIs externas de cotação.
- * As cotações são cadastradas ou atualizadas pelo próprio usuário no painel
- * ou pelo agente de IA através do servidor MCP local.
- */
-import type { ExchangeRate, VaultSettings } from '../types/finance';
+import type { ExchangeRate, ExchangeRateOrigin, VaultSettings } from '../types/finance';
 
 export interface PopularCurrency {
   code: string;
@@ -14,10 +7,6 @@ export interface PopularCurrency {
   flag: string;
 }
 
-/**
- * Lista fechada das moedas mais populares no mundo (fiat principais e cripto líderes)
- * com seus respectivos códigos ISO, nomes e símbolos oficiais.
- */
 export const POPULAR_CURRENCIES: readonly PopularCurrency[] = [
   { code: 'BRL', name: 'Real Brasileiro', symbol: 'R$', flag: '🇧🇷' },
   { code: 'USD', name: 'Dólar Americano', symbol: 'US$', flag: '🇺🇸' },
@@ -58,32 +47,40 @@ export const POPULAR_CURRENCY_CODES = [
 
 export type PopularCurrencyCode = (typeof POPULAR_CURRENCY_CODES)[number];
 
-export function getCurrencyInfo(code: string): PopularCurrency | undefined {
-  const norm = normalizeCurrency(code);
-  return POPULAR_CURRENCIES.find((c) => c.code === norm);
-}
+export type ExchangeRateSource =
+  | number
+  | null
+  | undefined
+  | readonly ExchangeRate[]
+  | Pick<VaultSettings, 'exchangeRates' | 'usdToBrlRate' | 'usdRateUpdatedAt'>;
 
-export function getCurrencySymbol(code: string): string {
-  const info = getCurrencyInfo(code);
-  return info?.symbol || code;
-}
+const CURRENCY_BY_CODE = new Map<string, PopularCurrency>(
+  POPULAR_CURRENCIES.map((item) => [item.code, item])
+);
 
-export function getCurrencyFlag(code: string): string {
-  const info = getCurrencyInfo(code);
-  return info?.flag || '';
-}
+const SUPPORTED_CODE_SET = new Set<string>(POPULAR_CURRENCY_CODES);
 
-export function isSupportedCurrency(code: string): code is PopularCurrencyCode {
-  const norm = normalizeCurrency(code);
-  return POPULAR_CURRENCY_CODES.includes(norm as PopularCurrencyCode);
-}
-
-/** Normaliza código de moeda para maiúsculas e sem espaços (ex: "usd" -> "USD") */
-export function normalizeCurrency(code: string): string {
+export function normalizeCurrency(code: string | undefined | null): string {
   return (code || '').trim().toUpperCase();
 }
 
-/** Formata número de taxa de câmbio */
+export function getCurrencyInfo(code: string): PopularCurrency | undefined {
+  return CURRENCY_BY_CODE.get(normalizeCurrency(code));
+}
+
+export function getCurrencySymbol(code: string): string {
+  const norm = normalizeCurrency(code);
+  return CURRENCY_BY_CODE.get(norm)?.symbol || norm;
+}
+
+export function getCurrencyFlag(code: string): string {
+  return CURRENCY_BY_CODE.get(normalizeCurrency(code))?.flag || '';
+}
+
+export function isSupportedCurrency(code: string): code is PopularCurrencyCode {
+  return SUPPORTED_CODE_SET.has(normalizeCurrency(code));
+}
+
 export function formatRate(rate: number): string {
   if (!Number.isFinite(rate) || rate <= 0) return '0.00';
   if (rate >= 100) {
@@ -95,7 +92,6 @@ export function formatRate(rate: number): string {
   return rate.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
 }
 
-/** Formata data/hora para registro de atualização */
 export function formatRateDate(d: Date = new Date()): string {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -105,14 +101,10 @@ export function formatRateDate(d: Date = new Date()): string {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
 }
 
-/**
- * Retorna as cotações configuradas no cofre, incluindo retrocompatibilidade
- * com `usdToBrlRate` legado caso ainda não esteja na lista explícita.
- */
-export function getVaultExchangeRates(settings: VaultSettings): ExchangeRate[] {
+export function getVaultExchangeRates(
+  settings: Pick<VaultSettings, 'exchangeRates' | 'usdToBrlRate' | 'usdRateUpdatedAt'>
+): ExchangeRate[] {
   const list = settings.exchangeRates ? [...settings.exchangeRates] : [];
-
-  // Se houver usdToBrlRate legado e o par USD/BRL não constar na lista, sintetiza ele
   const hasUsdBrl = list.some(
     (r) => normalizeCurrency(r.from) === 'USD' && normalizeCurrency(r.to) === 'BRL'
   );
@@ -130,15 +122,24 @@ export function getVaultExchangeRates(settings: VaultSettings): ExchangeRate[] {
   return list;
 }
 
-/**
- * Adiciona ou atualiza uma cotação no array de taxas.
- */
+export function resolveExchangeRates(source: ExchangeRateSource): readonly ExchangeRate[] {
+  if (source === null || source === undefined) return [];
+  if (typeof source === 'number') {
+    if (!Number.isFinite(source) || source <= 0) return [];
+    return [{ from: 'USD', to: 'BRL', rate: source, updatedAt: '' }];
+  }
+  if (Array.isArray(source)) {
+    return source;
+  }
+  return getVaultExchangeRates(source as Pick<VaultSettings, 'exchangeRates' | 'usdToBrlRate' | 'usdRateUpdatedAt'>);
+}
+
 export function upsertExchangeRate(
   rates: ExchangeRate[] | undefined,
   fromRaw: string,
   toRaw: string,
   rate: number,
-  source: 'manual' | 'agent' | 'mcp' = 'manual'
+  source: ExchangeRateOrigin = 'manual'
 ): ExchangeRate[] {
   const from = normalizeCurrency(fromRaw);
   const to = normalizeCurrency(toRaw);
@@ -165,9 +166,6 @@ export function upsertExchangeRate(
   return current;
 }
 
-/**
- * Remove uma cotação do array de taxas.
- */
 export function removeExchangeRate(
   rates: ExchangeRate[] | undefined,
   fromRaw: string,
@@ -182,30 +180,47 @@ export function removeExchangeRate(
   );
 }
 
-/**
- * Busca a cotação entre duas moedas.
- * Se houver par direto (FROM -> TO), usa a taxa.
- * Se houver par inverso (TO -> FROM), usa 1 / taxa.
- */
+function findDirectOrInverseRate(
+  rates: readonly ExchangeRate[],
+  from: string,
+  to: string
+): number | null {
+  if (from === to) return 1;
+
+  for (const r of rates) {
+    if (r.rate <= 0 || !Number.isFinite(r.rate)) continue;
+    const rFrom = normalizeCurrency(r.from);
+    const rTo = normalizeCurrency(r.to);
+    if (rFrom === from && rTo === to) return r.rate;
+    if (rFrom === to && rTo === from) return 1 / r.rate;
+  }
+
+  return null;
+}
+
 export function findExchangeRate(
-  rates: ExchangeRate[] | undefined,
+  source: ExchangeRateSource,
   fromRaw: string,
   toRaw: string
 ): number | null {
-  const from = normalizeCurrency(fromRaw);
-  const to = normalizeCurrency(toRaw);
+  const from = normalizeCurrency(fromRaw) || 'BRL';
+  const to = normalizeCurrency(toRaw) || 'BRL';
   if (from === to) return 1;
-  if (!rates || rates.length === 0) return null;
 
-  const direct = rates.find(
-    (r) => normalizeCurrency(r.from) === from && normalizeCurrency(r.to) === to
-  );
-  if (direct && direct.rate > 0) return direct.rate;
+  const rates = resolveExchangeRates(source);
+  if (rates.length === 0) return null;
 
-  const inverse = rates.find(
-    (r) => normalizeCurrency(r.from) === to && normalizeCurrency(r.to) === from
-  );
-  if (inverse && inverse.rate > 0) return 1 / inverse.rate;
+  const direct = findDirectOrInverseRate(rates, from, to);
+  if (direct !== null) return direct;
+
+  for (const pivot of ['BRL', 'USD'] as const) {
+    if (pivot === from || pivot === to) continue;
+    const toPivot = findDirectOrInverseRate(rates, from, pivot);
+    const fromPivot = findDirectOrInverseRate(rates, pivot, to);
+    if (toPivot !== null && fromPivot !== null) {
+      return toPivot * fromPivot;
+    }
+  }
 
   return null;
 }

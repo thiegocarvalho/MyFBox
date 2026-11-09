@@ -33,8 +33,12 @@ import {
   getCurrentYearMonth,
   shiftYearMonth,
 } from '../utils/formatters';
+import { txAmountInBrl } from '../utils/money';
+import type { ExchangeRateSource } from '../services/currencyService';
 
 export type ScopeMode = 'month' | 'year' | 'all' | 'custom';
+
+const PAGE_SIZE = 100;
 
 const MONTH_NAMES_SHORT = [
   { num: '01', label: 'Jan' },
@@ -59,6 +63,7 @@ interface TransactionsViewProps {
   accounts: Account[];
   hideValues: boolean;
   usdToBrlRate?: number;
+  rateSource?: ExchangeRateSource;
   onOpenNewTransaction: (type: TransactionType) => void;
   onEditTransaction: (tx: Transaction) => void;
   onDuplicateTransaction: (tx: Transaction) => void;
@@ -74,29 +79,35 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   accounts,
   hideValues,
   usdToBrlRate,
+  rateSource,
   onOpenNewTransaction,
   onEditTransaction,
   onDuplicateTransaction,
   onDeleteTransaction,
   onToggleTransactionStatus,
 }) => {
-  // Controle de período: Mês, Ano, Histórico completo ou Personalizado
+  const effectiveRates = rateSource ?? usdToBrlRate;
+
   const [scopeMode, setScopeMode] = useState<ScopeMode>('month');
   const selectedYear = selectedYearMonth.slice(0, 4);
 
-  // Período personalizado
   const [customStartDate, setCustomStartDate] = useState(`${selectedYearMonth}-01`);
   const [customEndDate, setCustomEndDate] = useState(`${selectedYearMonth}-28`);
 
-  // Filtros de busca e classificação
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | TransactionStatus>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [paginationState, setPaginationState] = useState<{ key: string; count: number }>({
+    key: '',
+    count: PAGE_SIZE,
+  });
 
-  // Confirmação de exclusão de lançamento
+  const filterKey = `${scopeMode}|${selectedYearMonth}|${customStartDate}|${customEndDate}|${searchQuery}|${typeFilter}|${statusFilter}|${categoryFilter}|${accountFilter}`;
+  const visibleCount = paginationState.key === filterKey ? paginationState.count : PAGE_SIZE;
+
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
 
   useEffect(() => {
@@ -125,14 +136,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setSearchQuery('');
   };
 
-  // Painel de distribuição por categoria expansível
   const [showCategoryBreakdown, setShowCategoryBreakdown] = useState(false);
 
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const accMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
   const showAccount = accounts.length > 1;
 
-  // Identifica quais meses do ano corrente possuem lançamentos cadastrados
   const monthsWithTransactions = useMemo(() => {
     const set = new Set<string>();
     for (const t of transactions) {
@@ -143,7 +152,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     return set;
   }, [transactions, selectedYear]);
 
-  // Rótulo legível do período ativo
   const activeScopeLabel = useMemo(() => {
     switch (scopeMode) {
       case 'month':
@@ -157,12 +165,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
   }, [scopeMode, selectedYearMonth, selectedYear, customStartDate, customEndDate]);
 
-  // Transações filtradas pelo escopo temporal + filtros de busca
   const filteredTransactions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return transactions
       .filter((tx) => {
-        // 1. Filtro temporal pelo modo de escopo
         if (scopeMode === 'month') {
           if (!tx.date.startsWith(selectedYearMonth)) return false;
         } else if (scopeMode === 'year') {
@@ -172,13 +178,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           if (customEndDate && tx.date > customEndDate) return false;
         }
 
-        // 2. Filtros de atributos
         if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
         if (statusFilter !== 'all' && tx.status !== statusFilter) return false;
         if (categoryFilter !== 'all' && tx.categoryId !== categoryFilter) return false;
         if (accountFilter !== 'all' && tx.accountId !== accountFilter) return false;
 
-        // 3. Busca textual
         if (q) {
           const catName = catMap.get(tx.categoryId)?.name.toLowerCase() || '';
           const accName = accMap.get(tx.accountId)?.name.toLowerCase() || '';
@@ -207,7 +211,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     accMap,
   ]);
 
-  // Indicadores consolidados do período com discriminação de pago vs pendente e moedas
   const consolidated = useMemo(() => {
     let incBrlTotal = 0;
     let incBrlPaid = 0;
@@ -229,12 +232,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     let pendingCount = 0;
     let expenseCount = 0;
 
-    // Agrupamento de despesas por categoria
     const categoryExpenseMap = new Map<string, { total: number; count: number }>();
 
     for (const tx of filteredTransactions) {
       const isUsd = tx.currency === 'USD';
       const isPaid = tx.status === 'paid';
+      const brlAmount = txAmountInBrl(tx, effectiveRates);
 
       if (isPaid) paidCount++;
       else pendingCount++;
@@ -244,10 +247,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           incUsdTotal += tx.amount;
           if (isPaid) incUsdPaid += tx.amount;
           else incUsdPending += tx.amount;
-        } else {
-          incBrlTotal += tx.amount;
-          if (isPaid) incBrlPaid += tx.amount;
-          else incBrlPending += tx.amount;
+        }
+        if (brlAmount !== null) {
+          incBrlTotal += brlAmount;
+          if (isPaid) incBrlPaid += brlAmount;
+          else incBrlPending += brlAmount;
         }
       } else {
         expenseCount++;
@@ -255,15 +259,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           expUsdTotal += tx.amount;
           if (isPaid) expUsdPaid += tx.amount;
           else expUsdPending += tx.amount;
-        } else {
-          expBrlTotal += tx.amount;
-          if (isPaid) expBrlPaid += tx.amount;
-          else expBrlPending += tx.amount;
+        }
+        if (brlAmount !== null) {
+          expBrlTotal += brlAmount;
+          if (isPaid) expBrlPaid += brlAmount;
+          else expBrlPending += brlAmount;
 
-          // Agrupamento para ranking de categorias
           const current = categoryExpenseMap.get(tx.categoryId) || { total: 0, count: 0 };
           categoryExpenseMap.set(tx.categoryId, {
-            total: current.total + tx.amount,
+            total: current.total + brlAmount,
             count: current.count + 1,
           });
         }
@@ -283,7 +287,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       incBrlTotal > 0 ? ((incBrlTotal - expBrlTotal) / incBrlTotal) * 100 : null;
     const avgExpense = expenseCount > 0 ? expBrlTotal / expenseCount : 0;
 
-    // Ranking de categorias de despesa
     const topExpenseCategories = Array.from(categoryExpenseMap.entries())
       .map(([catId, data]) => ({
         category: catMap.get(catId),
@@ -319,14 +322,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       avgExpense,
       topExpenseCategories,
     };
-  }, [filteredTransactions, catMap]);
+  }, [filteredTransactions, catMap, effectiveRates]);
+
+  const visibleTransactions = useMemo(
+    () => filteredTransactions.slice(0, visibleCount),
+    [filteredTransactions, visibleCount]
+  );
 
   return (
     <div className="ledger-view-stack">
-      {/* ======================================================================
-          1. HEADER DE ESCOPO TEMPORAL BRUTALISTA
-          Navegação rápida de meses/anos com botões direcionais e atalhos
-          ====================================================================== */}
       <section className="panel-card brutalist-scope-banner">
         <div className="scope-banner-top">
           <div className="scope-title-meta">
@@ -452,7 +456,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
         </div>
 
-        {/* Fita de Acesso Rápido aos 12 Meses do Ano */}
         {scopeMode === 'month' && onSelectYearMonth && (
           <div className="month-quick-strip" role="group" aria-label="Meses do ano">
             <div className="strip-year-label">
@@ -485,7 +488,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
         )}
 
-        {/* Barra de Data Personalizada (se ativa) */}
         {scopeMode === 'custom' && (
           <div className="custom-date-range-bar">
             <span className="range-label">
@@ -511,12 +513,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         )}
       </section>
 
-      {/* ======================================================================
-          2. CARDS CONSOLIDADOS (Modelo idêntico à Visão Geral)
-          Numeração .01/.02/.03, faixa colorida inferior e sombra deslocada
-          ====================================================================== */}
       <section className="kpi-grid-3" aria-label="Indicadores consolidados do período">
-        {/* CARD 1: ENTRADAS */}
         <article className="kpi-card">
           <div className="kpi-card-top">
             <span className="kpi-label">ENTRADAS DO PERÍODO</span>
@@ -537,12 +534,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           )}
           {consolidated.incUsdTotal > 0 && (
             <div className="kpi-sub kpi-usd-line">
-              ≈ +{formatMoney(consolidated.incUsdTotal, 'USD', hideValues)}
+              Inclui +{formatMoney(consolidated.incUsdTotal, 'USD', hideValues)}
             </div>
           )}
         </article>
 
-        {/* CARD 2: SAÍDAS */}
         <article className="kpi-card">
           <div className="kpi-card-top">
             <span className="kpi-label">SAÍDAS DO PERÍODO</span>
@@ -563,12 +559,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           )}
           {consolidated.expUsdTotal > 0 && (
             <div className="kpi-sub kpi-usd-line">
-              ≈ -{formatMoney(consolidated.expUsdTotal, 'USD', hideValues)}
+              Inclui -{formatMoney(consolidated.expUsdTotal, 'USD', hideValues)}
             </div>
           )}
         </article>
 
-        {/* CARD 3: BALANÇO DO PERÍODO */}
         <article className="kpi-card">
           <div className="kpi-card-top">
             <span className="kpi-label">
@@ -597,11 +592,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
           {consolidated.hasUsd && (
             <div className="kpi-sub kpi-usd-line">
-              ≈ {consolidated.netUsdTotal >= 0 ? '+' : ''}
+              Parcela USD: {consolidated.netUsdTotal >= 0 ? '+' : ''}
               {formatMoney(consolidated.netUsdTotal, 'USD', hideValues)}
               {usdToBrlRate ? (
                 <span title={`Cotação USD: R$ ${usdToBrlRate.toFixed(2)}`}>
-                  {' '}(≈ {formatBRL(consolidated.netUsdTotal * usdToBrlRate, hideValues)})
+                  {' '}
+                  (≈ {formatBRL(consolidated.netUsdTotal * usdToBrlRate, hideValues)})
                 </span>
               ) : null}
             </div>
@@ -609,10 +605,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </article>
       </section>
 
-      {/* ======================================================================
-          3. DISTRIBUIÇÃO CONSOLIDADA POR CATEGORIA (TOGGLE EXPANSÍVEL)
-          Permite ao usuário ver onde foi o dinheiro no mês/ano/período
-          ====================================================================== */}
       {consolidated.topExpenseCategories.length > 0 && (
         <section className="panel-card brutalist-category-drawer">
           <button
@@ -648,9 +640,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         <span className="cat-count">({item.count}×)</span>
                       </div>
                       <div className="cat-bar-values mono">
-                        <span className="cat-total">
-                          {formatBRL(item.total, hideValues)}
-                        </span>
+                        <span className="cat-total">{formatBRL(item.total, hideValues)}</span>
                         <span className="cat-pct">{item.percentage}%</span>
                       </div>
                     </div>
@@ -671,12 +661,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </section>
       )}
 
-      {/* ======================================================================
-          4. BARRA DE FERRAMENTAS & FILTROS BRUTALISTA
-          Busca textual, Tipo, Status, Categoria e Conta (Colapsável no Mobile)
-          ====================================================================== */}
       <section className="panel-card ledger-toolbar-card">
-        {/* Linha Principal de Busca & Gatilho de Filtros no Mobile */}
         <div className="ledger-toolbar-search-row">
           <div className="search-input-wrap">
             <Search size={15} />
@@ -718,7 +703,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </button>
         </div>
 
-        {/* Pílulas de Filtros Ativos (visíveis para dar contexto rápido sem ocupar espaço vertical) */}
         {activeFiltersCount > 0 && (
           <div className="active-filters-chips-row" aria-label="Filtros ativos">
             <span className="active-filters-label">ATIVOS:</span>
@@ -777,7 +761,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
         )}
 
-        {/* Gaveta de Filtros Secundários: sempre inline no Desktop/Tablet, colapsável no Mobile */}
         <div className={`ledger-secondary-filters ${showMobileFilters ? 'mobile-expanded' : ''}`}>
           <div className="segmented-filter" role="radiogroup" aria-label="Filtrar por tipo">
             <button
@@ -870,10 +853,6 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
       </section>
 
-      {/* ======================================================================
-          5. TABELA DE LANÇAMENTOS NEO-BRUTALISTA
-          Linhas nítidas, valores destacados, badges táteis e ações rápidas
-          ====================================================================== */}
       <section className="panel-card ledger-table-card">
         {filteredTransactions.length === 0 ? (
           <div className="empty-state-box">
@@ -910,7 +889,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((tx) => {
+                {visibleTransactions.map((tx) => {
                   const cat = catMap.get(tx.categoryId);
                   const acc = accMap.get(tx.accountId);
                   return (
@@ -968,11 +947,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             {tx.type === 'income' ? '+' : '-'}
                             {formatMoney(tx.amount, tx.currency || 'BRL', hideValues)}
                           </span>
-                          {tx.currency === 'USD' && (
-                            <span className="currency-pill-inline">USD</span>
+                          {tx.currency && tx.currency !== 'BRL' && (
+                            <span className="currency-pill-inline">{tx.currency}</span>
                           )}
                         </div>
-                        {tx.currency === 'USD' && tx.exchangeRate && (
+                        {tx.currency && tx.currency !== 'BRL' && tx.exchangeRate && (
                           <div className="amount-fx-sub mono">
                             ≈ {formatBRL(tx.amount * tx.exchangeRate, hideValues)}{' '}
                             <span className="rate-hint">(R$ {tx.exchangeRate.toFixed(2)})</span>
@@ -1015,11 +994,34 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 })}
               </tbody>
             </table>
+
+            {filteredTransactions.length > visibleCount && (
+              <div
+                style={{
+                  padding: '14px 20px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  borderTop: '1px solid var(--border-card)',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() =>
+                    setPaginationState({
+                      key: filterKey,
+                      count: visibleCount + PAGE_SIZE,
+                    })
+                  }
+                >
+                  Carregar mais ({filteredTransactions.length - visibleCount} restantes)
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      {/* Modal de Confirmação de Exclusão de Lançamento */}
       {txToDelete && (() => {
         const cat = catMap.get(txToDelete.categoryId);
         const acc = accMap.get(txToDelete.accountId);
@@ -1076,10 +1078,12 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       <strong>Data:</strong> {formatFullDateBR(txToDelete.date)} <br />
                       <strong>Categoria:</strong> {cat?.name || 'Sem Categoria'} <br />
                       <strong>Conta:</strong> {acc?.name || 'Conta Padrão'} <br />
-                      <strong>Status:</strong> {txToDelete.status === 'paid' ? 'Pago / Confirmado' : 'Pendente'}
+                      <strong>Status:</strong>{' '}
+                      {txToDelete.status === 'paid' ? 'Pago / Confirmado' : 'Pendente'}
                     </p>
                     <p style={{ marginTop: 8, fontSize: '11.5px', color: 'var(--color-coral)' }}>
-                      ⚠️ Esta operação removerá o registro do seu cofre e atualizará seus saldos consolidados.
+                      ⚠️ Esta operação removerá o registro do seu cofre e atualizará seus saldos
+                      consolidados.
                     </p>
                   </div>
                 </div>

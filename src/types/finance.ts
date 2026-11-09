@@ -1,6 +1,8 @@
 export type Currency = string;
 export type TransactionType = 'income' | 'expense';
 export type TransactionStatus = 'paid' | 'pending';
+export type ExchangeRateOrigin = 'manual' | 'agent' | 'mcp';
+
 export type AccountType =
   | 'reserve'
   | 'investment'
@@ -15,7 +17,7 @@ export interface Account {
   type: AccountType;
   initialBalance: number;
   color: string;
-  currency?: Currency; // 'BRL' | 'USD', default 'BRL'
+  currency?: Currency;
   institution?: string;
 }
 
@@ -33,20 +35,20 @@ export interface Category {
   type: TransactionType;
   color: string;
   icon: string;
-  monthlyBudget?: number; // Orçamento teto mensal para categorias de despesa
-  isSystem?: boolean; // Categoria protegida do sistema (não pode ser excluída nem renomeada)
+  monthlyBudget?: number;
+  isSystem?: boolean;
 }
 
 export interface Transaction {
   id: string;
   description: string;
-  amount: number; // valor positivo
-  currency?: Currency; // 'BRL' | 'USD', default 'BRL'
-  exchangeRate?: number; // Cotação de conversão fixada no momento do lançamento (ex: USD -> BRL)
+  amount: number;
+  currency?: Currency;
+  exchangeRate?: number;
   type: TransactionType;
   status: TransactionStatus;
-  date: string; // YYYY-MM-DD
-  paidAt?: string; // YYYY-MM-DD: quando foi pago/recebido (a data acima é a de vencimento)
+  date: string;
+  paidAt?: string;
   categoryId: string;
   accountId: string;
   notes?: string;
@@ -58,25 +60,36 @@ export interface Transaction {
 }
 
 export interface ExchangeRate {
-  from: string; // Ex: 'USD', 'EUR', 'BTC' (código em maiúsculas)
-  to: string;   // Ex: 'BRL', 'USD' (código em maiúsculas)
-  rate: number; // 1 from = rate to (ex: 1 USD = 5.85 BRL)
+  from: Currency;
+  to: Currency;
+  rate: number;
   updatedAt: string;
-  source?: 'manual' | 'agent' | 'mcp';
+  source?: ExchangeRateOrigin;
 }
 
 export interface VaultSettings {
-  currency: string;
+  currency: Currency;
   autoLockMinutes: number;
   hideValuesByDefault: boolean;
   vaultName: string;
-  usdToBrlRate?: number; // Cotação de conversão USD/BRL legada (sincronizada com exchangeRates)
+  usdToBrlRate?: number;
   usdRateUpdatedAt?: string;
-  exchangeRates?: ExchangeRate[]; // Cotações de moedas pareadas (offline, gerenciadas pelo usuário ou MCP)
-  lastBackupAt?: string; // Data do último download do backup cifrado
-  mcpEnabled?: boolean; // Modo MCP local — desligado por padrão
-  mcpToken?: string; // Código de pareamento com o servidor MCP local
-  mcpPort?: number; // Porta do servidor MCP local (127.0.0.1)
+  exchangeRates?: ExchangeRate[];
+  lastBackupAt?: string;
+  mcpEnabled?: boolean;
+  mcpToken?: string;
+  mcpPort?: number;
+}
+
+export interface MonthInsight {
+  month: string;
+  title: string;
+  body: string;
+  highlights?: string[];
+  author: 'agent' | 'user';
+  createdAt: string;
+  updatedAt: string;
+  dataSignature: string;
 }
 
 export interface VaultPayload {
@@ -86,20 +99,7 @@ export interface VaultPayload {
   categories: Category[];
   transactions: Transaction[];
   settings: VaultSettings;
-  insights?: MonthInsight[]; // Insights mensais escritos pelo assistente (opcional: cofres antigos não têm)
-}
-
-/** Análise de um mês, escrita pelo assistente via MCP (skill myfbox-insights). */
-export interface MonthInsight {
-  month: string; // AAAA-MM
-  title: string;
-  body: string; // texto em português, parágrafos separados por linha em branco
-  highlights?: string[]; // pontos curtos (até ~5)
-  author: 'agent' | 'user';
-  createdAt: string;
-  updatedAt: string;
-  /** Assinatura dos números do mês no momento da escrita (detecta insight desatualizado) */
-  dataSignature: string;
+  insights?: MonthInsight[];
 }
 
 export interface EncryptedVaultEnvelope {

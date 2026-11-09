@@ -1,3 +1,4 @@
+import type { ExchangeRateSource } from '../services/currencyService';
 import type { Category, Transaction } from '../types/finance';
 import { shiftYearMonth } from './formatters';
 import { txAmountInBrl } from './money';
@@ -8,9 +9,7 @@ export interface MonthCategoryTotal {
   color: string;
   type: 'income' | 'expense';
   total: number;
-  /** Variação vs. mês anterior (null quando o mês anterior não tem lançamentos) */
   delta?: number | null;
-  /** Participação no total de saídas (ou entradas) do mês, em % */
   share?: number;
 }
 
@@ -20,10 +19,9 @@ export interface MonthCategoryChange extends MonthCategoryTotal {
 }
 
 export interface MonthComparison {
-  month: string; // AAAA-MM
+  month: string;
   income: { paid: number; pending: number; total: number };
   expense: { paid: number; pending: number; total: number };
-  /** Entradas − saídas do mês, contando pagos e pendentes (competência) */
   net: number;
   transactionCount: number;
   categories: MonthCategoryTotal[];
@@ -31,33 +29,27 @@ export interface MonthComparison {
     income: number;
     expense: number;
     net: number;
-    /** Variação percentual das saídas; null se o mês anterior não teve saídas */
     expensePct: number | null;
   } | null;
-  /** Categorias de despesa que mais subiram ou caíram em relação ao mês anterior */
   topChanges: MonthCategoryChange[];
-  /** Assinatura dos números do mês (usada para saber se um insight ficou desatualizado) */
   signature: string;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function monthTotals(
-  month: string,
-  transactions: Transaction[],
-  categories: Category[],
-  rate: number | null | undefined
+function computeBucketTotals(
+  monthTransactions: readonly Transaction[],
+  catMap: ReadonlyMap<string, Category>,
+  rateSource: ExchangeRateSource
 ) {
-  const catMap = new Map(categories.map((c) => [c.id, c]));
   const income = { paid: 0, pending: 0, total: 0 };
   const expense = { paid: 0, pending: 0, total: 0 };
   const byCat = new Map<string, MonthCategoryTotal>();
   let count = 0;
 
-  for (const tx of transactions) {
-    if (!tx.date.startsWith(month)) continue;
+  for (const tx of monthTransactions) {
     count++;
-    const value = txAmountInBrl(tx, rate);
+    const value = txAmountInBrl(tx, rateSource);
     const bucket = tx.type === 'income' ? income : expense;
     if (tx.status === 'paid') bucket.paid += value;
     else bucket.pending += value;
@@ -80,6 +72,7 @@ function monthTotals(
     pending: round2(o.pending),
     total: round2(o.total),
   });
+
   return {
     income: r(income),
     expense: r(expense),
@@ -90,8 +83,7 @@ function monthTotals(
   };
 }
 
-function signatureOf(t: ReturnType<typeof monthTotals>): string {
-  // Curta e estável: mudou algum valor, contagem ou categoria → muda a assinatura
+function signatureOf(t: ReturnType<typeof computeBucketTotals>): string {
   const raw = [
     t.count,
     t.income.paid,
@@ -108,21 +100,31 @@ function signatureOf(t: ReturnType<typeof monthTotals>): string {
   return (h >>> 0).toString(36);
 }
 
-/**
- * Comparativo mês a mês, do mais antigo ao mais recente, terminando em `endMonth`.
- * Valores em BRL (USD convertido pela cotação fixada no lançamento ou pela atual).
- */
 export function buildMonthComparison(
-  transactions: Transaction[],
-  categories: Category[],
+  transactions: readonly Transaction[],
+  categories: readonly Category[],
   endMonth: string,
   monthCount: number,
-  usdToBrlRate?: number | null
+  rateSource?: ExchangeRateSource
 ): MonthComparison[] {
   const months = Array.from({ length: monthCount + 1 }, (_, i) =>
     shiftYearMonth(endMonth, i - monthCount)
-  ); // inclui um mês extra no início só para calcular a variação do primeiro
-  const totals = months.map((m) => monthTotals(m, transactions, categories, usdToBrlRate));
+  );
+  const monthSet = new Set(months);
+  const txsByMonth = new Map<string, Transaction[]>();
+
+  for (const tx of transactions) {
+    const ym = tx.date.slice(0, 7);
+    if (!monthSet.has(ym)) continue;
+    const list = txsByMonth.get(ym);
+    if (list) list.push(tx);
+    else txsByMonth.set(ym, [tx]);
+  }
+
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const totals = months.map((m) =>
+    computeBucketTotals(txsByMonth.get(m) ?? [], catMap, rateSource)
+  );
 
   const result: MonthComparison[] = [];
   for (let i = 1; i < months.length; i++) {
@@ -137,6 +139,7 @@ export function buildMonthComparison(
       ...cur.categories.filter((c) => c.type === 'expense').map((c) => c.categoryId),
       ...prev.categories.filter((c) => c.type === 'expense').map((c) => c.categoryId),
     ]);
+
     const topChanges: MonthCategoryChange[] = [...ids]
       .map((id) => {
         const now = cur.categories.find((c) => c.categoryId === id);
@@ -179,5 +182,6 @@ export function buildMonthComparison(
       signature: signatureOf(cur),
     });
   }
+
   return result;
 }

@@ -1,10 +1,5 @@
-/**
- * Medição de força e tempo estimado de quebra de senha (força bruta / ataque offline).
- * Considera derivação com PBKDF2 (600.000 iterações HMAC-SHA256) do cofre MyFBox.
- */
-
 export interface PasswordStrengthResult {
-  score: number; // 0 (Muito fraca) a 4 (Forte)
+  score: number;
   label: string;
   crackTimeText: string;
   crackTimeSeconds: number;
@@ -42,63 +37,32 @@ const COMMON_WEAK_PASSWORDS = new Set([
   'master',
 ]);
 
-/**
- * Converte segundos estimados de força bruta em texto legível e amigável em português.
- */
 export function formatCrackTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) {
-    return 'Bilhões de anos';
-  }
-  if (seconds <= 1) {
-    return 'Instantâneo';
-  }
-  if (seconds < 60) {
-    return `~${Math.max(1, Math.round(seconds))} s`;
-  }
+  if (!Number.isFinite(seconds)) return 'Bilhões de anos';
+  if (seconds <= 1) return 'Instantâneo';
+  if (seconds < 60) return `~${Math.max(1, Math.round(seconds))} s`;
 
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) {
-    return `~${minutes} min`;
-  }
+  if (minutes < 60) return `~${minutes} min`;
 
   const hours = Math.round(seconds / 3600);
-  if (hours < 24) {
-    return `~${hours} h`;
-  }
+  if (hours < 24) return `~${hours} h`;
 
   const days = Math.round(seconds / 86400);
-  if (days < 30) {
-    return `~${days} ${days === 1 ? 'dia' : 'dias'}`;
-  }
+  if (days < 30) return `~${days} ${days === 1 ? 'dia' : 'dias'}`;
 
   const months = Math.round(seconds / (86400 * 30.44));
-  if (months < 12) {
-    return `~${months} ${months === 1 ? 'mês' : 'meses'}`;
-  }
+  if (months < 12) return `~${months} ${months === 1 ? 'mês' : 'meses'}`;
 
   const years = Math.round(seconds / (86400 * 365.25));
-  if (years < 100) {
-    return `~${years} ${years === 1 ? 'ano' : 'anos'}`;
-  }
-  if (years < 1000) {
-    return 'Centenas de anos';
-  }
-  if (years < 10_000) {
-    return `~${Math.round(years / 1000)} mil anos`;
-  }
-  if (years < 1_000_000) {
-    return 'Centenas de milhares de anos';
-  }
-  if (years < 1_000_000_000) {
-    return 'Milhões de anos';
-  }
+  if (years < 100) return `~${years} ${years === 1 ? 'ano' : 'anos'}`;
+  if (years < 1000) return 'Centenas de anos';
+  if (years < 10_000) return `~${Math.round(years / 1000)} mil anos`;
+  if (years < 1_000_000) return 'Centenas de milhares de anos';
+  if (years < 1_000_000_000) return 'Milhões de anos';
   return 'Bilhões de anos';
 }
 
-/**
- * Avalia a força da senha mestra e estima o tempo que um ataque de força bruta
- * levaria para descobri-la, considerando uma taxa agressiva de ataque offline.
- */
 export function passwordStrength(pw: string): PasswordStrengthResult {
   const emptyChecks = {
     minLength: false,
@@ -134,8 +98,6 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
   };
 
   const normalized = pw.trim().toLowerCase();
-
-  // Detecção de padrões óbvios e fáceis
   const isRepetition = /^(.)\1+$/.test(pw);
   const isNumericSequence = /^(0123456789|123456789|9876543210|123456|654321)$/.test(pw);
   const isCommon = COMMON_WEAK_PASSWORDS.has(normalized);
@@ -151,7 +113,6 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
     };
   }
 
-  // Tamanho do conjunto de caracteres (charset pool)
   let poolSize = 0;
   if (lower) poolSize += 26;
   if (upper) poolSize += 26;
@@ -159,10 +120,7 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
   if (symbol) poolSize += 32;
   if (poolSize === 0) poolSize = 10;
 
-  // Taxa de ataque: ~100.000 palpites/segundo
-  // (equivalente a cluster de GPUs tentando quebrar PBKDF2-HMAC-SHA256 de 600.000 iterações)
   const GUESSES_PER_SEC = 100_000;
-
   const logCombos = pw.length * Math.log10(poolSize);
   const logGuessesPerSec = Math.log10(GUESSES_PER_SEC);
   const logSeconds = logCombos - logGuessesPerSec;
@@ -176,7 +134,6 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
     seconds = Infinity;
   }
 
-  // Se tiver menos de 6 caracteres, é considerada muito fraca para a segurança do cofre
   if (pw.length < 6) {
     return {
       score: 0,
@@ -188,12 +145,6 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
     };
   }
 
-  // Atribuição de Score (0 a 4) e rótulo
-  // 0: < 60s (Muito fraca)
-  // 1: < 2 dias (Fraca)
-  // 2: < 5 anos (Razoável)
-  // 3: < 10.000 anos (Boa)
-  // 4: >= 10.000 anos (Forte)
   let score = 0;
   let label = 'Muito fraca';
 
@@ -214,7 +165,6 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
     label = 'Forte';
   }
 
-  // Dica contextual para orientar o usuário a fortalecer
   let tip = '';
   if (pw.length < 8) {
     tip = 'Recomendado usar pelo menos 8 a 12 caracteres.';

@@ -1,18 +1,3 @@
-/**
- * Cliente da ponte do Modo MCP local (lado do navegador).
- *
- * O app (aberto e desbloqueado) conecta em ws://127.0.0.1:<porta> onde o servidor
- * MCP local (`mcp/server.mjs`) escuta, autentica com o código de pareamento e passa
- * a executar as chamadas de ferramenta recebidas. Nada sai da máquina, e a chave do
- * cofre nunca deixa o navegador: o servidor só vê os resultados das ações.
- *
- * Protocolo (JSON por mensagem):
- *   app → servidor: { type: 'hello', token, app: 'MyFBox', protocol: 1 }
- *   servidor → app: { type: 'welcome' }
- *   servidor → app: { type: 'call', id, action, args }
- *   app → servidor: { type: 'result', id, ok: true, data } | { type: 'result', id, ok: false, error }
- */
-
 export type McpBridgeStatus = 'off' | 'connecting' | 'connected' | 'error';
 
 export interface McpBridgeOptions {
@@ -24,11 +9,16 @@ export interface McpBridgeOptions {
 
 const RETRY_MS = 3000;
 
-/** Abre a ponte e reconecta sozinha enquanto estiver ativa. Retorna a função de encerrar. */
 export function startMcpBridge(opts: McpBridgeOptions): () => void {
   let socket: WebSocket | null = null;
   let stopped = false;
   let retryTimer: number | undefined;
+
+  const scheduleRetry = () => {
+    if (stopped) return;
+    window.clearTimeout(retryTimer);
+    retryTimer = window.setTimeout(connect, RETRY_MS);
+  };
 
   const connect = () => {
     if (stopped) return;
@@ -42,7 +32,9 @@ export function startMcpBridge(opts: McpBridgeOptions): () => void {
     }
 
     socket.onopen = () => {
-      socket?.send(JSON.stringify({ type: 'hello', token: opts.token, app: 'MyFBox', protocol: 1 }));
+      socket?.send(
+        JSON.stringify({ type: 'hello', token: opts.token, app: 'MyFBox', protocol: 1 })
+      );
     };
 
     socket.onmessage = async (event) => {
@@ -77,19 +69,12 @@ export function startMcpBridge(opts: McpBridgeOptions): () => void {
       socket = null;
       if (stopped) return;
       if (event.code === 4401) {
-        // Código de pareamento recusado: não insiste até o usuário corrigir
         opts.onStatus('error', 'Código de pareamento recusado pelo servidor MCP.');
         return;
       }
       opts.onStatus('error', 'Servidor MCP local não encontrado. Ele está rodando?');
       scheduleRetry();
     };
-  };
-
-  const scheduleRetry = () => {
-    if (stopped) return;
-    window.clearTimeout(retryTimer);
-    retryTimer = window.setTimeout(connect, RETRY_MS);
   };
 
   connect();
@@ -108,10 +93,6 @@ export interface McpPairingRequest {
   port: number;
 }
 
-/**
- * Lê um link de pareamento (`#mcp-pair=<código>&port=<porta>`) e remove o segredo da
- * barra de endereço imediatamente, para não ficar no histórico nem ser copiado junto.
- */
 export function takePairingFromLocation(): McpPairingRequest | null {
   const hash = window.location.hash.replace(/^#/, '');
   if (!hash.includes('mcp-pair=')) return null;
@@ -123,7 +104,6 @@ export function takePairingFromLocation(): McpPairingRequest | null {
   return { token, port };
 }
 
-/** Código curto de conferência (igual ao mostrado pelo servidor MCP): SHA-256 do segredo. */
 export async function mcpShortCode(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   const hex = Array.from(new Uint8Array(digest))

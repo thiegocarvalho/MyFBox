@@ -15,6 +15,7 @@ import {
   formatMoney,
   formatMonthYearLabel,
   getCurrentYearMonth,
+  localTodayStr,
 } from '../utils/formatters';
 import {
   computeAccountBalance,
@@ -24,20 +25,28 @@ import {
   summarizeTransactions,
   txAmountInBrl,
 } from '../utils/money';
+import type { ExchangeRateSource } from '../services/currencyService';
 
 const PENDING_PREVIEW = 6;
-const MONTHS_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MONTHS_SHORT = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
 
-/** Dias de `from` até `to` (datas AAAA-MM-DD); positivo quando `from` já passou. */
 function daysBetween(from: string, to: string): number {
   const [y1, m1, d1] = from.split('-').map(Number);
   const [y2, m2, d2] = to.split('-').map(Number);
   return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86_400_000);
-}
-
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 interface DashboardViewProps {
@@ -48,7 +57,7 @@ interface DashboardViewProps {
   accounts: Account[];
   hideValues: boolean;
   usdToBrlRate?: number;
-  /** Dá baixa registrando a data do pagamento (AAAA-MM-DD) */
+  rateSource?: ExchangeRateSource;
   onSettleTransaction: (txId: string, paidAt: string) => void;
   onOpenNewTransaction: (type: TransactionType) => void;
   onNavigateTab: (tab: 'transactions' | 'budgets' | 'accounts') => void;
@@ -62,14 +71,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   accounts,
   hideValues,
   usdToBrlRate,
+  rateSource,
   onSettleTransaction,
   onOpenNewTransaction,
   onNavigateTab,
 }) => {
+  const effectiveRates = rateSource ?? usdToBrlRate;
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
-  const todayStr = localToday();
+  const accMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
+  const todayStr = localTodayStr();
 
-  // Quitar abre popup de confirmação com data do pagamento
   const [settlingTransaction, setSettlingTransaction] = useState<Transaction | null>(null);
   const [paidOn, setPaidOn] = useState(todayStr);
 
@@ -87,7 +98,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     onSettleTransaction(settlingTransaction.id, paidOn);
     setSettlingTransaction(null);
   };
-  const accMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
 
   const actualCurrentYearMonth = useMemo(() => getCurrentYearMonth(), []);
 
@@ -96,20 +106,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     [transactions, selectedYearMonth]
   );
 
-  // Realizado = só lançamentos pagos; Previsto = realizado + pendentes do mês
   const metrics = useMemo(
-    () => summarizeTransactions(monthTransactions, usdToBrlRate),
-    [monthTransactions, usdToBrlRate]
+    () => summarizeTransactions(monthTransactions, effectiveRates),
+    [monthTransactions, effectiveRates]
   );
   const projectionUntil = endOfMonthDate(selectedYearMonth);
 
-  // Saldo confirmado por conta (só lançamentos pagos) + previsão até o fim do mês
   const accountBalances = useMemo(() => {
     return accounts.map((acc) => {
       const { currency, currentBalance, projectedBalance } = computeAccountBalance(
         acc,
         transactions,
-        usdToBrlRate,
+        effectiveRates,
         projectionUntil
       );
       return {
@@ -119,25 +127,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         projectedBalance,
       };
     });
-  }, [accounts, transactions, usdToBrlRate, projectionUntil]);
+  }, [accounts, transactions, effectiveRates, projectionUntil]);
 
   const netWorth = useMemo(
-    () => computeNetWorth(accounts, transactions, usdToBrlRate, projectionUntil),
-    [accounts, transactions, usdToBrlRate, projectionUntil]
+    () => computeNetWorth(accounts, transactions, effectiveRates, projectionUntil),
+    [accounts, transactions, effectiveRates, projectionUntil]
   );
-  // Pendentes de meses anteriores (em atraso): entram no saldo previsto, então aparecem nos cards
+
   const overdue = useMemo(() => {
     const monthStart = `${selectedYearMonth}-01`;
     let income = 0;
     let expense = 0;
     for (const tx of transactions) {
       if (tx.status !== 'pending' || tx.date >= monthStart) continue;
-      const value = txAmountInBrl(tx, usdToBrlRate);
+      const value = txAmountInBrl(tx, effectiveRates);
       if (tx.type === 'income') income += value;
       else expense += value;
     }
     return { income, expense };
-  }, [transactions, selectedYearMonth, usdToBrlRate]);
+  }, [transactions, selectedYearMonth, effectiveRates]);
+
   const pendingIncome = metrics.incomePending.brl + overdue.income;
   const hasAnyPending = metrics.hasPending || overdue.income > 0 || overdue.expense > 0;
   const monthName = formatMonthYearLabel(selectedYearMonth).split(' ')[0].toLowerCase();
@@ -149,47 +158,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const usdText = (value: number | null) =>
     value === null ? 'US$ — (sem cotação)' : formatMoney(value, 'USD', hideValues);
 
-  // Evolução de Fluxo de Caixa (12 meses do ano selecionado)
   const twelveMonthSeries = useMemo(() => {
     const [year] = selectedYearMonth.split('-');
-    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
-    return months.map((ym) => {
-      let inc = 0;
-      let exp = 0;
-      for (const tx of transactions) {
-        if (tx.date.startsWith(ym)) {
-          const valueBrl = txAmountInBrl(tx, usdToBrlRate);
-          if (tx.type === 'income') inc += valueBrl;
-          else exp += valueBrl;
-        }
-      }
-      const [, mStr] = ym.split('-');
-      return {
-        ym,
-        label: MONTHS_SHORT[parseInt(mStr, 10) - 1] || ym,
-        income: inc,
-        expense: exp,
-        net: inc - exp,
-      };
-    });
-  }, [transactions, selectedYearMonth, usdToBrlRate]);
+    const buckets = Array.from({ length: 12 }, (_, i) => ({
+      ym: `${year}-${String(i + 1).padStart(2, '0')}`,
+      label: MONTHS_SHORT[i],
+      income: 0,
+      expense: 0,
+      net: 0,
+    }));
+
+    for (const tx of transactions) {
+      if (!tx.date.startsWith(year)) continue;
+      const monthIdx = Number(tx.date.slice(5, 7)) - 1;
+      if (monthIdx < 0 || monthIdx >= 12) continue;
+      const valueBrl = txAmountInBrl(tx, effectiveRates);
+      if (tx.type === 'income') buckets[monthIdx].income += valueBrl;
+      else buckets[monthIdx].expense += valueBrl;
+    }
+
+    for (const b of buckets) {
+      b.net = b.income - b.expense;
+    }
+
+    return buckets;
+  }, [transactions, selectedYearMonth, effectiveRates]);
 
   const maxChartValue = useMemo(() => {
-    const m = Math.max(
-      100,
-      ...twelveMonthSeries.flatMap((s) => [s.income, s.expense])
-    );
-    return m;
+    return Math.max(100, ...twelveMonthSeries.flatMap((s) => [s.income, s.expense]));
   }, [twelveMonthSeries]);
 
-  // Despesas por categoria no mês selecionado
   const categoryBreakdown = useMemo(() => {
-    // Todos os valores convertidos para BRL (orçamentos e percentuais são em R$)
     const map = new Map<string, { paid: number; pending: number; total: number }>();
     let totalExpenseAllBrl = 0;
     for (const tx of monthTransactions) {
       if (tx.type !== 'expense') continue;
-      const valueBrl = txAmountInBrl(tx, usdToBrlRate);
+      const valueBrl = txAmountInBrl(tx, effectiveRates);
       const cur = map.get(tx.categoryId) || { paid: 0, pending: 0, total: 0 };
       if (tx.status === 'paid') cur.paid += valueBrl;
       else cur.pending += valueBrl;
@@ -216,9 +220,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [monthTransactions, catMap, usdToBrlRate]);
+  }, [monthTransactions, catMap, effectiveRates]);
 
-  // Próximos lançamentos pendentes no mês
   const pendingTransactions = useMemo(() => {
     return monthTransactions
       .filter((t) => t.status === 'pending')
@@ -247,7 +250,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         onClick={() => onSelectYearMonth(item.ym)}
         aria-pressed={isSelected}
       >
-        {/* Tooltip com valores detalhados no hover */}
         <div className="cf-tooltip" role="tooltip" aria-hidden="true">
           <div className="cf-tooltip-header">
             <span className="cf-tooltip-title">{formatMonthYearLabel(item.ym)}</span>
@@ -322,7 +324,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="dashboard-stack">
-      {/* 4 Cards: saldo hoje − saídas a pagar + entradas a receber = saldo previsto */}
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
@@ -406,9 +407,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </article>
       </section>
 
-      {/* Grid Principal: Evolução do Fluxo de Caixa (6 Meses) + Despesas por Categoria */}
       <div className="dashboard-main-grid">
-        {/* Gráfico de Fluxo de Caixa Comparativo (12 Meses em 2 Linhas) */}
         <section className="panel-card cashflow-panel-card">
           <header className="panel-header cashflow-panel-header">
             <div>
@@ -453,13 +452,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="cf-semester-summary mono">
                   <span className="cf-sem-label">Saldo Semestral:</span>
                   <strong className={h1Net >= 0 ? 'pos' : 'neg'}>
-                    {h1Net > 0 ? '+' : ''}{formatBRL(h1Net, hideValues)}
+                    {h1Net > 0 ? '+' : ''}
+                    {formatBRL(h1Net, hideValues)}
                   </strong>
                 </div>
               </div>
-              <div className="cashflow-bars-stage">
-                {h1Series.map(renderCashflowMonth)}
-              </div>
+              <div className="cashflow-bars-stage">{h1Series.map(renderCashflowMonth)}</div>
             </div>
 
             <div className="cf-semester-block">
@@ -471,18 +469,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="cf-semester-summary mono">
                   <span className="cf-sem-label">Saldo Semestral:</span>
                   <strong className={h2Net >= 0 ? 'pos' : 'neg'}>
-                    {h2Net > 0 ? '+' : ''}{formatBRL(h2Net, hideValues)}
+                    {h2Net > 0 ? '+' : ''}
+                    {formatBRL(h2Net, hideValues)}
                   </strong>
                 </div>
               </div>
-              <div className="cashflow-bars-stage">
-                {h2Series.map(renderCashflowMonth)}
-              </div>
+              <div className="cashflow-bars-stage">{h2Series.map(renderCashflowMonth)}</div>
             </div>
           </div>
         </section>
 
-        {/* Compromissos Pendentes no Mês (Liquidação Rápida) */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -502,7 +498,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {pendingTransactions.length === 0 ? (
             <div className="empty-state-compact">
               <CheckCircle2 size={22} style={{ color: 'var(--color-accent)' }} />
-              <p>Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.</p>
+              <p>
+                Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.
+              </p>
             </div>
           ) : (
             <>
@@ -565,9 +563,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </section>
       </div>
 
-      {/* Linha Inferior: Despesas por Categoria (Esquerda) + Contas & Carteiras (Direita) */}
       <div className="dashboard-bottom-grid">
-        {/* Despesas por Categoria e Status das Metas (Distribuição de Gastos) */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -599,17 +595,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="category-breakdown-list">
               {categoryBreakdown.map((item) => {
                 const overBudget = item.budget > 0 && item.total > item.budget;
-                const warnBudget =
-                  item.budget > 0 && !overBudget && item.pctOfBudget >= 80;
+                const warnBudget = item.budget > 0 && !overBudget && item.pctOfBudget >= 80;
 
                 return (
                   <div key={item.categoryId} className="cat-row-item">
                     <div className="cat-row-top">
                       <div className="cat-row-title">
-                        <span
-                          className="cat-color-dot"
-                          style={{ backgroundColor: item.color }}
-                        />
+                        <span className="cat-color-dot" style={{ backgroundColor: item.color }} />
                         <strong>{item.name}</strong>
                         <span className="cat-share-badge mono">
                           {item.pctOfExpense.toFixed(0)}%
@@ -641,8 +633,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           backgroundColor: overBudget
                             ? '#F43F5E'
                             : warnBudget
-                            ? '#F59E0B'
-                            : item.color,
+                              ? '#F59E0B'
+                              : item.color,
                         }}
                       />
                     </div>
@@ -653,7 +645,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           )}
         </section>
 
-        {/* Saldos por Conta (Patrimônio Disponível) */}
         <section className="panel-card">
           <header className="panel-header">
             <div>
@@ -674,10 +665,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {accountBalances.map((acc) => (
               <div key={acc.id} className="account-mini-row">
                 <div className="account-mini-info">
-                  <span
-                    className="account-color-bar"
-                    style={{ backgroundColor: acc.color }}
-                  />
+                  <span className="account-color-bar" style={{ backgroundColor: acc.color }} />
                   <div>
                     <strong>{acc.name}</strong>
                     <span className="account-inst-sub">
@@ -686,15 +674,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 </div>
                 <div
-                  className={`account-mini-bal mono ${
-                    acc.currentBalance >= 0 ? 'pos' : 'neg'
-                  }`}
+                  className={`account-mini-bal mono ${acc.currentBalance >= 0 ? 'pos' : 'neg'}`}
                 >
                   {formatMoney(acc.currentBalance, acc.currency, hideValues)}
-                  {acc.currency === 'USD' && <span className="badge-usd-sm">USD</span>}
+                  {acc.currency !== 'BRL' && <span className="badge-usd-sm">{acc.currency}</span>}
                   {(() => {
-                    const other = acc.currency === 'USD' ? 'BRL' : 'USD';
-                    const converted = convertAmount(acc.currentBalance, acc.currency, other, usdToBrlRate);
+                    const other = acc.currency === 'BRL' ? 'USD' : 'BRL';
+                    const converted = convertAmount(
+                      acc.currentBalance,
+                      acc.currency,
+                      other,
+                      effectiveRates
+                    );
                     return (
                       <span className="account-inst-sub">
                         {converted !== null && <>≈ {formatMoney(converted, other, hideValues)} · </>}
@@ -709,7 +700,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </section>
       </div>
 
-      {/* Popup / Modal de confirmação de baixa / quitação */}
       {settlingTransaction && (
         <div
           className="modal-backdrop"
@@ -727,7 +717,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <header className="modal-header">
               <h2 id="settle-title">
-                {settlingTransaction.type === 'income' ? 'Confirmar Recebimento' : 'Confirmar Quitação'}
+                {settlingTransaction.type === 'income'
+                  ? 'Confirmar Recebimento'
+                  : 'Confirmar Quitação'}
               </h2>
               <button
                 type="button"
@@ -749,7 +741,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="settle-modal-summary">
                 <div className="settle-modal-main">
                   <span className="eyebrow">
-                    {settlingTransaction.type === 'income' ? 'RECEITA A RECEBER' : 'DESPESA A QUITAR'}
+                    {settlingTransaction.type === 'income'
+                      ? 'RECEITA A RECEBER'
+                      : 'DESPESA A QUITAR'}
                   </span>
                   <h3 className="settle-modal-title">{settlingTransaction.description}</h3>
                   <div
@@ -788,7 +782,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
               <div className="form-field">
                 <label htmlFor="settle-paid-on">
-                  {settlingTransaction.type === 'income' ? 'Data do recebimento' : 'Data do pagamento'}
+                  {settlingTransaction.type === 'income'
+                    ? 'Data do recebimento'
+                    : 'Data do pagamento'}
                 </label>
                 <input
                   id="settle-paid-on"
@@ -800,7 +796,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   autoFocus
                 />
                 <span className="field-hint">
-                  A data não pode ser futura. Padrão: hoje ({todayStr.split('-').reverse().join('/')}).
+                  A data não pode ser futura. Padrão: hoje (
+                  {todayStr.split('-').reverse().join('/')}).
                 </span>
               </div>
 
@@ -818,7 +815,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   disabled={!paidOn || paidOn > todayStr}
                 >
                   <CheckCircle2 size={15} />
-                  {settlingTransaction.type === 'income' ? 'Confirmar Recebimento' : 'Confirmar Quitação'}
+                  {settlingTransaction.type === 'income'
+                    ? 'Confirmar Recebimento'
+                    : 'Confirmar Quitação'}
                 </button>
               </footer>
             </form>

@@ -1,11 +1,7 @@
-/**
- * Ações do Modo MCP local.
- *
- * Funções puras: recebem o cofre descriptografado (em memória, dentro do app) e os
- * argumentos vindos do servidor MCP, e devolvem o resultado + o próximo estado do
- * cofre quando há escrita. Quem grava (recifrando no IndexedDB) é o App, pelo mesmo
- * caminho da interface (`persistVaultUpdate`).
- */
+import {
+  removeVaultExchangeRate,
+  upsertVaultExchangeRate,
+} from '../domain/vaultUseCases';
 import type {
   Account,
   Category,
@@ -16,15 +12,6 @@ import type {
   TransactionType,
   VaultPayload,
 } from '../types/finance';
-import {
-  POPULAR_CURRENCIES,
-  POPULAR_CURRENCY_CODES,
-  getVaultExchangeRates,
-  isSupportedCurrency,
-  normalizeCurrency,
-  removeExchangeRate,
-  upsertExchangeRate,
-} from './currencyService';
 import { predictCategory } from '../utils/categorizer';
 import { getDefaultCategory } from '../utils/categories';
 import { buildMonthComparison } from '../utils/comparison';
@@ -37,10 +24,18 @@ import {
   isValidRate,
   summarizeTransactions,
 } from '../utils/money';
+import {
+  POPULAR_CURRENCIES,
+  POPULAR_CURRENCY_CODES,
+  findExchangeRate,
+  getVaultExchangeRates,
+  isSupportedCurrency,
+  normalizeCurrency,
+} from './currencyService';
 
 export interface McpActionContext {
   usdToBrlRate?: number;
-  today: string; // YYYY-MM-DD (data local)
+  today: string;
   newId: (prefix: string) => string;
   nowIso: string;
 }
@@ -48,7 +43,6 @@ export interface McpActionContext {
 export interface McpActionOutcome {
   result: unknown;
   nextVault?: VaultPayload;
-  /** Mensagem curta exibida no app para dar visibilidade à ação feita pelo MCP */
   notice?: string;
 }
 
@@ -56,9 +50,16 @@ export class McpActionError extends Error {}
 
 type Args = Record<string, unknown>;
 
-const CATEGORY_COLORS = ['#C8FF00', '#7DD3FC', '#FFB020', '#B794FF', '#FF4D3D', '#F472B6', '#34D399'];
+const CATEGORY_COLORS = [
+  '#C8FF00',
+  '#7DD3FC',
+  '#FFB020',
+  '#B794FF',
+  '#FF4D3D',
+  '#F472B6',
+  '#34D399',
+];
 
-// ---------- validação leve (o servidor já valida com zod; aqui é a última barreira) ----------
 function str(args: Args, key: string, required = false): string | undefined {
   const v = args[key];
   if (v === undefined || v === null || v === '') {
@@ -93,23 +94,30 @@ function oneOf<T extends string>(args: Args, key: string, options: readonly T[])
 function isoDate(args: Args, key: string): string | undefined {
   const v = str(args, key);
   if (v === undefined) return undefined;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new McpActionError(`${key} deve estar no formato AAAA-MM-DD`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    throw new McpActionError(`${key} deve estar no formato AAAA-MM-DD`);
+  }
   return v;
 }
 
 function yearMonth(args: Args, key: string): string | undefined {
   const v = str(args, key);
   if (v === undefined) return undefined;
-  if (!/^\d{4}-\d{2}$/.test(v)) throw new McpActionError(`${key} deve estar no formato AAAA-MM`);
+  if (!/^\d{4}-\d{2}$/.test(v)) {
+    throw new McpActionError(`${key} deve estar no formato AAAA-MM`);
+  }
   return v;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// ---------- representações compactas devolvidas ao MCP ----------
-// Previsão até o fim do mês informado (mesma regra da interface), não todos os pendentes futuros
-function describeAccount(acc: Account, vault: VaultPayload, rate: number | undefined, month: string) {
-  const bal = computeAccountBalance(acc, vault.transactions, rate, endOfMonthDate(month));
+function describeAccount(acc: Account, vault: VaultPayload, month: string) {
+  const bal = computeAccountBalance(
+    acc,
+    vault.transactions,
+    vault.settings,
+    endOfMonthDate(month)
+  );
   return {
     id: acc.id,
     name: acc.name,
@@ -148,7 +156,6 @@ function describeTransaction(tx: Transaction, vault: VaultPayload) {
   };
 }
 
-// ---------- resolução de referências ----------
 function findAccount(vault: VaultPayload, accountId?: string, accountName?: string): Account {
   if (accountId) {
     const acc = vault.accounts.find((a) => a.id === accountId);
@@ -199,15 +206,14 @@ function resolveCategory(
   return getDefaultCategory(vault.categories, type);
 }
 
-// ---------- ações ----------
 function getOverview(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
   const month = yearMonth(args, 'month') ?? getCurrentYearMonth();
   const monthTxs = vault.transactions.filter((t) => t.date.startsWith(month));
-  const summary = summarizeTransactions(monthTxs, ctx.usdToBrlRate);
+  const summary = summarizeTransactions(monthTxs, vault.settings);
   const netWorth = computeNetWorth(
     vault.accounts,
     vault.transactions,
-    ctx.usdToBrlRate,
+    vault.settings,
     endOfMonthDate(month)
   );
   const r = (d: { brl: number; usd: number | null }) => ({
@@ -217,15 +223,24 @@ function getOverview(vault: VaultPayload, args: Args, ctx: McpActionContext): Mc
   return {
     result: {
       month,
-      usdToBrlRate: ctx.usdToBrlRate ?? null,
+      usdToBrlRate: ctx.usdToBrlRate ?? vault.settings.usdToBrlRate ?? null,
       exchangeRatesCount: (vault.settings.exchangeRates ?? []).length,
-      exchangeRates: getVaultExchangeRates(vault.settings).map((r) => `${r.from}/${r.to}: ${r.rate}`),
+      exchangeRates: getVaultExchangeRates(vault.settings).map(
+        (rate) => `${rate.from}/${rate.to}: ${rate.rate}`
+      ),
       confirmedBalance: r(netWorth.current),
       projectedBalanceEndOfMonth: r(netWorth.projected),
-      month_paid: { income: r(summary.incomePaid), expense: r(summary.expensePaid), net: r(summary.netPaid) },
-      month_pending: { income: r(summary.incomePending), expense: r(summary.expensePending) },
+      month_paid: {
+        income: r(summary.incomePaid),
+        expense: r(summary.expensePaid),
+        net: r(summary.netPaid),
+      },
+      month_pending: {
+        income: r(summary.incomePending),
+        expense: r(summary.expensePending),
+      },
       month_projected_net: r(summary.netProjected),
-      accounts: vault.accounts.map((a) => describeAccount(a, vault, ctx.usdToBrlRate, month)),
+      accounts: vault.accounts.map((a) => describeAccount(a, vault, month)),
     },
   };
 }
@@ -267,13 +282,17 @@ function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext):
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
   if (!type) throw new McpActionError('Campo obrigatório ausente: type (income ou expense)');
   const budget = num(args, 'monthlyBudget');
-  if (budget !== undefined && budget < 0) throw new McpActionError('monthlyBudget não pode ser negativo');
+  if (budget !== undefined && budget < 0) {
+    throw new McpActionError('monthlyBudget não pode ser negativo');
+  }
 
   const existing = vault.categories.find(
     (c) => c.type === type && c.name.toLowerCase() === name.toLowerCase()
   );
   if (existing) {
-    return { result: { created: false, reason: 'já existe', category: describeCategory(existing) } };
+    return {
+      result: { created: false, reason: 'já existe', category: describeCategory(existing) },
+    };
   }
 
   const category: Category = {
@@ -299,22 +318,33 @@ function setCategoryBudget(vault: VaultPayload, args: Args): McpActionOutcome {
   }
   const cat = vault.categories.find((c) => c.id === categoryId);
   if (!cat) throw new McpActionError(`Categoria não encontrada: ${categoryId}`);
-  if (cat.type !== 'expense') throw new McpActionError('Metas só existem para categorias de despesa');
+  if (cat.type !== 'expense') {
+    throw new McpActionError('Metas só existem para categorias de despesa');
+  }
   const budget = raw === null || raw === 0 ? undefined : (raw as number);
   const updated: Category = { ...cat, monthlyBudget: budget };
   return {
     result: { category: describeCategory(updated) },
-    nextVault: { ...vault, categories: vault.categories.map((c) => (c.id === cat.id ? updated : c)) },
+    nextVault: {
+      ...vault,
+      categories: vault.categories.map((c) => (c.id === cat.id ? updated : c)),
+    },
     notice: budget
       ? `MCP definiu a meta de "${cat.name}"`
       : `MCP removeu a meta de "${cat.name}"`,
   };
 }
 
-function createTransaction(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
+function createTransaction(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
   const description = str(args, 'description', true)!;
   const amount = num(args, 'amount', true)!;
-  if (amount <= 0) throw new McpActionError('amount deve ser maior que zero (o tipo define o sinal)');
+  if (amount <= 0) {
+    throw new McpActionError('amount deve ser maior que zero (o tipo define o sinal)');
+  }
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
   if (!type) throw new McpActionError('Campo obrigatório ausente: type (income ou expense)');
 
@@ -327,10 +357,13 @@ function createTransaction(vault: VaultPayload, args: Args, ctx: McpActionContex
     str(args, 'categoryId'),
     str(args, 'categoryName')
   );
-  const currency: Currency =
-    oneOf(args, 'currency', ['BRL', 'USD'] as const) ?? accountCurrency(account);
+  const rawCurrency = str(args, 'currency');
+  const currency: Currency = rawCurrency
+    ? oneOf({ currency: normalizeCurrency(rawCurrency) }, 'currency', POPULAR_CURRENCY_CODES)!
+    : accountCurrency(account);
   const status: TransactionStatus =
-    oneOf(args, 'status', ['paid', 'pending'] as const) ?? (date > ctx.today ? 'pending' : 'paid');
+    oneOf(args, 'status', ['paid', 'pending'] as const) ??
+    (date > ctx.today ? 'pending' : 'paid');
   const repeatMonths = Math.max(1, Math.min(36, Math.floor(num(args, 'repeatMonths') ?? 1)));
   const explicitRate = num(args, 'exchangeRate');
   if (explicitRate !== undefined && !isValidRate(explicitRate)) {
@@ -338,11 +371,15 @@ function createTransaction(vault: VaultPayload, args: Args, ctx: McpActionContex
   }
   const notes = str(args, 'notes');
 
-  const involvesUsd = currency === 'USD' || accountCurrency(account) === 'USD';
-  // Mesma regra da interface: fixa cotação quando informada ou quando já está pago
+  const accCurr = accountCurrency(account);
+  const foreignCurr = currency !== 'BRL' ? currency : accCurr !== 'BRL' ? accCurr : null;
+  const liveRateToBrl = foreignCurr
+    ? findExchangeRate(vault.settings, foreignCurr, 'BRL') ?? undefined
+    : undefined;
+
   const rateFor = (itemStatus: TransactionStatus) =>
-    involvesUsd
-      ? explicitRate ?? (itemStatus === 'paid' && isValidRate(ctx.usdToBrlRate) ? ctx.usdToBrlRate : undefined)
+    foreignCurr !== null
+      ? explicitRate ?? (itemStatus === 'paid' && isValidRate(liveRateToBrl) ? liveRateToBrl : undefined)
       : undefined;
 
   const groupId = repeatMonths > 1 ? ctx.newId('rec') : undefined;
@@ -370,7 +407,10 @@ function createTransaction(vault: VaultPayload, args: Args, ctx: McpActionContex
   }
   const nextVault = { ...vault, transactions: [...created, ...vault.transactions] };
   return {
-    result: { created: created.length, transactions: created.map((t) => describeTransaction(t, nextVault)) },
+    result: {
+      created: created.length,
+      transactions: created.map((t) => describeTransaction(t, nextVault)),
+    },
     nextVault,
     notice:
       created.length > 1
@@ -379,7 +419,11 @@ function createTransaction(vault: VaultPayload, args: Args, ctx: McpActionContex
   };
 }
 
-function updateTransaction(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
+function updateTransaction(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
   const id = str(args, 'id', true)!;
   const tx = vault.transactions.find((t) => t.id === id);
   if (!tx) throw new McpActionError(`Lançamento não encontrado: ${id}`);
@@ -398,31 +442,54 @@ function updateTransaction(vault: VaultPayload, args: Args, ctx: McpActionContex
   if (status) next.status = status;
   const date = isoDate(args, 'date');
   if (date) next.date = date;
-  // Data do pagamento: informada, ou hoje ao dar baixa; some ao voltar para pendente
+
   const paidAt = isoDate(args, 'paidAt');
   if (paidAt && paidAt > ctx.today) throw new McpActionError('paidAt não pode ser no futuro');
-  if (next.status === 'paid') next.paidAt = paidAt ?? (status === 'paid' && tx.status !== 'paid' ? ctx.today : next.paidAt);
-  else next.paidAt = undefined;
-  const currency = oneOf(args, 'currency', ['BRL', 'USD'] as const);
-  if (currency) next.currency = currency;
+  if (next.status === 'paid') {
+    next.paidAt = paidAt ?? (status === 'paid' && tx.status !== 'paid' ? ctx.today : next.paidAt);
+  } else {
+    next.paidAt = undefined;
+  }
+
+  const rawCurrency = str(args, 'currency');
+  if (rawCurrency) {
+    next.currency = oneOf(
+      { currency: normalizeCurrency(rawCurrency) },
+      'currency',
+      POPULAR_CURRENCY_CODES
+    );
+  }
   if ('notes' in args) next.notes = str(args, 'notes');
   const accountId = str(args, 'accountId');
   const accountName = str(args, 'accountName');
-  if (accountId || accountName) next.accountId = findAccount(vault, accountId, accountName).id;
+  if (accountId || accountName) {
+    next.accountId = findAccount(vault, accountId, accountName).id;
+  }
 
   const categoryId = str(args, 'categoryId');
   const categoryName = str(args, 'categoryName');
   if (categoryId || categoryName || type) {
     const keepCurrent =
-      !categoryId && !categoryName && vault.categories.some((c) => c.id === next.categoryId && c.type === next.type);
+      !categoryId &&
+      !categoryName &&
+      vault.categories.some((c) => c.id === next.categoryId && c.type === next.type);
     if (!keepCurrent) {
-      next.categoryId = resolveCategory(vault, next.type, next.description, categoryId, categoryName).id;
+      next.categoryId = resolveCategory(
+        vault,
+        next.type,
+        next.description,
+        categoryId,
+        categoryName
+      ).id;
     }
   }
 
   return {
     result: { transaction: describeTransaction(next, vault) },
-    nextVault: { ...vault, transactions: vault.transactions.map((t) => (t.id === id ? next : t)) },
+    nextVault: {
+      ...vault,
+      transactions: vault.transactions.map((t) => (t.id === id ? next : t)),
+    },
     notice: `MCP atualizou "${next.description}"`,
   };
 }
@@ -438,22 +505,30 @@ function deleteTransaction(vault: VaultPayload, args: Args): McpActionOutcome {
   };
 }
 
-// ---------- comparativos e insights ----------
-function monthComparison(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
+function monthComparison(vault: VaultPayload, args: Args): McpActionOutcome {
   const month = yearMonth(args, 'month') ?? getCurrentYearMonth();
   const count = Math.max(1, Math.min(24, Math.floor(num(args, 'months') ?? 6)));
-  const rows = buildMonthComparison(vault.transactions, vault.categories, month, count, ctx.usdToBrlRate);
+  const rows = buildMonthComparison(
+    vault.transactions,
+    vault.categories,
+    month,
+    count,
+    vault.settings
+  );
   const insights = vault.insights ?? [];
   return {
     result: {
-      note:
-        'Valores em BRL. Totais do mês contam pagos + pendentes (competência). USD convertido pela cotação fixada no lançamento ou pela atual.',
+      note: 'Valores em BRL. Totais do mês contam pagos + pendentes (competência). Moedas estrangeiras convertidas pela cotação fixada no lançamento ou pela atual.',
       months: rows.map((r) => {
         const insight = insights.find((i) => i.month === r.month);
         return {
           ...r,
           insight: insight
-            ? { title: insight.title, updatedAt: insight.updatedAt, outdated: insight.dataSignature !== r.signature }
+            ? {
+                title: insight.title,
+                updatedAt: insight.updatedAt,
+                outdated: insight.dataSignature !== r.signature,
+              }
             : null,
         };
       }),
@@ -485,8 +560,13 @@ function saveInsight(vault: VaultPayload, args: Args, ctx: McpActionContext): Mc
     .map((h) => h.trim())
     .slice(0, 6);
 
-  // Assinatura dos números atuais do mês: se mudarem depois, o insight aparece como desatualizado
-  const [row] = buildMonthComparison(vault.transactions, vault.categories, month, 1, ctx.usdToBrlRate);
+  const [row] = buildMonthComparison(
+    vault.transactions,
+    vault.categories,
+    month,
+    1,
+    vault.settings
+  );
   const existing = (vault.insights ?? []).find((i) => i.month === month);
   const insight: MonthInsight = {
     month,
@@ -502,7 +582,9 @@ function saveInsight(vault: VaultPayload, args: Args, ctx: McpActionContext): Mc
   return {
     result: { saved: existing ? 'updated' : 'created', insight },
     nextVault: { ...vault, insights: [...others, insight] },
-    notice: existing ? `MCP atualizou o insight de ${month}` : `MCP escreveu o insight de ${month}`,
+    notice: existing
+      ? `MCP atualizou o insight de ${month}`
+      : `MCP escreveu o insight de ${month}`,
   };
 }
 
@@ -536,47 +618,44 @@ function listExchangeRates(vault: VaultPayload): McpActionOutcome {
   };
 }
 
-function setExchangeRate(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
+function setExchangeRate(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
   const from = str(args, 'from', true);
   const to = str(args, 'to', true);
   const rate = num(args, 'rate', true);
 
   if (!from || !to) throw new McpActionError('from e to são obrigatórios');
-  if (!rate || rate <= 0) throw new McpActionError('rate deve ser um número positivo maior que zero');
+  if (!rate || rate <= 0) {
+    throw new McpActionError('rate deve ser um número positivo maior que zero');
+  }
 
   const normFrom = normalizeCurrency(from);
   const normTo = normalizeCurrency(to);
   if (!isSupportedCurrency(normFrom)) {
     throw new McpActionError(
-      `Moeda de origem "${normFrom}" não é suportada. Escolha uma das moedas mais populares: ${POPULAR_CURRENCY_CODES.join(', ')}`
+      `Moeda de origem "${normFrom}" não é suportada. Escolha uma das moedas: ${POPULAR_CURRENCY_CODES.join(', ')}`
     );
   }
   if (!isSupportedCurrency(normTo)) {
     throw new McpActionError(
-      `Moeda de destino "${normTo}" não é suportada. Escolha uma das moedas mais populares: ${POPULAR_CURRENCY_CODES.join(', ')}`
+      `Moeda de destino "${normTo}" não é suportada. Escolha uma das moedas: ${POPULAR_CURRENCY_CODES.join(', ')}`
     );
   }
-  if (normFrom === normTo) throw new McpActionError('Moeda de origem e destino devem ser diferentes');
-
-  const nextRates = upsertExchangeRate(vault.settings.exchangeRates, normFrom, normTo, rate, 'mcp');
-  const nextSettings = { ...vault.settings, exchangeRates: nextRates };
-
-  // Sincroniza retrocompatibilidade se for par USD/BRL
-  if (normFrom === 'USD' && normTo === 'BRL') {
-    nextSettings.usdToBrlRate = rate;
-    nextSettings.usdRateUpdatedAt = `${ctx.today} (MCP)`;
-  } else if (normFrom === 'BRL' && normTo === 'USD') {
-    nextSettings.usdToBrlRate = Math.round((1 / rate) * 10000) / 10000;
-    nextSettings.usdRateUpdatedAt = `${ctx.today} (MCP)`;
+  if (normFrom === normTo) {
+    throw new McpActionError('Moeda de origem e destino devem ser diferentes');
   }
 
   const nextVault: VaultPayload = {
-    ...vault,
-    settings: nextSettings,
+    ...upsertVaultExchangeRate(vault, normFrom, normTo, rate, 'mcp', `${ctx.today} (MCP)`),
     updatedAt: ctx.nowIso,
   };
 
-  const updatedEntry = nextRates.find((r) => r.from === normFrom && r.to === normTo);
+  const updatedEntry = nextVault.settings.exchangeRates?.find(
+    (r) => r.from === normFrom && r.to === normTo
+  );
 
   return {
     result: {
@@ -592,25 +671,19 @@ function setExchangeRate(vault: VaultPayload, args: Args, ctx: McpActionContext)
   };
 }
 
-function deleteExchangeRate(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
+function deleteExchangeRate(
+  vault: VaultPayload,
+  args: Args,
+  ctx: McpActionContext
+): McpActionOutcome {
   const from = str(args, 'from', true);
   const to = str(args, 'to', true);
   if (!from || !to) throw new McpActionError('from e to são obrigatórios');
 
   const normFrom = normalizeCurrency(from);
   const normTo = normalizeCurrency(to);
-
-  const nextRates = removeExchangeRate(vault.settings.exchangeRates, normFrom, normTo);
-  const nextSettings = { ...vault.settings, exchangeRates: nextRates };
-
-  if (normFrom === 'USD' && normTo === 'BRL') {
-    delete nextSettings.usdToBrlRate;
-    delete nextSettings.usdRateUpdatedAt;
-  }
-
   const nextVault: VaultPayload = {
-    ...vault,
-    settings: nextSettings,
+    ...removeVaultExchangeRate(vault, normFrom, normTo),
     updatedAt: ctx.nowIso,
   };
 
@@ -623,19 +696,19 @@ function deleteExchangeRate(vault: VaultPayload, args: Args, ctx: McpActionConte
 
 export const MCP_ACTIONS = {
   get_overview: getOverview,
-  list_accounts: (vault: VaultPayload, _args: Args, ctx: McpActionContext): McpActionOutcome => ({
+  list_accounts: (vault: VaultPayload): McpActionOutcome => ({
     result: {
       month: getCurrentYearMonth(),
-      accounts: vault.accounts.map((a) =>
-        describeAccount(a, vault, ctx.usdToBrlRate, getCurrentYearMonth())
-      ),
+      accounts: vault.accounts.map((a) => describeAccount(a, vault, getCurrentYearMonth())),
     },
   }),
   list_categories: (vault: VaultPayload, args: Args): McpActionOutcome => {
     const type = oneOf(args, 'type', ['income', 'expense'] as const);
     return {
       result: {
-        categories: vault.categories.filter((c) => !type || c.type === type).map(describeCategory),
+        categories: vault.categories
+          .filter((c) => !type || c.type === type)
+          .map(describeCategory),
       },
     };
   },
@@ -662,7 +735,12 @@ export function runMcpAction(
   args: Args,
   ctx: McpActionContext
 ): McpActionOutcome {
-  const action = (MCP_ACTIONS as Record<string, (v: VaultPayload, a: Args, c: McpActionContext) => McpActionOutcome>)[name];
+  const action = (
+    MCP_ACTIONS as Record<
+      string,
+      (v: VaultPayload, a: Args, c: McpActionContext) => McpActionOutcome
+    >
+  )[name];
   if (!action) throw new McpActionError(`Ação desconhecida: ${name}`);
   return action(vault, args ?? {}, ctx);
 }

@@ -20,10 +20,16 @@ import {
   Upload,
   Wallet,
 } from 'lucide-react';
-import type { AccountType, EncryptedVaultEnvelope, InitialAccountData } from '../types/finance';
+import type {
+  AccountType,
+  Currency,
+  EncryptedVaultEnvelope,
+  InitialAccountData,
+} from '../types/finance';
 import { MyFBoxLogo } from './MyFBoxLogo';
 import { passwordStrength } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
+import { POPULAR_CURRENCIES, getCurrencySymbol } from '../services/currencyService';
 
 interface VaultLockScreenProps {
   existingEnvelope: EncryptedVaultEnvelope | null;
@@ -34,7 +40,6 @@ interface VaultLockScreenProps {
     initialAccount?: InitialAccountData
   ) => Promise<void>;
   onRestoreBackupEnvelope: (envelope: EncryptedVaultEnvelope, password: string) => Promise<void>;
-  /** Há um link de pareamento MCP aguardando o desbloqueio */
   pairingPending?: boolean;
 }
 
@@ -86,9 +91,9 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Primeira conta criada junto com o cofre
   const [accountName, setAccountName] = useState('Conta Principal');
   const [accountType, setAccountType] = useState<AccountType>('checking');
+  const [accountCurrency, setAccountCurrency] = useState<Currency>('BRL');
   const [accountColor, setAccountColor] = useState(ACCOUNT_COLORS[0]);
   const [accountInitialBalance, setAccountInitialBalance] = useState('0');
 
@@ -133,8 +138,12 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
 
   const handleStep1Continue = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      setError('A senha mestra deve ter pelo menos 6 caracteres.');
+    if (password.length < 8) {
+      setError('A senha mestra deve ter pelo menos 8 caracteres.');
+      return;
+    }
+    if (strength.score === 0) {
+      setError(strength.tip ?? 'Escolha uma senha mestra menos previsível.');
       return;
     }
     if (password !== confirmPassword) {
@@ -160,6 +169,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
         type: accountType,
         color: accountColor,
         initialBalance: initBal,
+        currency: accountCurrency,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar o cofre.');
@@ -224,8 +234,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
     }
   };
 
-  // Um único cofre por navegador: com cofre existente não há "criar outro".
-  // Para trocar de cofre, o único caminho é "Restaurar" (substitui pelo backup).
   const tabs: { id: GateMode; label: string }[] = existingEnvelope
     ? [
         { id: 'unlock', label: 'Entrar' },
@@ -236,9 +244,12 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
         { id: 'restore', label: 'Restaurar' },
       ];
 
-  // Sem cofre gravado o modo "Entrar" não existe: vai para "Criar"
   const activeMode: GateMode =
-    !existingEnvelope && mode === 'unlock' ? 'create' : existingEnvelope && mode === 'create' ? 'unlock' : mode;
+    !existingEnvelope && mode === 'unlock'
+      ? 'create'
+      : existingEnvelope && mode === 'create'
+      ? 'unlock'
+      : mode;
 
   const updatedLabel = formatUpdatedAt(existingEnvelope?.updatedAt);
 
@@ -296,7 +307,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
 
   return (
     <div className="gate-shell">
-      {/* Painel da marca (desktop) */}
       <aside className="gate-aside" aria-hidden>
         <div className="gate-grid-pattern" />
         <div className="gate-aside-content">
@@ -323,7 +333,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
               </span>
               <div>
                 <strong>AES-256-GCM</strong>
-                <span>Chave derivada com PBKDF2 (310 mil iterações)</span>
+                <span>Chave derivada com PBKDF2 (600 mil iterações)</span>
               </div>
             </li>
             <li>
@@ -345,11 +355,9 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
               </div>
             </li>
           </ul>
-
         </div>
         <div className="gate-marquee">
           <div className="gate-marquee-track">
-            {/* Conteúdo duplicado para o loop contínuo da faixa */}
             {[0, 1].map((copy) => (
               <React.Fragment key={copy}>
                 <span>Local-first</span>
@@ -363,7 +371,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
         </div>
       </aside>
 
-      {/* Painel do formulário */}
       <main className="gate-main">
         <div className="gate-panel">
           <div className="gate-brand gate-brand-mobile">
@@ -440,7 +447,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
             </div>
           )}
 
-          {/* Desbloquear */}
           {activeMode === 'unlock' && existingEnvelope && (
             <form onSubmit={handleUnlockSubmit} className="gate-form">
               <div className="gate-vault-chip">
@@ -470,11 +476,9 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                   'Descriptografando...'
                 )}
               </button>
-
             </form>
           )}
 
-          {/* Criar: Passo 1 (Cofre & Senha) */}
           {activeMode === 'create' && createStep === 1 && (
             <form onSubmit={handleStep1Continue} className="gate-form">
               {existingEnvelope && (
@@ -507,7 +511,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
               {renderPasswordField(
                 'create-password',
                 'Senha mestra',
-                'Mínimo 6 caracteres',
+                'Mínimo 8 caracteres',
                 false,
                 'new-password'
               )}
@@ -532,9 +536,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                     </div>
                   </div>
 
-                  {strength.tip && (
-                    <span className="gate-strength-tip">{strength.tip}</span>
-                  )}
+                  {strength.tip && <span className="gate-strength-tip">{strength.tip}</span>}
                 </div>
               )}
 
@@ -568,7 +570,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
             </form>
           )}
 
-          {/* Criar: Passo 2 (Primeira Conta: Nome, Cor, Tipo e Saldo Inicial) */}
           {activeMode === 'create' && createStep === 2 && (
             <form onSubmit={handleCreateSubmit} className="gate-form">
               <div className="gate-field">
@@ -612,23 +613,42 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                 </div>
 
                 <div className="gate-field">
-                  <label htmlFor="account-balance">Saldo Inicial (R$)</label>
+                  <label htmlFor="account-currency">Moeda</label>
                   <div className="gate-input">
-                    <Coins size={16} className="gate-input-icon" aria-hidden />
-                    <input
-                      id="account-balance"
-                      type="number"
-                      step="0.01"
-                      className="mono"
-                      value={accountInitialBalance}
-                      onChange={(e) => {
-                        setAccountInitialBalance(e.target.value);
-                        setError(null);
-                      }}
-                      placeholder="0,00"
-                      required
-                    />
+                    <select
+                      id="account-currency"
+                      value={accountCurrency}
+                      onChange={(e) => setAccountCurrency(e.target.value as Currency)}
+                    >
+                      {POPULAR_CURRENCIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code} — {c.name} ({c.symbol})
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+              </div>
+
+              <div className="gate-field">
+                <label htmlFor="account-balance">
+                  Saldo Inicial ({getCurrencySymbol(accountCurrency)})
+                </label>
+                <div className="gate-input">
+                  <Coins size={16} className="gate-input-icon" aria-hidden />
+                  <input
+                    id="account-balance"
+                    type="number"
+                    step="0.01"
+                    className="mono"
+                    value={accountInitialBalance}
+                    onChange={(e) => {
+                      setAccountInitialBalance(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="0,00"
+                    required
+                  />
                 </div>
               </div>
 
@@ -672,7 +692,6 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
             </form>
           )}
 
-          {/* Restaurar */}
           {activeMode === 'restore' && (
             <form onSubmit={handleRestoreSubmit} className="gate-form">
               <input

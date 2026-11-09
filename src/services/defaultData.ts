@@ -1,4 +1,6 @@
+import { generateEntityId } from '../domain/id';
 import type { Account, Category, InitialAccountData, VaultPayload } from '../types/finance';
+import { ensureSystemCategories } from '../utils/categories';
 
 const EMPTY_ACCOUNTS: Account[] = [
   {
@@ -7,12 +9,12 @@ const EMPTY_ACCOUNTS: Account[] = [
     type: 'checking',
     initialBalance: 0,
     color: '#C8FF00',
+    currency: 'BRL',
     institution: 'Banco Principal',
   },
 ];
 
 const DEFAULT_CATEGORIES: Category[] = [
-  // Receitas
   {
     id: 'cat_salary',
     name: 'Salário & Pró-Labore',
@@ -41,8 +43,6 @@ const DEFAULT_CATEGORIES: Category[] = [
     color: '#A78BFA',
     icon: 'PlusCircle',
   },
-
-  // Despesas com Metas de Orçamento Mensal (Budgets)
   {
     id: 'cat_housing',
     name: 'Moradia & Condomínio',
@@ -94,7 +94,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   },
 ];
 
-/** Cofre novo: conta inicial configurada ou padrão, categorias padrão e nenhum lançamento. */
 export function createInitialVaultPayload(
   vaultName: string = 'Cofre Pessoal',
   initialAccount?: InitialAccountData
@@ -102,7 +101,7 @@ export function createInitialVaultPayload(
   const accounts: Account[] = initialAccount
     ? [
         {
-          id: `acc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          id: generateEntityId('acc'),
           name: initialAccount.name.trim() || 'Conta Principal',
           type: initialAccount.type || 'checking',
           initialBalance: initialAccount.initialBalance ?? 0,
@@ -112,11 +111,13 @@ export function createInitialVaultPayload(
       ]
     : structuredClone(EMPTY_ACCOUNTS);
 
+  const { categories } = ensureSystemCategories(structuredClone(DEFAULT_CATEGORIES));
+
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
     accounts,
-    categories: structuredClone(DEFAULT_CATEGORIES),
+    categories,
     transactions: [],
     settings: {
       currency: initialAccount?.currency || 'BRL',

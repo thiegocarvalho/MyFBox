@@ -109,7 +109,6 @@ function getLanguageFlag(lang: string): string {
     return LANG_FLAG_MAP[base];
   }
 
-  // Gera bandeira a partir de código de país de 2 letras (ex: xx-BR -> BR)
   const parts = normalized.split('-');
   if (parts.length > 1 && parts[1].length === 2) {
     const country = parts[1].toUpperCase();
@@ -133,7 +132,7 @@ function getLanguageLabel(lang: string): string {
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
   } catch {
-    // fallback
+    return lang.toUpperCase();
   }
   return lang.toUpperCase();
 }
@@ -174,18 +173,15 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     selectedVoiceRef.current = selectedVoice;
   }, [selectedVoice]);
 
-  // Monta a lista de trechos/parágrafos
   const segments: SegmentItem[] = useMemo(() => {
-    const list: SegmentItem[] = [];
+    const list: SegmentItem[] = [
+      {
+        id: 0,
+        label: 'Introdução & Título',
+        text: `Análise financeira de ${monthLabel}. ${title}.`,
+      },
+    ];
 
-    // Segmento 0: Introdução e Título
-    list.push({
-      id: 0,
-      label: 'Introdução & Título',
-      text: `Análise financeira de ${monthLabel}. ${title}.`,
-    });
-
-    // Segmentos 1..N: Parágrafos do corpo
     paragraphs.forEach((p, idx) => {
       const clean = p.trim();
       if (!clean) return;
@@ -196,7 +192,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       });
     });
 
-    // Segmento final: Destaques (se houver)
     if (highlights && highlights.length > 0) {
       list.push({
         id: list.length,
@@ -208,7 +203,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     return list;
   }, [monthLabel, title, paragraphs, highlights]);
 
-  // Sincroniza destaque visual do parágrafo no componente pai
   useEffect(() => {
     if (playbackState === 'playing') {
       onReadingIndexChange?.(currentSegment);
@@ -217,7 +211,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     }
   }, [playbackState, currentSegment, onReadingIndexChange]);
 
-  // Verificação funcional de compatibilidade da Web Speech API e carregamento de vozes
   useEffect(() => {
     isMountedRef.current = true;
     if (
@@ -232,44 +225,37 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       if (!isMountedRef.current) return false;
       try {
         const allVoices = window.speechSynthesis.getVoices();
-        // Verificação funcional: se getVoices() retornar vazio (ex: Brave no Linux),
-        // a síntese não está disponível ou não há vozes instaladas no sistema.
-        if (allVoices && allVoices.length > 0) {
-          setVoices(allVoices);
+        const localVoices = allVoices ? allVoices.filter((v) => v.localService) : [];
+        if (localVoices.length > 0) {
+          setVoices(localVoices);
           setIsAvailable(true);
 
           const browserLang = getBrowserLanguage().toLowerCase();
           const browserPrefix = browserLang.split('-')[0];
 
-          // Padrão: Voz que combina com o idioma do navegador
           const preferred =
-            allVoices.find((v) => v.lang.toLowerCase() === browserLang && v.localService) ||
-            allVoices.find((v) => v.lang.toLowerCase() === browserLang) ||
-            allVoices.find((v) => v.lang.toLowerCase().startsWith(browserPrefix) && v.localService) ||
-            allVoices.find((v) => v.lang.toLowerCase().startsWith(browserPrefix)) ||
-            allVoices.find((v) => v.lang.toLowerCase().startsWith('pt')) ||
-            allVoices.find((v) => v.default) ||
-            allVoices[0] ||
+            localVoices.find((v) => v.lang.toLowerCase() === browserLang) ||
+            localVoices.find((v) => v.lang.toLowerCase().startsWith(browserPrefix)) ||
+            localVoices.find((v) => v.lang.toLowerCase().startsWith('pt')) ||
+            localVoices.find((v) => v.default) ||
+            localVoices[0] ||
             null;
 
           setSelectedVoice(preferred);
           return true;
         }
       } catch {
-        // Ignora erro
+        return false;
       }
       return false;
     };
 
-    // 1. Tenta checagem imediata
     const ready = checkAndInitVoices();
 
-    // 2. Se as vozes carregam assincronamente (Chromium/Chrome), aguarda o evento onvoiceschanged
     window.speechSynthesis.onvoiceschanged = () => {
       checkAndInitVoices();
     };
 
-    // 3. Fallback de timeout: se após 400ms o navegador não fornecer vozes, confirma indisponibilidade
     const timer = setTimeout(() => {
       if (!ready && isMountedRef.current) {
         const finalCheck = checkAndInitVoices();
@@ -288,31 +274,28 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     };
   }, []);
 
-  // Mantém estritamente 1 voz representativa por linguagem com ícone de bandeira
   const uniqueLanguageVoices = useMemo<LanguageVoiceOption[]>(() => {
     if (voices.length === 0) return [];
 
     const browserLang = getBrowserLanguage().toLowerCase();
     const browserBase = browserLang.split('-')[0];
 
-    // Agrupa as vozes por código base da língua (ex: "pt", "en", "es", "fr", "de")
     const groups = new Map<string, SpeechSynthesisVoice[]>();
     for (const v of voices) {
       const base = v.lang.replace('_', '-').split('-')[0].toLowerCase();
-      if (!groups.has(base)) {
-        groups.set(base, []);
+      const bucket = groups.get(base);
+      if (bucket) {
+        bucket.push(v);
+      } else {
+        groups.set(base, [v]);
       }
-      groups.get(base)!.push(v);
     }
 
     const result: LanguageVoiceOption[] = [];
 
     for (const [base, list] of groups.entries()) {
-      // Para cada linguagem, escolhe a 1 melhor voz
       const bestVoice =
-        list.find((v) => v.lang.toLowerCase() === browserLang && v.localService) ||
         list.find((v) => v.lang.toLowerCase() === browserLang) ||
-        list.find((v) => v.localService) ||
         list.find((v) => v.default) ||
         list[0];
 
@@ -327,7 +310,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       });
     }
 
-    // Idioma do navegador primeiro, seguido de ordem alfabética
     return result.sort((a, b) => {
       const aIsBrowser = a.langCode === browserBase;
       const bIsBrowser = b.langCode === browserBase;
@@ -337,13 +319,14 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     });
   }, [voices]);
 
-  // Se não houver suporte funcional ou nenhuma voz instalada (ex: Brave no Linux), NÃO exibe o player
   if (!isAvailable || uniqueLanguageVoices.length === 0) {
     return null;
   }
 
   const playSegment = (idx: number) => {
     if (!('speechSynthesis' in window)) return;
+    const voice = selectedVoiceRef.current;
+    if (!voice || !voice.localService) return;
     if (idx >= segments.length) {
       setPlaybackState('ended');
       setCurrentSegment(0);
@@ -354,11 +337,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
 
     const utterance = new SpeechSynthesisUtterance(segments[idx].text);
     utterance.rate = rateRef.current;
-    // Padrão é a linguagem do navegador (ou a da voz selecionada)
-    utterance.lang = selectedVoiceRef.current?.lang || getBrowserLanguage();
-    if (selectedVoiceRef.current) {
-      utterance.voice = selectedVoiceRef.current;
-    }
+    utterance.lang = voice.lang || getBrowserLanguage();
+    utterance.voice = voice;
 
     utterance.onend = () => {
       if (!isMountedRef.current) return;
@@ -376,8 +356,11 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       if (e.error !== 'canceled' && e.error !== 'interrupted') {
         if (isMountedRef.current) {
           setPlaybackState('idle');
-          // Se a síntese falhar operacionalmente no navegador, esconde o player
-          if (e.error === 'synthesis-failed' || e.error === 'synthesis-unavailable' || e.error === 'not-allowed') {
+          if (
+            e.error === 'synthesis-failed' ||
+            e.error === 'synthesis-unavailable' ||
+            e.error === 'not-allowed'
+          ) {
             setIsAvailable(false);
           }
         }
@@ -438,7 +421,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
 
   return (
     <div className="cmp-audio-player compact">
-      {/* Controles Principais */}
       <div className="cmp-audio-controls">
         <button
           type="button"
@@ -491,7 +473,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
         )}
       </div>
 
-      {/* Indicador do Trecho e Onda Sonora */}
       <div className="cmp-audio-status">
         {playbackState === 'playing' && (
           <div className="cmp-audio-wave" aria-hidden="true">
@@ -509,9 +490,7 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
         </span>
       </div>
 
-      {/* Opções à direita: Velocidade (Dropdown) e Seleção de Idioma com Bandeiras */}
       <div className="cmp-audio-settings">
-        {/* Dropdown de velocidade */}
         <select
           className="cmp-audio-select mono"
           value={rate}
@@ -526,7 +505,6 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           ))}
         </select>
 
-        {/* Dropdown de Idiomas com 1 voz por idioma e ícone de bandeira */}
         <select
           className="cmp-audio-select cmp-voice-select"
           value={currentLangBase}

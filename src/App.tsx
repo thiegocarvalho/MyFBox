@@ -36,26 +36,14 @@ import {
   needsKdfUpgrade,
 } from './services/cryptoVault';
 import { createInitialVaultPayload } from './services/defaultData';
-import {
-  ensureSystemCategories,
-  findOrCreateOutrosCategory,
-  getDefaultCategoryId,
-  isProtectedCategory,
-} from './utils/categories';
 import { downloadEncryptedBackupFile } from './services/importExport';
 import {
   formatMonthYearLabel,
   getCurrentYearMonth,
+  localTodayStr,
   shiftYearMonth,
 } from './utils/formatters';
-import {
-  formatRate,
-  formatRateDate,
-  normalizeCurrency,
-  removeExchangeRate,
-  upsertExchangeRate,
-} from './services/currencyService';
-import { accountCurrency, convertAmount, isValidRate } from './utils/money';
+import { formatRate, normalizeCurrency } from './services/currencyService';
 import {
   startMcpBridge,
   takePairingFromLocation,
@@ -66,12 +54,28 @@ import {
   requestPersistentStorage,
   type StoragePersistStatus,
 } from './services/storagePersistence';
-import { runMcpAction } from './services/mcpActions';
+import { generateEntityId } from './domain/id';
+import {
+  addAccountInVault,
+  addCategoryInVault,
+  deleteAccountInVault,
+  deleteCategoryInVault,
+  deleteTransactionInVault,
+  duplicateTransactionInVault,
+  removeVaultExchangeRate,
+  saveTransactionsInVault,
+  setTransactionStatusInVault,
+  transferBetweenAccountsInVault,
+  updateAccountInVault,
+  updateCategoryInVault,
+  upsertVaultExchangeRate,
+} from './domain/vaultUseCases';
+import { VaultLockScreen } from './components/VaultLockScreen';
+import { MyFBoxLogo } from './components/MyFBoxLogo';
+import { MobileMenu, MobileMenuButton, type NavItem } from './components/MobileMenu';
 
 const DEFAULT_MCP_PORT = 4777;
 
-// Telas carregadas sob demanda: a tela de entrada não baixa o código do app inteiro (LCP).
-// Depois do desbloqueio elas são pré-carregadas em segundo plano (troca de aba sem espera).
 const viewLoaders = {
   DashboardView: () => import('./components/DashboardView'),
   TransactionsView: () => import('./components/TransactionsView'),
@@ -82,20 +86,31 @@ const viewLoaders = {
   TransactionModal: () => import('./components/TransactionModal'),
   McpPairDialog: () => import('./components/McpPairDialog'),
 };
-const DashboardView = lazy(() => viewLoaders.DashboardView().then((m) => ({ default: m.DashboardView })));
+
+const DashboardView = lazy(() =>
+  viewLoaders.DashboardView().then((m) => ({ default: m.DashboardView }))
+);
 const TransactionsView = lazy(() =>
   viewLoaders.TransactionsView().then((m) => ({ default: m.TransactionsView }))
 );
-const ComparisonView = lazy(() => viewLoaders.ComparisonView().then((m) => ({ default: m.ComparisonView })));
-const BudgetsView = lazy(() => viewLoaders.BudgetsView().then((m) => ({ default: m.BudgetsView })));
-const AccountsView = lazy(() => viewLoaders.AccountsView().then((m) => ({ default: m.AccountsView })));
+const ComparisonView = lazy(() =>
+  viewLoaders.ComparisonView().then((m) => ({ default: m.ComparisonView }))
+);
+const BudgetsView = lazy(() =>
+  viewLoaders.BudgetsView().then((m) => ({ default: m.BudgetsView }))
+);
+const AccountsView = lazy(() =>
+  viewLoaders.AccountsView().then((m) => ({ default: m.AccountsView }))
+);
 const BackupSecurityView = lazy(() =>
   viewLoaders.BackupSecurityView().then((m) => ({ default: m.BackupSecurityView }))
 );
 const TransactionModal = lazy(() =>
   viewLoaders.TransactionModal().then((m) => ({ default: m.TransactionModal }))
 );
-const McpPairDialog = lazy(() => viewLoaders.McpPairDialog().then((m) => ({ default: m.McpPairDialog })));
+const McpPairDialog = lazy(() =>
+  viewLoaders.McpPairDialog().then((m) => ({ default: m.McpPairDialog }))
+);
 
 function prefetchViews() {
   const run = () => Object.values(viewLoaders).forEach((load) => void load());
@@ -103,25 +118,16 @@ function prefetchViews() {
   else setTimeout(run, 300);
 }
 
-
-function localTodayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-import { VaultLockScreen } from './components/VaultLockScreen';
-import { MyFBoxLogo } from './components/MyFBoxLogo';
-import { MobileMenu, MobileMenuButton, type NavItem } from './components/MobileMenu';
-
 type ActiveTab = 'dashboard' | 'transactions' | 'compare' | 'budgets' | 'accounts' | 'security';
 
 export function App() {
   const [loadingDisk, setLoadingDisk] = useState(true);
   const [envelope, setEnvelope] = useState<EncryptedVaultEnvelope | null>(null);
-  // Envelope cifrado mais recente gravado no disco (usado pelo backup via MCP)
   const envelopeRef = useRef<EncryptedVaultEnvelope | null>(null);
   useEffect(() => {
     envelopeRef.current = envelope;
   }, [envelope]);
+
   const [session, setSession] = useState<CryptoSession | null>(null);
   const [vault, setVault] = useState<VaultPayload | null>(null);
 
@@ -129,16 +135,29 @@ export function App() {
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>(getCurrentYearMonth());
   const [hideValues, setHideValues] = useState<boolean>(false);
 
-  // Modal de Lançamento
   const [txModalOpen, setTxModalOpen] = useState<boolean>(false);
   const [txModalInitialType, setTxModalInitialType] = useState<TransactionType>('expense');
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
-  // Toast de feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
   const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
     setToastMessage(msg);
-    window.setTimeout(() => setToastMessage(null), 3200);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 3200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -151,20 +170,16 @@ export function App() {
       });
   }, []);
 
+  const vaultRef = useRef<VaultPayload | null>(vault);
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
+
   const lockVault = useCallback(() => {
+    vaultRef.current = null;
     setSession(null);
     setVault(null);
     setTxModalOpen(false);
     setEditingTx(null);
   }, []);
-
-  // Persistir alterações criptografando imediatamente com novo IV de 96 bits
-  // Cópia sempre atual do cofre: atualizada na hora da escrita (não só após o render),
-  // para que operações em sequência (ex.: chamadas do MCP) nunca leiam um estado velho.
-  const vaultRef = useRef<VaultPayload | null>(vault);
-  // Gravações em fila: cifrar + salvar é assíncrono, e duas alterações rápidas não podem
-  // terminar fora de ordem (a mais antiga sobrescreveria a mais nova no disco).
-  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const persistVaultUpdate = useCallback(
     async (nextVault: VaultPayload, activeSession: CryptoSession | null = session) => {
@@ -187,7 +202,6 @@ export function App() {
     [session]
   );
 
-  // Auto-lock por inatividade
   useEffect(() => {
     if (!session || !vault) return;
     const timeoutMs = (vault.settings.autoLockMinutes || 15) * 60 * 1000;
@@ -206,7 +220,6 @@ export function App() {
     };
   }, [session, vault, lockVault]);
 
-  // Cotações de Câmbio offline (100% locais — sem APIs externas)
   const usdRate = vault?.settings.usdToBrlRate ?? null;
 
   useEffect(() => {
@@ -215,61 +228,28 @@ export function App() {
 
   const handleSaveExchangeRate = useCallback(
     async (fromRaw: string, toRaw: string, newRate: number) => {
-      if (newRate <= 0 || !Number.isFinite(newRate)) return;
+      const currentVault = vaultRef.current;
+      if (!currentVault) return;
       const from = normalizeCurrency(fromRaw);
       const to = normalizeCurrency(toRaw);
-      if (from === to) return;
-
-      const currentVault = vaultRef.current;
-      if (currentVault) {
-        const nextRates = upsertExchangeRate(
-          currentVault.settings.exchangeRates,
-          from,
-          to,
-          newRate,
-          'manual'
-        );
-        const nextSettings: VaultSettings = { ...currentVault.settings, exchangeRates: nextRates };
-
-        if (from === 'USD' && to === 'BRL') {
-          nextSettings.usdToBrlRate = newRate;
-          nextSettings.usdRateUpdatedAt = `${formatRateDate()} (manual)`;
-        } else if (from === 'BRL' && to === 'USD') {
-          const inv = Math.round((1 / newRate) * 10000) / 10000;
-          nextSettings.usdToBrlRate = inv;
-          nextSettings.usdRateUpdatedAt = `${formatRateDate()} (manual)`;
-        }
-
-        await persistVaultUpdate({
-          ...currentVault,
-          settings: nextSettings,
-        });
-        showToast(`Cotação salva: 1 ${from} = ${formatRate(newRate)} ${to}`);
-      }
+      if (!from || !to) return;
+      const nextVault = upsertVaultExchangeRate(currentVault, from, to, newRate, 'manual');
+      await persistVaultUpdate(nextVault);
+      showToast(`Cotação salva: 1 ${from} = ${formatRate(newRate)} ${to}`);
     },
     [persistVaultUpdate, showToast]
   );
 
   const handleDeleteExchangeRate = useCallback(
     async (fromRaw: string, toRaw: string) => {
+      const currentVault = vaultRef.current;
+      if (!currentVault) return;
       const from = normalizeCurrency(fromRaw);
       const to = normalizeCurrency(toRaw);
-      const currentVault = vaultRef.current;
-      if (currentVault) {
-        const nextRates = removeExchangeRate(currentVault.settings.exchangeRates, from, to);
-        const nextSettings: VaultSettings = { ...currentVault.settings, exchangeRates: nextRates };
-
-        if (from === 'USD' && to === 'BRL') {
-          delete nextSettings.usdToBrlRate;
-          delete nextSettings.usdRateUpdatedAt;
-        }
-
-        await persistVaultUpdate({
-          ...currentVault,
-          settings: nextSettings,
-        });
-        showToast(`Cotação ${from}/${to} removida`);
-      }
+      if (!from || !to) return;
+      const nextVault = removeVaultExchangeRate(currentVault, from, to);
+      await persistVaultUpdate(nextVault);
+      showToast(`Cotação ${from}/${to} removida`);
     },
     [persistVaultUpdate, showToast]
   );
@@ -281,7 +261,6 @@ export function App() {
     [handleSaveExchangeRate]
   );
 
-  // ---------- Armazenamento persistente (o navegador não apaga o cofre sem o usuário) ----------
   const [storageStatus, setStorageStatus] = useState<StoragePersistStatus>('unsupported');
   const handleRequestPersist = useCallback(async () => {
     const status = await requestPersistentStorage();
@@ -289,7 +268,6 @@ export function App() {
     return status;
   }, []);
   useEffect(() => {
-    // Pede ao abrir o cofre (criar, desbloquear ou restaurar)
     if (!session) return;
     let alive = true;
     requestPersistentStorage().then((status) => {
@@ -300,7 +278,6 @@ export function App() {
     };
   }, [session]);
 
-  // ---------- Modo MCP local (desligado por padrão; ativado na aba Backups) ----------
   const [mcpStatus, setMcpStatus] = useState<McpBridgeStatus>('off');
   const [mcpDetail, setMcpDetail] = useState<string | undefined>();
   const mcpQueueRef = useRef<Promise<unknown>>(Promise.resolve());
@@ -327,13 +304,11 @@ export function App() {
         setMcpStatus(status);
         setMcpDetail(detail);
       },
-      // Chamadas em fila: cada ação lê o cofre mais recente e grava antes da próxima
       onCall: (action, args) => {
         const run = mcpQueueRef.current.then(async () => {
           const current = vaultRef.current;
           if (!current) throw new Error('Cofre trancado.');
 
-          // Backup: entrega só o envelope JÁ CIFRADO (o mesmo do arquivo .myfbox.json)
           if (action === 'export_backup') {
             const env = envelopeRef.current;
             if (!env) throw new Error('Ainda não há envelope cifrado gravado.');
@@ -352,11 +327,12 @@ export function App() {
             return result;
           }
 
+          const { runMcpAction } = await import('./services/mcpActions');
           const outcome = runMcpAction(action, current, args, {
             usdToBrlRate: usdRateRef.current,
             today: localTodayStr(),
             nowIso: new Date().toISOString(),
-            newId: (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            newId: (prefix) => generateEntityId(prefix),
           });
           if (outcome.nextVault) await persistRef.current(outcome.nextVault);
           if (outcome.notice) showToastRef.current(outcome.notice);
@@ -369,7 +345,6 @@ export function App() {
     return stop;
   }, [session, mcpEnabled, mcpToken, mcpPort]);
 
-  // Pareamento por link (#mcp-pair=...): guarda o pedido e pede confirmação após desbloquear
   const [pendingPair, setPendingPair] = useState<McpPairingRequest | null>(null);
   useEffect(() => {
     const read = () => {
@@ -390,7 +365,6 @@ export function App() {
     [persistVaultUpdate]
   );
 
-  // Handlers de Lançamentos (Transações)
   const handleOpenNewTransaction = useCallback((type: TransactionType) => {
     setEditingTx(null);
     setTxModalInitialType(type);
@@ -401,22 +375,19 @@ export function App() {
     if (session) prefetchViews();
   }, [session]);
 
-  // Menu do celular (overlay em tela cheia)
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
-    menuButtonRef.current?.focus(); // devolve o foco ao botão MENU
+    menuButtonRef.current?.focus();
   }, []);
 
-  // No celular as abas rolam na horizontal: mantém a aba ativa visível
   useEffect(() => {
     document
       .querySelector('.workspace-tabs .ws-tab.active')
       ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }, [activeTab, session]);
 
-  // Atalho global de teclado: Pressione 'N' para novo lançamento
   useEffect(() => {
     if (!session || !vault) return;
     const handleGlobalKey = (e: KeyboardEvent) => {
@@ -436,30 +407,26 @@ export function App() {
     return () => window.removeEventListener('keydown', handleGlobalKey);
   }, [session, vault, txModalOpen, menuOpen, handleOpenNewTransaction]);
 
-  // Handlers de Autenticação e Criptografia
   const handleUnlockVault = async (password: string) => {
     if (!envelope) return;
-    const { payload, session: unlockedSession } = await unlockEnvelopeWithPassword(
+    const { payload, normalized, session: unlockedSession } = await unlockEnvelopeWithPassword(
       envelope,
       password
     );
-    // Garante que as categorias do sistema ("Outros" para despesa e receita) existam no cofre
-    const { categories: ensuredCats, changed: catsChanged } = ensureSystemCategories(payload.categories);
-    const safePayload: VaultPayload = catsChanged ? { ...payload, categories: ensuredCats } : payload;
 
-    // Cofres antigos (menos iterações PBKDF2) são recifrados com o padrão atual e sal novo
     const activeSession = needsKdfUpgrade(unlockedSession)
       ? await createNewCryptoSession(password)
       : unlockedSession;
-    if (catsChanged || activeSession !== unlockedSession) {
-      const upgraded = await encryptPayloadToEnvelope(safePayload, activeSession);
+    if (normalized || activeSession !== unlockedSession) {
+      const upgraded = await encryptPayloadToEnvelope(payload, activeSession);
       await saveEncryptedEnvelopeToDisk(upgraded);
       envelopeRef.current = upgraded;
       setEnvelope(upgraded);
     }
+    vaultRef.current = payload;
     setSession(activeSession);
-    setVault(safePayload);
-    setHideValues(safePayload.settings.hideValuesByDefault || false);
+    setVault(payload);
+    setHideValues(payload.settings.hideValuesByDefault || false);
   };
 
   const handleCreateVault = async (
@@ -471,6 +438,8 @@ export function App() {
     const initialPayload = createInitialVaultPayload(vaultName, initialAccount);
     const newEnv = await encryptPayloadToEnvelope(initialPayload, newSession);
     await saveEncryptedEnvelopeToDisk(newEnv);
+    envelopeRef.current = newEnv;
+    vaultRef.current = initialPayload;
     setEnvelope(newEnv);
     setSession(newSession);
     setVault(initialPayload);
@@ -485,23 +454,20 @@ export function App() {
       importedEnvelope,
       password
     );
-    // Garante categorias essenciais do sistema ("Outros")
-    const { categories: ensuredCats } = ensureSystemCategories(payload.categories);
-    const safePayload: VaultPayload = { ...payload, categories: ensuredCats };
 
-    // Backup antigo: regrava já com o KDF atual (mesma senha, sal novo)
     const restoredSession = needsKdfUpgrade(unlockedSession)
       ? await createNewCryptoSession(password)
       : unlockedSession;
-    const freshEnvelope = await encryptPayloadToEnvelope(safePayload, restoredSession);
+    const freshEnvelope = await encryptPayloadToEnvelope(payload, restoredSession);
     await saveEncryptedEnvelopeToDisk(freshEnvelope);
+    envelopeRef.current = freshEnvelope;
+    vaultRef.current = payload;
     setEnvelope(freshEnvelope);
     setSession(restoredSession);
-    setVault(safePayload);
+    setVault(payload);
     setActiveTab('dashboard');
   };
 
-  // Baixa o backup cifrado e registra a data no cofre (aviso de backup antigo)
   const handleDownloadBackup = async () => {
     if (!envelope || !vault) return;
     downloadEncryptedBackupFile(envelope, vault.settings.vaultName);
@@ -511,12 +477,10 @@ export function App() {
     });
   };
 
-  // Apaga o cofre deste navegador para criar outro. Exige a senha mestra atual
-  // (confere descriptografando o envelope) antes de apagar.
   const handleDeleteVault = async (password: string) => {
     const env = envelopeRef.current;
     if (!env) throw new Error('Não há cofre gravado neste navegador.');
-    await unlockEnvelopeWithPassword(env, password); // lança erro se a senha estiver errada
+    await unlockEnvelopeWithPassword(env, password);
     await deleteEncryptedVaultFromDisk();
     envelopeRef.current = null;
     vaultRef.current = null;
@@ -535,13 +499,10 @@ export function App() {
 
   const handleSaveTransactions = async (txsToSave: Transaction[], isEdit: boolean) => {
     if (!vault) return;
-    let nextTransactions: Transaction[];
+    const nextVault = saveTransactionsInVault(vault, txsToSave, isEdit);
     if (isEdit && txsToSave.length === 1) {
-      const updated = txsToSave[0];
-      nextTransactions = vault.transactions.map((t) => (t.id === updated.id ? updated : t));
-      showToast(`Lançamento "${updated.description}" atualizado no cofre`);
+      showToast(`Lançamento "${txsToSave[0].description}" atualizado no cofre`);
     } else {
-      nextTransactions = [...txsToSave, ...vault.transactions];
       const count = txsToSave.length;
       showToast(
         count === 1
@@ -549,41 +510,25 @@ export function App() {
           : `${count} lançamentos registrados no cofre`
       );
     }
-    await persistVaultUpdate({
-      ...vault,
-      transactions: nextTransactions,
-    });
+    await persistVaultUpdate(nextVault);
     setTxModalOpen(false);
     setEditingTx(null);
   };
 
-  // Muda a situação de um lançamento. Ao pagar, registra a data do pagamento (paidAt) sem
-  // mexer na data de vencimento; ao voltar para pendente, a data do pagamento é apagada.
   const setTransactionStatus = async (
     txId: string,
     nextStatus: Transaction['status'],
     paidAt?: string
   ) => {
     if (!vault) return;
-    const liveRate = usdRate || vault.settings.usdToBrlRate;
-    const nextTransactions = vault.transactions.map((t): Transaction => {
-      if (t.id !== txId) return t;
-      // Ao liquidar um lançamento em USD sem cotação fixada, fixa a cotação do dia
-      const account = vault.accounts.find((a) => a.id === t.accountId);
-      const involvesUsd = t.currency === 'USD' || accountCurrency(account ?? {}) === 'USD';
-      const shouldFixRate =
-        nextStatus === 'paid' && involvesUsd && !isValidRate(t.exchangeRate) && isValidRate(liveRate);
-      return {
-        ...t,
-        status: nextStatus,
-        paidAt: nextStatus === 'paid' ? paidAt ?? localTodayStr() : undefined,
-        exchangeRate: shouldFixRate ? liveRate : t.exchangeRate,
-      };
-    });
-    await persistVaultUpdate({
-      ...vault,
-      transactions: nextTransactions,
-    });
+    const nextVault = setTransactionStatusInVault(
+      vault,
+      txId,
+      nextStatus,
+      localTodayStr(),
+      paidAt
+    );
+    await persistVaultUpdate(nextVault);
   };
 
   const handleToggleTransactionStatus = async (txId: string) => {
@@ -598,114 +543,46 @@ export function App() {
 
   const handleDeleteTransaction = async (txId: string) => {
     if (!vault) return;
-    await persistVaultUpdate({
-      ...vault,
-      transactions: vault.transactions.filter((t) => t.id !== txId),
-    });
+    await persistVaultUpdate(deleteTransactionInVault(vault, txId));
   };
 
   const handleDuplicateTransaction = async (tx: Transaction) => {
     if (!vault) return;
-    const clone: Transaction = {
-      ...tx,
-      id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      description: `${tx.description} (Cópia)`,
-      createdAt: new Date().toISOString(),
-    };
-    await persistVaultUpdate({
-      ...vault,
-      transactions: [clone, ...vault.transactions],
-    });
+    await persistVaultUpdate(duplicateTransactionInVault(vault, tx));
   };
 
-  // Handlers de Categorias e Metas
   const handleUpdateCategory = async (updatedCat: Category) => {
     if (!vault) return;
-    const original = vault.categories.find((c) => c.id === updatedCat.id);
-    // Se for categoria protegida do sistema, o nome é fixo ("Outros") e isSystem permanece true
-    const safeCat: Category = original && isProtectedCategory(original)
-      ? { ...updatedCat, name: 'Outros', isSystem: true }
-      : updatedCat;
-
-    await persistVaultUpdate({
-      ...vault,
-      categories: vault.categories.map((c) => (c.id === safeCat.id ? safeCat : c)),
-    });
+    await persistVaultUpdate(updateCategoryInVault(vault, updatedCat));
   };
 
   const handleAddCategory = async (newCat: Category) => {
     if (!vault) return;
-    await persistVaultUpdate({
-      ...vault,
-      categories: [...vault.categories, newCat],
-    });
+    await persistVaultUpdate(addCategoryInVault(vault, newCat));
   };
 
   const handleDeleteCategory = async (catId: string) => {
     if (!vault) return;
-    const deleted = vault.categories.find((c) => c.id === catId);
-    if (!deleted) return;
-
-    // Categoria protegida do sistema ("Outros") nunca pode ser excluída
-    if (isProtectedCategory(deleted)) {
-      return;
-    }
-
-    const remainingWithoutDeleted = vault.categories.filter((c) => c.id !== catId);
-
-    // Garante que a categoria "Outros" do mesmo tipo exista para absorver os lançamentos
-    const { target: outrosCategory, categories: nextCategories } = findOrCreateOutrosCategory(
-      remainingWithoutDeleted,
-      deleted.type
-    );
-
-    // Todos os lançamentos vinculados à categoria apagada vão OBRIGATORIAMENTE para a categoria "Outros"
-    const nextTransactions = vault.transactions.map((t) =>
-      t.categoryId === catId ? { ...t, categoryId: outrosCategory.id } : t
-    );
-
-    await persistVaultUpdate({
-      ...vault,
-      categories: nextCategories,
-      transactions: nextTransactions,
-    });
+    const nextVault = deleteCategoryInVault(vault, catId);
+    if (!nextVault) return;
+    await persistVaultUpdate(nextVault);
   };
 
-  // Handlers de Contas
   const handleAddAccount = async (acc: Account) => {
     if (!vault) return;
-    await persistVaultUpdate({
-      ...vault,
-      accounts: [...vault.accounts, acc],
-    });
+    await persistVaultUpdate(addAccountInVault(vault, acc));
   };
 
   const handleUpdateAccount = async (acc: Account) => {
     if (!vault) return;
-    await persistVaultUpdate({
-      ...vault,
-      accounts: vault.accounts.map((a) => (a.id === acc.id ? acc : a)),
-    });
+    await persistVaultUpdate(updateAccountInVault(vault, acc));
   };
 
   const handleDeleteAccount = async (accId: string) => {
-    if (!vault || vault.accounts.length <= 1) return;
-    const remaining = vault.accounts.filter((a) => a.id !== accId);
-    const deletedCurrency = accountCurrency(
-      vault.accounts.find((a) => a.id === accId) ?? {}
-    );
-    // Prefere uma conta da mesma moeda para não misturar R$ e US$ no saldo
-    const fallbackAccId = (
-      remaining.find((a) => accountCurrency(a) === deletedCurrency) ?? remaining[0]
-    ).id;
-    const nextTransactions = vault.transactions.map((t) =>
-      t.accountId === accId ? { ...t, accountId: fallbackAccId } : t
-    );
-    await persistVaultUpdate({
-      ...vault,
-      accounts: remaining,
-      transactions: nextTransactions,
-    });
+    if (!vault) return;
+    const nextVault = deleteAccountInVault(vault, accId);
+    if (!nextVault) return;
+    await persistVaultUpdate(nextVault);
   };
 
   const handleTransferBetweenAccounts = async (
@@ -716,68 +593,22 @@ export function App() {
     description: string
   ) => {
     if (!vault) return;
-    const fromAccount = vault.accounts.find((a) => a.id === fromAccId);
-    const toAccount = vault.accounts.find((a) => a.id === toAccId);
-    if (!fromAccount || !toAccount) return;
-    const fromName = fromAccount.name;
-    const toName = toAccount.name;
-    const fromCurrency = accountCurrency(fromAccount);
-    const toCurrency = accountCurrency(toAccount);
-    const rate = usdRate || vault.settings.usdToBrlRate;
-    const convertedAmount = convertAmount(amount, fromCurrency, toCurrency, rate);
-    if (convertedAmount === null) {
-      showToast('Sem cotação USD/BRL disponível para transferir entre moedas diferentes.');
+    const result = transferBetweenAccountsInVault(vault, {
+      fromAccId,
+      toAccId,
+      amount,
+      date,
+      description,
+    });
+    if ('error' in result) {
+      showToast(result.error);
       return;
     }
-    const isCrossCurrency = fromCurrency !== toCurrency;
-    const fixedRate = isCrossCurrency && isValidRate(rate) ? rate : undefined;
-    const inAmount = Math.round(convertedAmount * 100) / 100;
-    const expCat = getDefaultCategoryId(vault.categories, 'expense');
-    const incCat = getDefaultCategoryId(vault.categories, 'income');
-    const nowIso = new Date().toISOString();
-
-    const outTx: Transaction = {
-      id: `tx_trf_out_${Date.now()}`,
-      description: `${description} (Para ${toName})`,
-      amount,
-      currency: fromCurrency,
-      exchangeRate: fromCurrency === 'USD' ? fixedRate : undefined,
-      type: 'expense',
-      status: 'paid',
-      date,
-      categoryId: expCat,
-      accountId: fromAccId,
-      notes: 'Transferência interna entre contas',
-      createdAt: nowIso,
-    };
-
-    const inTx: Transaction = {
-      id: `tx_trf_in_${Date.now() + 1}`,
-      description: `${description} (De ${fromName})`,
-      amount: inAmount,
-      currency: toCurrency,
-      exchangeRate: toCurrency === 'USD' ? fixedRate : undefined,
-      type: 'income',
-      status: 'paid',
-      date,
-      categoryId: incCat,
-      accountId: toAccId,
-      notes: 'Transferência interna entre contas',
-      createdAt: nowIso,
-    };
-
-    await persistVaultUpdate({
-      ...vault,
-      transactions: [inTx, outTx, ...vault.transactions],
-    });
+    await persistVaultUpdate(result.nextVault);
   };
 
   if (loadingDisk) {
-    return (
-      <div className="loading-screen mono">
-        Carregando cofre criptografado...
-      </div>
-    );
+    return <div className="loading-screen mono">Carregando cofre criptografado...</div>;
   }
 
   if (!session || !vault) {
@@ -792,10 +623,14 @@ export function App() {
     );
   }
 
-  // Seções do app: usadas pelas abas (desktop) e pelo menu em tela cheia (celular)
   const navItems: NavItem<ActiveTab>[] = [
     { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-    { id: 'transactions', label: 'Lançamentos', icon: ReceiptText, count: vault.transactions.length },
+    {
+      id: 'transactions',
+      label: 'Lançamentos',
+      icon: ReceiptText,
+      count: vault.transactions.length,
+    },
     { id: 'compare', label: 'Comparativos', icon: BarChart3 },
     { id: 'budgets', label: 'Metas', icon: Target },
     { id: 'accounts', label: 'Contas', icon: Wallet, count: vault.accounts.length },
@@ -804,7 +639,6 @@ export function App() {
 
   return (
     <div className="app-shell">
-      {/* Topbar Unificada e Limpa */}
       <header className="workspace-header">
         <div className="header-left">
           <div className="brand-block">
@@ -819,7 +653,6 @@ export function App() {
             </div>
           </div>
 
-          {/* Seletor de Mês Compacto */}
           <div
             className={`month-navigator ${selectedYearMonth !== getCurrentYearMonth() ? 'is-away' : ''}`}
           >
@@ -858,7 +691,6 @@ export function App() {
           </div>
         </div>
 
-        {/* Abas de Navegação Centrais */}
         <nav className="workspace-tabs" aria-label="Seções do app">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -877,7 +709,6 @@ export function App() {
           })}
         </nav>
 
-        {/* Celular: um botão MENU de largura total abre a navegação em tela cheia */}
         <MobileMenuButton
           ref={menuButtonRef}
           onClick={() => setMenuOpen(true)}
@@ -892,7 +723,6 @@ export function App() {
           onClose={closeMenu}
         />
 
-        {/* Ações Rápidas no Topo */}
         <div className="header-right">
           <button
             type="button"
@@ -923,172 +753,175 @@ export function App() {
         </div>
       </header>
 
-      {/* Conteúdo Principal */}
       <main className="workspace-main">
         <Suspense fallback={<div className="view-loading" aria-busy="true" />}>
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            selectedYearMonth={selectedYearMonth}
-            onSelectYearMonth={setSelectedYearMonth}
-            transactions={vault.transactions}
-            categories={vault.categories}
-            accounts={vault.accounts}
-            hideValues={hideValues}
-            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            onSettleTransaction={handleSettleTransaction}
-            onOpenNewTransaction={handleOpenNewTransaction}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-          />
-        )}
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              selectedYearMonth={selectedYearMonth}
+              onSelectYearMonth={setSelectedYearMonth}
+              transactions={vault.transactions}
+              categories={vault.categories}
+              accounts={vault.accounts}
+              hideValues={hideValues}
+              usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+              rateSource={vault.settings}
+              onSettleTransaction={handleSettleTransaction}
+              onOpenNewTransaction={handleOpenNewTransaction}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+            />
+          )}
 
-        {activeTab === 'transactions' && (
-          <TransactionsView
-            selectedYearMonth={selectedYearMonth}
-            onSelectYearMonth={setSelectedYearMonth}
-            transactions={vault.transactions}
-            categories={vault.categories}
-            accounts={vault.accounts}
-            hideValues={hideValues}
-            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            onOpenNewTransaction={handleOpenNewTransaction}
-            onEditTransaction={(tx) => {
-              setEditingTx(tx);
-              setTxModalOpen(true);
-            }}
-            onDuplicateTransaction={handleDuplicateTransaction}
-            onDeleteTransaction={handleDeleteTransaction}
-            onToggleTransactionStatus={handleToggleTransactionStatus}
-          />
-        )}
+          {activeTab === 'transactions' && (
+            <TransactionsView
+              selectedYearMonth={selectedYearMonth}
+              onSelectYearMonth={setSelectedYearMonth}
+              transactions={vault.transactions}
+              categories={vault.categories}
+              accounts={vault.accounts}
+              hideValues={hideValues}
+              usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+              rateSource={vault.settings}
+              onOpenNewTransaction={handleOpenNewTransaction}
+              onEditTransaction={(tx) => {
+                setEditingTx(tx);
+                setTxModalOpen(true);
+              }}
+              onDuplicateTransaction={handleDuplicateTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
+              onToggleTransactionStatus={handleToggleTransactionStatus}
+            />
+          )}
 
-        {activeTab === 'budgets' && (
-          <BudgetsView
-            selectedYearMonth={selectedYearMonth}
-            categories={vault.categories}
-            transactions={vault.transactions}
-            hideValues={hideValues}
-            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            onUpdateCategory={handleUpdateCategory}
-            onAddCategory={handleAddCategory}
-            onDeleteCategory={handleDeleteCategory}
-          />
-        )}
+          {activeTab === 'budgets' && (
+            <BudgetsView
+              selectedYearMonth={selectedYearMonth}
+              categories={vault.categories}
+              transactions={vault.transactions}
+              hideValues={hideValues}
+              usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+              rateSource={vault.settings}
+              onUpdateCategory={handleUpdateCategory}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategory}
+            />
+          )}
 
-        {activeTab === 'compare' && (
-          <ComparisonView
-            selectedYearMonth={selectedYearMonth}
-            transactions={vault.transactions}
-            categories={vault.categories}
-            insights={vault.insights ?? []}
-            hideValues={hideValues}
-            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-          />
-        )}
+          {activeTab === 'compare' && (
+            <ComparisonView
+              selectedYearMonth={selectedYearMonth}
+              transactions={vault.transactions}
+              categories={vault.categories}
+              insights={vault.insights ?? []}
+              hideValues={hideValues}
+              usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+              rateSource={vault.settings}
+            />
+          )}
 
-        {activeTab === 'accounts' && (
-          <AccountsView
-            accounts={vault.accounts}
-            transactions={vault.transactions}
-            hideValues={hideValues}
-            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-            selectedYearMonth={selectedYearMonth}
-            onAddAccount={handleAddAccount}
-            onUpdateAccount={handleUpdateAccount}
-            onDeleteAccount={handleDeleteAccount}
-            onTransferBetweenAccounts={handleTransferBetweenAccounts}
-          />
-        )}
+          {activeTab === 'accounts' && (
+            <AccountsView
+              accounts={vault.accounts}
+              transactions={vault.transactions}
+              hideValues={hideValues}
+              usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+              rateSource={vault.settings}
+              selectedYearMonth={selectedYearMonth}
+              onAddAccount={handleAddAccount}
+              onUpdateAccount={handleUpdateAccount}
+              onDeleteAccount={handleDeleteAccount}
+              onTransferBetweenAccounts={handleTransferBetweenAccounts}
+            />
+          )}
 
-        {activeTab === 'security' && (
-          <BackupSecurityView
-            envelope={envelope}
-            transactions={vault.transactions}
-            categories={vault.categories}
-            accounts={vault.accounts}
-            autoLockMinutes={vault.settings.autoLockMinutes}
-            onUpdateAutoLockMinutes={(mins) =>
-              persistVaultUpdate({
-                ...vault,
-                settings: { ...vault.settings, autoLockMinutes: mins },
-              })
-            }
-            onChangeMasterPassword={handleChangeMasterPassword}
-            onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
-            onDeleteVault={handleDeleteVault}
-            lastBackupAt={vault.settings.lastBackupAt}
-            onDownloadBackup={handleDownloadBackup}
-            storageStatus={storageStatus}
-            onRequestPersist={async () => {
-              const status = await handleRequestPersist();
-              showToast(
-                status === 'persisted'
-                  ? 'Armazenamento persistente ativo: o navegador não vai apagar o cofre sozinho.'
-                  : status === 'unsupported'
-                  ? 'Este navegador não permite pedir armazenamento persistente.'
-                  : 'O navegador recusou por enquanto. Favoritar o app ou usá-lo com frequência costuma liberar.'
-              );
-            }}
-            usdRate={usdRate || vault.settings.usdToBrlRate}
-            usdRateUpdatedAt={vault.settings.usdRateUpdatedAt}
-            exchangeRates={vault.settings.exchangeRates}
-            onSaveExchangeRate={handleSaveExchangeRate}
-            onDeleteExchangeRate={handleDeleteExchangeRate}
-            onUpdateManualUsdRate={handleUpdateManualUsdRate}
-            mcp={{
-              enabled: mcpEnabled,
-              token: mcpToken,
-              port: mcpPort,
-              status: mcpStatus,
-              detail: mcpDetail,
-            }}
-            onUpdateMcpSettings={handleUpdateMcpSettings}
-          />
-        )}
+          {activeTab === 'security' && (
+            <BackupSecurityView
+              envelope={envelope}
+              transactions={vault.transactions}
+              categories={vault.categories}
+              accounts={vault.accounts}
+              autoLockMinutes={vault.settings.autoLockMinutes}
+              onUpdateAutoLockMinutes={(mins) =>
+                persistVaultUpdate({
+                  ...vault,
+                  settings: { ...vault.settings, autoLockMinutes: mins },
+                })
+              }
+              onChangeMasterPassword={handleChangeMasterPassword}
+              onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
+              onDeleteVault={handleDeleteVault}
+              lastBackupAt={vault.settings.lastBackupAt}
+              onDownloadBackup={handleDownloadBackup}
+              storageStatus={storageStatus}
+              onRequestPersist={async () => {
+                const status = await handleRequestPersist();
+                showToast(
+                  status === 'persisted'
+                    ? 'Armazenamento persistente ativo: o navegador não vai apagar o cofre sozinho.'
+                    : status === 'unsupported'
+                      ? 'Este navegador não permite pedir armazenamento persistente.'
+                      : 'O navegador recusou por enquanto. Favoritar o app ou usá-lo com frequência costuma liberar.'
+                );
+              }}
+              usdRate={usdRate || vault.settings.usdToBrlRate}
+              usdRateUpdatedAt={vault.settings.usdRateUpdatedAt}
+              exchangeRates={vault.settings.exchangeRates}
+              onSaveExchangeRate={handleSaveExchangeRate}
+              onDeleteExchangeRate={handleDeleteExchangeRate}
+              onUpdateManualUsdRate={handleUpdateManualUsdRate}
+              mcp={{
+                enabled: mcpEnabled,
+                token: mcpToken,
+                port: mcpPort,
+                status: mcpStatus,
+                detail: mcpDetail,
+              }}
+              onUpdateMcpSettings={handleUpdateMcpSettings}
+            />
+          )}
         </Suspense>
       </main>
 
       <Suspense fallback={null}>
-      {/* Modal de Criar / Editar Lançamento */}
-      {txModalOpen && (
-        <TransactionModal
-          initialType={txModalInitialType}
-          editingTransaction={editingTx}
-          categories={vault.categories}
-          accounts={vault.accounts}
-          transactions={vault.transactions}
-          defaultYearMonth={selectedYearMonth}
-          usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
-          onCreateCategory={handleAddCategory}
-          onSave={handleSaveTransactions}
-          onClose={() => {
-            setTxModalOpen(false);
-            setEditingTx(null);
-          }}
-        />
-      )}
+        {txModalOpen && (
+          <TransactionModal
+            initialType={txModalInitialType}
+            editingTransaction={editingTx}
+            categories={vault.categories}
+            accounts={vault.accounts}
+            transactions={vault.transactions}
+            defaultYearMonth={selectedYearMonth}
+            usdToBrlRate={usdRate || vault.settings.usdToBrlRate}
+            rateSource={vault.settings}
+            onCreateCategory={handleAddCategory}
+            onSave={handleSaveTransactions}
+            onClose={() => {
+              setTxModalOpen(false);
+              setEditingTx(null);
+            }}
+          />
+        )}
 
-      {pendingPair && (
-        <McpPairDialog
-          request={pendingPair}
-          onApprove={async () => {
-            const req = pendingPair;
-            setPendingPair(null);
-            await handleUpdateMcpSettings({
-              mcpEnabled: true,
-              mcpToken: req.token,
-              mcpPort: req.port,
-            });
-            showToast('Assistente autorizado. Conectando ao servidor MCP local...');
-          }}
-          onReject={() => {
-            setPendingPair(null);
-            showToast('Pareamento recusado. Nada foi alterado.');
-          }}
-        />
-      )}
+        {pendingPair && (
+          <McpPairDialog
+            request={pendingPair}
+            onApprove={async () => {
+              const req = pendingPair;
+              setPendingPair(null);
+              await handleUpdateMcpSettings({
+                mcpEnabled: true,
+                mcpToken: req.token,
+                mcpPort: req.port,
+              });
+              showToast('Assistente autorizado. Conectando ao servidor MCP local...');
+            }}
+            onReject={() => {
+              setPendingPair(null);
+              showToast('Pareamento recusado. Nada foi alterado.');
+            }}
+          />
+        )}
       </Suspense>
 
-      {/* Toast de Feedback */}
       {toastMessage && (
         <div className="vault-toast-notification">
           <ShieldCheck size={16} />

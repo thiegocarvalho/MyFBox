@@ -31,7 +31,6 @@ interface PromptItem {
 }
 
 const PROMPT_ITEMS: PromptItem[] = [
-  // Lançamentos
   {
     id: 'tx-simple',
     category: 'Lançamentos',
@@ -64,8 +63,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'Registra o lançamento na moeda especificada com conversão pela taxa de câmbio offline fixada no cofre.',
     toolsUsed: ['create_transaction'],
   },
-
-  // Baixas
   {
     id: 'tx-settle',
     category: 'Baixas',
@@ -90,8 +87,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'Reclassifica o gasto para a categoria desejada mantendo as regras e metas orçamentárias íntegras.',
     toolsUsed: ['list_categories', 'update_transaction'],
   },
-
-  // Cotações
   {
     id: 'rate-set-usd',
     category: 'Cotações',
@@ -116,8 +111,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'Retorna todos os pares salvos no cofre, data de atualização, fonte e a lista fechada de moedas válidas.',
     toolsUsed: ['list_exchange_rates'],
   },
-
-  // Metas
   {
     id: 'cat-create-budget',
     category: 'Metas',
@@ -134,8 +127,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'Ajusta o limite de gastos mensal de despesas existentes. Use "null" ou "remover meta" para retirar o teto.',
     toolsUsed: ['list_categories', 'set_category_budget'],
   },
-
-  // Consultas
   {
     id: 'query-overview',
     category: 'Consultas',
@@ -160,8 +151,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'Exibe cada conta bancária, carteira física ou conta internacional com saldos confirmados e projetados.',
     toolsUsed: ['list_accounts'],
   },
-
-  // Comparativos
   {
     id: 'compare-months',
     category: 'Comparativos',
@@ -178,8 +167,6 @@ const PROMPT_ITEMS: PromptItem[] = [
     description: 'A IA redige um insight objetivo com causas, riscos e próximos passos, gravando cifrado diretamente no cofre.',
     toolsUsed: ['get_month_comparison', 'save_insight'],
   },
-
-  // Backups
   {
     id: 'backup-export',
     category: 'Backups',
@@ -355,7 +342,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
         aria-modal="true"
         aria-labelledby="mcp-instructions-title"
       >
-        {/* Cabeçalho do Modal */}
         <header className="modal-header mcp-modal-header">
           <div className="mcp-modal-title-wrap">
             <div className="mcp-badge">
@@ -378,7 +364,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
           </button>
         </header>
 
-        {/* Barra de Abas do Modal */}
         <div className="mcp-modal-nav">
           <button
             type="button"
@@ -417,9 +402,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
           </button>
         </div>
 
-        {/* Corpo do Modal */}
         <div className="modal-body mcp-modal-body">
-          {/* ABA 1: PROMPTS PRONTOS */}
           {activeTab === 'prompts' && (
             <div className="mcp-tab-pane">
               <div className="mcp-prompts-top">
@@ -507,7 +490,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             </div>
           )}
 
-          {/* ABA 2: ÍNDICE DE CAPACIDADES DO MCP */}
           {activeTab === 'capabilities' && (
             <div className="mcp-tab-pane">
               <div className="mcp-intro-callout">
@@ -580,7 +562,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             </div>
           )}
 
-          {/* ABA 3: INSTALAÇÃO & CONFIGURAÇÃO */}
           {activeTab === 'install' && (
             <div className="mcp-tab-pane">
               <div className="mcp-guide-step">
@@ -683,9 +664,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <div className="mcp-step-num">3</div>
                 <div className="mcp-step-content">
                   <h4>Como Parear com 1 Comando</h4>
-                  <p>
-                    No chat do assistente de IA, envie o prompt de pareamento:
-                  </p>
+                  <p>No chat do assistente de IA, envie o prompt de pareamento:</p>
                   <div className="mcp-prompt-box">
                     <p className="mcp-prompt-text">
                       “Conecte ao MyFBox pelo servidor MCP local e me mostre o status da conexão.”
@@ -721,7 +700,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             </div>
           )}
 
-          {/* ABA 4: SEGURANÇA & PRIVACIDADE */}
           {activeTab === 'security' && (
             <div className="mcp-tab-pane">
               <div className="mcp-security-banner">
@@ -785,7 +763,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
           )}
         </div>
 
-        {/* Rodapé do Modal */}
         <footer className="modal-footer mcp-modal-footer">
           <div className="mcp-footer-tip">
             <HelpCircle size={14} />
