@@ -26,7 +26,6 @@ import {
   txAmountInBrl,
 } from '../utils/money';
 import {
-  findExchangeRate,
   getCurrencyInfo,
   getCurrencySymbol,
   normalizeCurrency,
@@ -94,11 +93,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     const symbol = getCurrencySymbol(code);
     const name = info?.name || code;
     if (code === baseCurrency) {
-      return `${flag}${code} — ${name} (${symbol}) · Moeda padrão`;
+      return `${flag}${code} (${symbol}) — ${name} (Padrão)`;
     }
-    const rateToBrl = findExchangeRate(effectiveRates, code, baseCurrency);
-    const rateLabel = rateToBrl ? ` · 1 ${code} = ${formatBRL(rateToBrl)}` : '';
-    return `${flag}${code} — ${name} (${symbol})${rateLabel}`;
+    return `${flag}${code} (${symbol}) — ${name}`;
   };
 
   const [editingCatId, setEditingCatId] = useState<string | null>(null);
@@ -1154,7 +1151,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
                 {newCatType === 'expense' ? (
                   <>
-                    <div className="form-grid-2">
+                    <div className="budget-modal-goal-row">
                       <div className="form-field">
                         <label>Moeda da Meta</label>
                         <select
@@ -1171,7 +1168,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
                       <div className="form-field">
                         <label>
-                          Meta Mensal ({getCurrencySymbol(newCatCurrency)}, opcional)
+                          Meta Mensal ({getCurrencySymbol(newCatCurrency)}){' '}
+                          <span className="label-optional">opcional</span>
                         </label>
                         <input
                           type="number"

@@ -752,17 +752,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               Cancelar
             </button>
 
-            {!isEdit && (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => executeSave(true)}
-                title="Salva este lançamento e abre espaço para o próximo sem fechar a janela (Ctrl+Shift+Enter ou Alt+N)"
-              >
-                <Plus size={15} /> Salvar e Novo
-              </button>
-            )}
-
             <button type="submit" className="btn-primary">
               {isEdit
                 ? 'Salvar Alterações'
