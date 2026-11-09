@@ -1,0 +1,67 @@
+{
+  "name": "MyFBox — My Financial Box",
+  "short_name": "MyFBox",
+  "description": "Controle financeiro pessoal local-first com criptografia AES-256 no seu dispositivo.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#101010",
+  "theme_color": "#101010",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "MyFBox no desktop"
+    },
+    {
+      "src": "/screenshots/screenshot-mobile.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "MyFBox no celular"
+    }
+  ],
+  "translations": {
+    "pt": {
+      "name": "MyFBox — Minha Caixa Financeira",
+      "short_name": "MyFBox",
+      "description": "Controle financeiro pessoal local-first com criptografia AES-256 no seu dispositivo."
+    },
+    "en": {
+      "name": "MyFBox — My Financial Box",
+      "short_name": "MyFBox",
+      "description": "Local-first personal finance vault with client-side AES-256 encryption on your device."
+    }
+  }
+}
