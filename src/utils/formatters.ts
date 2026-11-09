@@ -31,6 +31,33 @@ const MONTHS_FULL = [
   'Dezembro',
 ] as const;
 
+const NON_ISO_CURRENCIES = new Set<string>(['BTC', 'ETH', 'USDT']);
+const CURRENCY_FORMATTER_CACHE = new Map<string, Intl.NumberFormat | null>();
+const DECIMAL_FORMATTER = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function getCurrencyFormatter(currency: string): Intl.NumberFormat | null {
+  if (NON_ISO_CURRENCIES.has(currency)) return null;
+  if (CURRENCY_FORMATTER_CACHE.has(currency)) {
+    return CURRENCY_FORMATTER_CACHE.get(currency) ?? null;
+  }
+  try {
+    const formatter = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    CURRENCY_FORMATTER_CACHE.set(currency, formatter);
+    return formatter;
+  } catch {
+    CURRENCY_FORMATTER_CACHE.set(currency, null);
+    return null;
+  }
+}
+
 export function formatMoney(
   value: number,
   currency: Currency = 'BRL',
@@ -40,20 +67,12 @@ export function formatMoney(
     const sym = getCurrencySymbol(currency) || currency;
     return `${sym} •••••`;
   }
-  try {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    const sym = getCurrencySymbol(currency) || currency;
-    return `${sym} ${value.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  const formatter = getCurrencyFormatter(currency);
+  if (formatter) {
+    return formatter.format(value);
   }
+  const sym = getCurrencySymbol(currency) || currency;
+  return `${sym} ${DECIMAL_FORMATTER.format(value)}`;
 }
 
 export function formatBRL(value: number, hideValues: boolean = false): string {

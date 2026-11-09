@@ -304,7 +304,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
   if (!isOpen) return null;
 
   const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard?.writeText(text).catch(() => undefined);
     setCopiedId(id);
     setTimeout(() => {
       setCopiedId(null);

@@ -81,15 +81,28 @@ export function isSupportedCurrency(code: string): code is PopularCurrencyCode {
   return SUPPORTED_CODE_SET.has(normalizeCurrency(code));
 }
 
+const RATE_FMT_2 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const RATE_FMT_4 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+const RATE_FMT_6 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 6,
+});
+
 export function formatRate(rate: number): string {
   if (!Number.isFinite(rate) || rate <= 0) return '0.00';
   if (rate >= 100) {
-    return rate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return RATE_FMT_2.format(rate);
   }
   if (rate >= 1) {
-    return rate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    return RATE_FMT_4.format(rate);
   }
-  return rate.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 6 });
+  return RATE_FMT_6.format(rate);
 }
 
 export function formatRateDate(d: Date = new Date()): string {

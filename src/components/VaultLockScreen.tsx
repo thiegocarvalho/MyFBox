@@ -615,6 +615,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                 <div className="gate-field">
                   <label htmlFor="account-currency">Moeda</label>
                   <div className="gate-input">
+                    <Coins size={16} className="gate-input-icon" aria-hidden />
                     <select
                       id="account-currency"
                       value={accountCurrency}

@@ -120,14 +120,18 @@ function getLanguageFlag(lang: string): string {
   return '🌐';
 }
 
+const LANG_DISPLAY_NAMES =
+  typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
+    ? new Intl.DisplayNames(['pt-BR'], { type: 'language' })
+    : null;
+
 function getLanguageLabel(lang: string): string {
   const base = lang.replace('_', '-').split('-')[0].toLowerCase();
   if (LANG_NAME_MAP[base]) {
     return LANG_NAME_MAP[base];
   }
   try {
-    const d = new Intl.DisplayNames(['pt-BR'], { type: 'language' });
-    const name = d.of(base);
+    const name = LANG_DISPLAY_NAMES?.of(base);
     if (name) {
       return name.charAt(0).toUpperCase() + name.slice(1);
     }
@@ -252,9 +256,12 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
 
     const ready = checkAndInitVoices();
 
-    window.speechSynthesis.onvoiceschanged = () => {
+    const handleVoicesChanged = () => {
       checkAndInitVoices();
     };
+
+    window.speechSynthesis.addEventListener?.('voiceschanged', handleVoicesChanged);
+    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
 
     const timer = setTimeout(() => {
       if (!ready && isMountedRef.current) {
@@ -269,6 +276,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       isMountedRef.current = false;
       clearTimeout(timer);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.removeEventListener?.('voiceschanged', handleVoicesChanged);
+        window.speechSynthesis.onvoiceschanged = null;
         window.speechSynthesis.cancel();
       }
     };
@@ -333,11 +342,13 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       return;
     }
 
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel();
+    }
 
     const utterance = new SpeechSynthesisUtterance(segments[idx].text);
     utterance.rate = rateRef.current;
-    utterance.lang = voice.lang || getBrowserLanguage();
+    utterance.lang = (voice.lang || getBrowserLanguage()).replace('_', '-');
     utterance.voice = voice;
 
     utterance.onend = () => {
