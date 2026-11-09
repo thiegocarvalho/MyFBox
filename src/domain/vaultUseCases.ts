@@ -44,12 +44,15 @@ export function setTransactionStatusInVault(
   txId: string,
   nextStatus: TransactionStatus,
   todayStr: string,
-  paidAt?: string
+  paidAt?: string,
+  accountId?: string
 ): VaultPayload {
   const nextTransactions = vault.transactions.map((t): Transaction => {
     if (t.id !== txId) return t;
 
-    const account = vault.accounts.find((a) => a.id === t.accountId);
+    const targetAccountId =
+      accountId && vault.accounts.some((a) => a.id === accountId) ? accountId : t.accountId;
+    const account = vault.accounts.find((a) => a.id === targetAccountId);
     const txCurr = txCurrency(t);
     const accCurr = accountCurrency(account ?? {});
     const foreignCurrency = txCurr !== 'BRL' ? txCurr : accCurr !== 'BRL' ? accCurr : null;
@@ -65,6 +68,7 @@ export function setTransactionStatusInVault(
 
     return {
       ...t,
+      accountId: targetAccountId,
       status: nextStatus,
       paidAt: nextStatus === 'paid' ? paidAt ?? todayStr : undefined,
       exchangeRate: shouldFixRate ? liveRateToBrl : t.exchangeRate,

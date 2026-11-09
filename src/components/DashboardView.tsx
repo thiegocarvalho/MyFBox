@@ -59,7 +59,7 @@ interface DashboardViewProps {
   hideValues: boolean;
   usdToBrlRate?: number;
   rateSource?: ExchangeRateSource;
-  onSettleTransaction: (txId: string, paidAt: string) => void;
+  onSettleTransaction: (txId: string, paidAt: string, accountId?: string) => void;
   onOpenNewTransaction: (type: TransactionType) => void;
   onNavigateTab: (tab: 'transactions' | 'budgets' | 'accounts') => void;
 }
@@ -84,9 +84,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const [settlingTransaction, setSettlingTransaction] = useState<Transaction | null>(null);
   const [paidOn, setPaidOn] = useState(todayStr);
+  const [settleAccountId, setSettleAccountId] = useState('');
 
   const handleOpenSettleModal = (tx: Transaction) => {
     setPaidOn(todayStr);
+    const defaultAccId = accounts.some((a) => a.id === tx.accountId)
+      ? tx.accountId
+      : accounts[0]?.id || tx.accountId;
+    setSettleAccountId(defaultAccId);
     setSettlingTransaction(tx);
   };
 
@@ -96,7 +101,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleConfirmSettle = () => {
     if (!settlingTransaction || !paidOn || paidOn > todayStr) return;
-    onSettleTransaction(settlingTransaction.id, paidOn);
+    onSettleTransaction(
+      settlingTransaction.id,
+      paidOn,
+      settleAccountId || settlingTransaction.accountId
+    );
     setSettlingTransaction(null);
   };
 
@@ -129,6 +138,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       };
     });
   }, [accounts, transactions, effectiveRates, projectionUntil]);
+
+  const selectedSettleAccount = useMemo(
+    () =>
+      accountBalances.find((a) => a.id === settleAccountId) ??
+      accountBalances.find((a) => a.id === settlingTransaction?.accountId) ??
+      accountBalances[0],
+    [accountBalances, settleAccountId, settlingTransaction]
+  );
 
   const netWorth = useMemo(
     () => computeNetWorth(accounts, transactions, effectiveRates, projectionUntil),
@@ -773,12 +790,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {catMap.get(settlingTransaction.categoryId)?.name || 'Geral'}
                   </span>
                   <span className="settle-modal-meta-item">
-                    {accMap.get(settlingTransaction.accountId)?.name || 'Conta principal'}
-                  </span>
-                  <span className="settle-modal-meta-item">
                     Vencimento: {settlingTransaction.date.split('-').reverse().join('/')}
                   </span>
                 </div>
+              </div>
+
+              <div className="form-field">
+                <label htmlFor={accountBalances.length > 1 ? 'settle-account' : undefined}>
+                  {settlingTransaction.type === 'income'
+                    ? 'Conta de recebimento'
+                    : 'Conta que está pagando'}
+                </label>
+                {accountBalances.length > 1 ? (
+                  <select
+                    id="settle-account"
+                    value={selectedSettleAccount?.id || ''}
+                    onChange={(e) => setSettleAccountId(e.target.value)}
+                  >
+                    {accountBalances.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name} — Saldo:{' '}
+                        {formatMoney(acc.currentBalance, acc.currency, hideValues)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="settle-single-account">
+                    <span className="settle-single-account-info">
+                      <span
+                        className="cat-color-dot"
+                        style={{
+                          backgroundColor:
+                            selectedSettleAccount?.color || 'var(--color-accent)',
+                        }}
+                      />
+                      <strong>{selectedSettleAccount?.name || 'Conta principal'}</strong>
+                    </span>
+                    <span
+                      className={`mono settle-single-account-balance ${
+                        (selectedSettleAccount?.currentBalance ?? 0) >= 0 ? 'pos' : 'neg'
+                      }`}
+                    >
+                      Saldo:{' '}
+                      {formatMoney(
+                        selectedSettleAccount?.currentBalance ?? 0,
+                        selectedSettleAccount?.currency || 'BRL',
+                        hideValues
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="form-field">

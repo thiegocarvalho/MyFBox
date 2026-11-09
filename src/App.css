@@ -9199,6 +9199,46 @@ details.bk-collapsible-card[open] .bk-collapsible-chevron {
   gap: 6px;
 }
 
+.settle-single-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  font-size: 13px;
+}
+
+.settle-single-account-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-main);
+  min-width: 0;
+}
+
+.settle-single-account-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settle-single-account-balance {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.settle-single-account-balance.pos {
+  color: var(--color-emerald);
+}
+
+.settle-single-account-balance.neg {
+  color: var(--color-coral);
+}
+
 /* Painel estreito (tablet/coluna do grid) e celular: valor e botão na 2ª linha */
 @media (max-width: 1180px) {
   .pq-item {

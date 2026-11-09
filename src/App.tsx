@@ -179,6 +179,7 @@ export function App() {
     setVault(null);
     setTxModalOpen(false);
     setEditingTx(null);
+    setDuplicatingTx(null);
   }, []);
 
   const persistVaultUpdate = useCallback(
@@ -369,6 +370,7 @@ export function App() {
 
   const handleOpenNewTransaction = useCallback((type: TransactionType) => {
     setEditingTx(null);
+    setDuplicatingTx(null);
     setTxModalInitialType(type);
     setTxModalOpen(true);
   }, []);
@@ -515,12 +517,14 @@ export function App() {
     await persistVaultUpdate(nextVault);
     setTxModalOpen(false);
     setEditingTx(null);
+    setDuplicatingTx(null);
   };
 
   const setTransactionStatus = async (
     txId: string,
     nextStatus: Transaction['status'],
-    paidAt?: string
+    paidAt?: string,
+    accountId?: string
   ) => {
     if (!vault) return;
     const nextVault = setTransactionStatusInVault(
@@ -528,7 +532,8 @@ export function App() {
       txId,
       nextStatus,
       localTodayStr(),
-      paidAt
+      paidAt,
+      accountId
     );
     await persistVaultUpdate(nextVault);
   };
@@ -539,8 +544,12 @@ export function App() {
     await setTransactionStatus(txId, tx.status === 'paid' ? 'pending' : 'paid');
   };
 
-  const handleSettleTransaction = async (txId: string, paidAt: string) => {
-    await setTransactionStatus(txId, 'paid', paidAt);
+  const handleSettleTransaction = async (
+    txId: string,
+    paidAt: string,
+    accountId?: string
+  ) => {
+    await setTransactionStatus(txId, 'paid', paidAt, accountId);
   };
 
   const handleDeleteTransaction = async (txId: string) => {
@@ -786,6 +795,7 @@ export function App() {
               rateSource={vault.settings}
               onOpenNewTransaction={handleOpenNewTransaction}
               onEditTransaction={(tx) => {
+                setDuplicatingTx(null);
                 setEditingTx(tx);
                 setTxModalOpen(true);
               }}
@@ -901,6 +911,7 @@ export function App() {
             onClose={() => {
               setTxModalOpen(false);
               setEditingTx(null);
+              setDuplicatingTx(null);
             }}
           />
         )}
