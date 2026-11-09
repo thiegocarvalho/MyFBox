@@ -62,7 +62,7 @@ export const McpPairDialog: React.FC<McpPairDialogProps> = ({ request, onApprove
               <ShieldCheck size={14} /> A senha e a chave do cofre não saem do navegador
             </li>
             <li>
-              <ShieldCheck size={14} /> Dá para desligar quando quiser em Backups › Modo MCP local
+              <ShieldCheck size={14} /> Dá para desligar quando quiser em Configurações › Modo MCP local
             </li>
           </ul>
 

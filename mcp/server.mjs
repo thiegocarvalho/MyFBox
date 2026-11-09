@@ -24,6 +24,7 @@
  *                               (localhost, 127.0.0.1 e a origem de MYFBOX_APP_URL já são aceitas)
  */
 import { timingSafeEqual, randomUUID, randomBytes, createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
@@ -105,9 +106,43 @@ function originAllowed(origin) {
   }
 }
 
+const httpServer = createServer(async (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && originAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  }
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204).end();
+    return;
+  }
+  if (req.method === 'GET' && req.url === '/status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ connected: Boolean(appSocket), shortCode: SHORT_CODE, pairLink: PAIR_LINK }));
+    return;
+  }
+  if (req.method === 'POST' && req.url === '/call') {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { action, args } = JSON.parse(body || '{}');
+        const data = await callApp(action, args ?? {});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, data }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+      }
+    });
+    return;
+  }
+  res.writeHead(404).end();
+});
+
 const wss = new WebSocketServer({
-  host: '127.0.0.1',
-  port: PORT,
+  server: httpServer,
   maxPayload: 64 * 1024 * 1024, // o backup cifrado passa por aqui; cofres grandes passam de 1 MB
   verifyClient: ({ origin }) => {
     const ok = originAllowed(origin);
@@ -116,8 +151,8 @@ const wss = new WebSocketServer({
   },
 });
 
-wss.on('listening', () => log(`ponte ouvindo em ws://127.0.0.1:${PORT}`));
-wss.on('error', (err) => {
+httpServer.listen(PORT, '127.0.0.1', () => log(`ponte ouvindo em ws://127.0.0.1:${PORT}`));
+httpServer.on('error', (err) => {
   bridgeError = err.code === 'EADDRINUSE' ? `A porta ${PORT} já está em uso.` : err.message;
   log('erro na ponte:', bridgeError);
 });
@@ -196,6 +231,11 @@ const ym = z.string().regex(/^\d{4}-\d{2}$/, 'use AAAA-MM');
 const txType = z.enum(['income', 'expense']);
 const txStatus = z.enum(['paid', 'pending']);
 const currency = z.enum(['BRL', 'USD']);
+const popularCurrencyCodes = [
+  'BRL', 'USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD',
+  'CNY', 'ARS', 'CLP', 'UYU', 'MXN', 'BTC', 'ETH', 'USDT'
+];
+const popularCurrency = z.enum(popularCurrencyCodes);
 
 function tool(name, description, inputSchema, { readOnly = false, destructive = false } = {}) {
   server.registerTool(
@@ -308,14 +348,15 @@ tool(
 
 tool(
   'update_transaction',
-  'Altera campos de um lançamento existente (pelo id). Só os campos enviados mudam. Use status "paid" para dar baixa.',
+  'Altera campos de um lançamento existente (pelo id). Só os campos enviados mudam. Para dar baixa use status "paid" e, se foi em outro dia, paidAt (a data de vencimento não muda).',
   {
     id: z.string(),
     description: z.string().min(1).optional(),
     amount: z.number().positive().optional(),
     type: txType.optional(),
-    date: ymd.optional(),
+    date: ymd.optional().describe('Data de vencimento/competência'),
     status: txStatus.optional(),
+    paidAt: ymd.optional().describe('Quando foi pago/recebido (padrão: hoje ao dar baixa); não pode ser futuro'),
     categoryId: z.string().optional(),
     categoryName: z.string().optional(),
     accountId: z.string().optional(),
@@ -364,6 +405,33 @@ tool(
   'delete_insight',
   'Remove o insight de um mês (não mexe em lançamentos).',
   { month: ym },
+  { destructive: true }
+);
+
+tool(
+  'list_exchange_rates',
+  'Lista todas as cotações de moedas cadastradas no cofre (ex: USD/BRL, EUR/BRL, BTC/USD). O MyFBox é 100% offline e não busca dados em APIs externas.',
+  {},
+  { readOnly: true }
+);
+
+tool(
+  'set_exchange_rate',
+  'Adiciona ou atualiza a cotação de qualquer par entre as moedas mais populares no mundo (BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT). 100% offline.',
+  {
+    from: popularCurrency.describe('Código da moeda de origem (lista fechada das mais populares: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT)'),
+    to: popularCurrency.describe('Código da moeda de destino (lista fechada das mais populares: BRL, USD, EUR, GBP, JPY, CHF, CAD, AUD, CNY, ARS, CLP, UYU, MXN, BTC, ETH, USDT)'),
+    rate: z.number().positive().describe('Taxa de câmbio: 1 [from] = rate [to] (número positivo)'),
+  }
+);
+
+tool(
+  'delete_exchange_rate',
+  'Remove a cotação de um par de moedas do cofre.',
+  {
+    from: popularCurrency.describe('Código da moeda de origem'),
+    to: popularCurrency.describe('Código da moeda de destino'),
+  },
   { destructive: true }
 );
 
@@ -416,9 +484,12 @@ await server.connect(new StdioServerTransport());
 log(`servidor MCP pronto — código ${SHORT_CODE}; link de pareamento: ${PAIR_LINK}`);
 
 const shutdown = () => {
-  wss.close();
+  try { httpServer.close(); } catch {}
+  try { wss.close(); } catch {}
   process.exit(0);
 };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
-process.stdin.on('close', shutdown);
+if (process.env.MYFBOX_KEEP_ALIVE !== '1') {
+  process.stdin.on('close', shutdown);
+}
