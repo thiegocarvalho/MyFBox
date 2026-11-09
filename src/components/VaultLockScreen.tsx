@@ -1,28 +1,38 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
+  Clock,
   CloudOff,
+  Coins,
   Eye,
   EyeOff,
   FileCheck,
   Fingerprint,
   HardDrive,
   KeyRound,
+  Landmark,
   LoaderCircle,
   Lock,
   ShieldCheck,
   TriangleAlert,
   Upload,
+  Wallet,
 } from 'lucide-react';
-import type { EncryptedVaultEnvelope } from '../types/finance';
+import type { AccountType, EncryptedVaultEnvelope, InitialAccountData } from '../types/finance';
 import { MyFBoxLogo } from './MyFBoxLogo';
 import { passwordStrength } from '../utils/password';
+import { parseDecimalInput } from '../utils/money';
 
 interface VaultLockScreenProps {
   existingEnvelope: EncryptedVaultEnvelope | null;
   onUnlock: (password: string) => Promise<void>;
-  onCreateVault: (password: string, vaultName: string) => Promise<void>;
+  onCreateVault: (
+    password: string,
+    vaultName: string,
+    initialAccount?: InitialAccountData
+  ) => Promise<void>;
   onRestoreBackupEnvelope: (envelope: EncryptedVaultEnvelope, password: string) => Promise<void>;
   /** Há um link de pareamento MCP aguardando o desbloqueio */
   pairingPending?: boolean;
@@ -57,6 +67,8 @@ function formatUpdatedAt(iso: string | undefined): string | null {
   });
 }
 
+const ACCOUNT_COLORS = ['#C8FF00', '#38BDF8', '#F59E0B', '#10B981', '#8B5CF6', '#F43F5E'];
+
 export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
   existingEnvelope,
   onUnlock,
@@ -65,6 +77,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
   pairingPending = false,
 }) => {
   const [mode, setMode] = useState<GateMode>(existingEnvelope ? 'unlock' : 'create');
+  const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [vaultName, setVaultName] = useState('Cofre Financeiro');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -72,6 +85,13 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Primeira conta criada junto com o cofre
+  const [accountName, setAccountName] = useState('Conta Principal');
+  const [accountType, setAccountType] = useState<AccountType>('checking');
+  const [accountColor, setAccountColor] = useState(ACCOUNT_COLORS[0]);
+  const [accountInitialBalance, setAccountInitialBalance] = useState('0');
+
   const [importedEnvelope, setImportedEnvelope] = useState<EncryptedVaultEnvelope | null>(null);
   const [importedFileName, setImportedFileName] = useState<string>('');
   const [dragActive, setDragActive] = useState(false);
@@ -83,6 +103,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
 
   const switchMode = (next: GateMode) => {
     setMode(next);
+    setCreateStep(1);
     setPassword('');
     setConfirmPassword('');
     setError(null);
@@ -110,7 +131,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
     }
   };
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
+  const handleStep1Continue = (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
       setError('A senha mestra deve ter pelo menos 6 caracteres.');
@@ -120,10 +141,26 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
       setError('A confirmação da senha não coincide.');
       return;
     }
+    setError(null);
+    setCreateStep(2);
+  };
+
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountName.trim()) {
+      setError('Informe um nome para a sua primeira conta.');
+      return;
+    }
+    const initBal = parseDecimalInput(accountInitialBalance) || 0;
     setBusy(true);
     setError(null);
     try {
-      await onCreateVault(password, vaultName);
+      await onCreateVault(password, vaultName.trim() || 'Meu Cofre', {
+        name: accountName.trim(),
+        type: accountType,
+        color: accountColor,
+        initialBalance: initBal,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar o cofre.');
     } finally {
@@ -350,8 +387,41 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
           </div>
 
           <header className="gate-heading">
-            <h2>{MODE_COPY[activeMode].title}</h2>
-            <p>{MODE_COPY[activeMode].subtitle}</p>
+            {activeMode === 'create' && (
+              <div className="gate-steps" aria-label="Progresso da criação">
+                <button
+                  type="button"
+                  className={`gate-step-indicator ${createStep === 1 ? 'active' : 'completed'}`}
+                  onClick={() => {
+                    setError(null);
+                    setCreateStep(1);
+                  }}
+                  disabled={busy}
+                >
+                  <span className="gate-step-num">1</span>
+                  <span>Cofre & Senha</span>
+                </button>
+                <span className="gate-step-sep">/</span>
+                <span className={`gate-step-indicator ${createStep === 2 ? 'active' : ''}`}>
+                  <span className="gate-step-num">2</span>
+                  <span>Primeira Conta</span>
+                </span>
+              </div>
+            )}
+            <h2>
+              {activeMode === 'create'
+                ? createStep === 1
+                  ? 'Crie seu cofre'
+                  : 'Sua primeira conta'
+                : MODE_COPY[activeMode].title}
+            </h2>
+            <p>
+              {activeMode === 'create'
+                ? createStep === 1
+                  ? 'Defina o nome e a senha mestra para cifrar seus dados.'
+                  : 'Configure nome, tipo, cor e saldo inicial para começar.'
+                : MODE_COPY[activeMode].subtitle}
+            </p>
           </header>
 
           {pairingPending && existingEnvelope && (
@@ -404,9 +474,18 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
             </form>
           )}
 
-          {/* Criar */}
-          {activeMode === 'create' && (
-            <form onSubmit={handleCreateSubmit} className="gate-form">
+          {/* Criar: Passo 1 (Cofre & Senha) */}
+          {activeMode === 'create' && createStep === 1 && (
+            <form onSubmit={handleStep1Continue} className="gate-form">
+              {existingEnvelope && (
+                <div className="gate-alert warn">
+                  <TriangleAlert size={15} />
+                  <span>
+                    Atenção: Criar um novo cofre substituirá o cofre salvo neste navegador.
+                    Se deseja manter seus dados atuais, faça um backup antes de prosseguir.
+                  </span>
+                </div>
+              )}
 
               <div className="gate-field">
                 <label htmlFor="create-name">Nome do cofre</label>
@@ -418,9 +497,11 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                     value={vaultName}
                     onChange={(e) => setVaultName(e.target.value)}
                     placeholder="Ex: Finanças pessoais"
+                    autoFocus={!existingEnvelope}
                     required
                   />
                 </div>
+                <span className="gate-hint">Dê um nome para identificar o seu cofre.</span>
               </div>
 
               {renderPasswordField(
@@ -432,13 +513,28 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
               )}
 
               {password && (
-                <div className="gate-strength" data-score={strength.score}>
-                  <div className="gate-strength-bars">
-                    {[1, 2, 3, 4].map((i) => (
-                      <span key={i} className={i <= strength.score ? 'on' : ''} />
-                    ))}
+                <div className="gate-strength-wrap" data-score={strength.score}>
+                  <div className="gate-strength" data-score={strength.score}>
+                    <div className="gate-strength-bars">
+                      {[1, 2, 3, 4].map((i) => (
+                        <span key={i} className={i <= strength.score ? 'on' : ''} />
+                      ))}
+                    </div>
+                    <span className="gate-strength-label">{strength.label}</span>
                   </div>
-                  <span className="gate-strength-label">{strength.label}</span>
+
+                  <div className="gate-strength-meta">
+                    <div className="gate-strength-time">
+                      <Clock size={13} aria-hidden />
+                      <span>
+                        Tempo para descobrir: <strong>{strength.crackTimeText}</strong>
+                      </span>
+                    </div>
+                  </div>
+
+                  {strength.tip && (
+                    <span className="gate-strength-tip">{strength.tip}</span>
+                  )}
                 </div>
               )}
 
@@ -466,14 +562,113 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                 </div>
               </div>
 
-              <button type="submit" className="gate-submit" disabled={busy}>
-                {submitLabel(
-                  <>
-                    Criar cofre criptografado <ArrowRight size={16} />
-                  </>,
-                  'Gerando chave...'
-                )}
+              <button type="submit" className="gate-submit">
+                Continuar: Configurar primeira conta <ArrowRight size={16} />
               </button>
+            </form>
+          )}
+
+          {/* Criar: Passo 2 (Primeira Conta: Nome, Cor, Tipo e Saldo Inicial) */}
+          {activeMode === 'create' && createStep === 2 && (
+            <form onSubmit={handleCreateSubmit} className="gate-form">
+              <div className="gate-field">
+                <label htmlFor="account-name">Nome da conta</label>
+                <div className="gate-input">
+                  <Wallet size={16} className="gate-input-icon" aria-hidden />
+                  <input
+                    id="account-name"
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => {
+                      setAccountName(e.target.value);
+                      setError(null);
+                    }}
+                    placeholder="Ex: Conta Corrente, Carteira, Nubank..."
+                    autoFocus
+                    required
+                  />
+                </div>
+                <span className="gate-hint">Identificação da conta no seu cofre.</span>
+              </div>
+
+              <div className="gate-form-row">
+                <div className="gate-field">
+                  <label htmlFor="account-type">Tipo</label>
+                  <div className="gate-input">
+                    <Landmark size={16} className="gate-input-icon" aria-hidden />
+                    <select
+                      id="account-type"
+                      value={accountType}
+                      onChange={(e) => setAccountType(e.target.value as AccountType)}
+                    >
+                      <option value="checking">Conta Corrente</option>
+                      <option value="wallet">Carteira (Dinheiro)</option>
+                      <option value="reserve">Reserva de Emergência</option>
+                      <option value="investment">Investimento</option>
+                      <option value="savings">Poupança</option>
+                      <option value="credit">Cartão</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="gate-field">
+                  <label htmlFor="account-balance">Saldo Inicial (R$)</label>
+                  <div className="gate-input">
+                    <Coins size={16} className="gate-input-icon" aria-hidden />
+                    <input
+                      id="account-balance"
+                      type="number"
+                      step="0.01"
+                      className="mono"
+                      value={accountInitialBalance}
+                      onChange={(e) => {
+                        setAccountInitialBalance(e.target.value);
+                        setError(null);
+                      }}
+                      placeholder="0,00"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="gate-field">
+                <label>Cor identificadora</label>
+                <div className="color-swatches-row" role="radiogroup" aria-label="Cor da conta">
+                  {ACCOUNT_COLORS.map((c) => (
+                    <button
+                      type="button"
+                      key={c}
+                      className={`color-swatch-btn ${accountColor === c ? 'selected' : ''}`}
+                      style={{ backgroundColor: c }}
+                      onClick={() => setAccountColor(c)}
+                      aria-label={`Selecionar cor ${c}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="gate-btn-row">
+                <button
+                  type="button"
+                  className="gate-btn-secondary"
+                  onClick={() => {
+                    setError(null);
+                    setCreateStep(1);
+                  }}
+                  disabled={busy}
+                >
+                  <ArrowLeft size={16} /> Voltar
+                </button>
+                <button type="submit" className="gate-submit" disabled={busy} style={{ flex: 1 }}>
+                  {submitLabel(
+                    <>
+                      Criar cofre e começar <ArrowRight size={16} />
+                    </>,
+                    'Gerando chave...'
+                  )}
+                </button>
+              </div>
             </form>
           )}
 
