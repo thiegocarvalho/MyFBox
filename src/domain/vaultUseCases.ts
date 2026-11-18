@@ -4,7 +4,7 @@ import {
   normalizeCurrency,
   removeExchangeRate,
   upsertExchangeRate,
-} from '../services/currencyService';
+} from './currency';
 import type {
   Account,
   Category,

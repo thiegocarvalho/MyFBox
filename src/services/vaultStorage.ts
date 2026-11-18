@@ -1,5 +1,11 @@
 import type { EncryptedVaultEnvelope } from '../types/finance';
 
+export interface VaultStorageAdapter {
+  load(): Promise<EncryptedVaultEnvelope | null>;
+  save(envelope: EncryptedVaultEnvelope): Promise<void>;
+  delete(): Promise<void>;
+}
+
 const DB_NAME = 'myfbox_encrypted_vault_db';
 const DB_VERSION = 1;
 const STORE_NAME = 'vault_store';
@@ -19,66 +25,75 @@ function openVaultDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function loadEncryptedEnvelopeFromDisk(): Promise<EncryptedVaultEnvelope | null> {
-  if (window.myfboxDesktop?.vault) {
-    return window.myfboxDesktop.vault.load();
+const indexedDbVaultStorageAdapter: VaultStorageAdapter = {
+  async load() {
+    const db = await openVaultDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(PRIMARY_VAULT_KEY);
+      req.onsuccess = () => {
+        db.close();
+        resolve((req.result as EncryptedVaultEnvelope) || null);
+      };
+      req.onerror = () => {
+        db.close();
+        reject(req.error);
+      };
+    });
+  },
+  async save(envelope) {
+    const db = await openVaultDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(envelope, PRIMARY_VAULT_KEY);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  },
+  async delete() {
+    const db = await openVaultDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.delete(PRIMARY_VAULT_KEY);
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+      tx.onerror = () => {
+        db.close();
+        reject(tx.error);
+      };
+    });
+  },
+};
+
+export function resolveVaultStorageAdapter(): VaultStorageAdapter {
+  const desktopVault = typeof window !== 'undefined' ? window.myfboxDesktop?.vault : undefined;
+  if (desktopVault) {
+    return desktopVault;
   }
-  const db = await openVaultDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.get(PRIMARY_VAULT_KEY);
-    req.onsuccess = () => {
-      db.close();
-      resolve((req.result as EncryptedVaultEnvelope) || null);
-    };
-    req.onerror = () => {
-      db.close();
-      reject(req.error);
-    };
-  });
+  return indexedDbVaultStorageAdapter;
+}
+
+export async function loadEncryptedEnvelopeFromDisk(): Promise<EncryptedVaultEnvelope | null> {
+  return resolveVaultStorageAdapter().load();
 }
 
 export async function saveEncryptedEnvelopeToDisk(
   envelope: EncryptedVaultEnvelope
 ): Promise<void> {
-  if (window.myfboxDesktop?.vault) {
-    await window.myfboxDesktop.vault.save(envelope);
-    return;
-  }
-  const db = await openVaultDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.put(envelope, PRIMARY_VAULT_KEY);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
+  await resolveVaultStorageAdapter().save(envelope);
 }
 
 export async function deleteEncryptedVaultFromDisk(): Promise<void> {
-  if (window.myfboxDesktop?.vault) {
-    await window.myfboxDesktop.vault.delete();
-    return;
-  }
-  const db = await openVaultDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.delete(PRIMARY_VAULT_KEY);
-    tx.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    tx.onerror = () => {
-      db.close();
-      reject(tx.error);
-    };
-  });
+  await resolveVaultStorageAdapter().delete();
 }

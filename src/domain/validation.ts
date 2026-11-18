@@ -1,4 +1,4 @@
-import { getVaultExchangeRates, normalizeCurrency } from '../services/currencyService';
+import { getVaultExchangeRates, normalizeCurrency } from './currency';
 import type {
   Account,
   AccountType,
