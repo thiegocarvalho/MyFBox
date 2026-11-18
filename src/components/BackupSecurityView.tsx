@@ -22,6 +22,7 @@ import {
   Coins,
   BookOpen,
   Check,
+  Copy,
 } from 'lucide-react';
 import type {
   Account,
@@ -35,6 +36,7 @@ import { exportTransactionsToCSV } from '../services/importExport';
 import { passwordStrength } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
 import { mcpShortCode, type McpBridgeStatus } from '../services/mcpBridge';
+import { buildMcpSetupInfo } from '../utils/mcpConfig';
 import type { StoragePersistStatus } from '../services/storagePersistence';
 import {
   POPULAR_CURRENCIES,
@@ -173,6 +175,16 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('all');
   const [desktopVaultPath, setDesktopVaultPath] = useState<string | null>(null);
   const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
+  const [copiedMcpItem, setCopiedMcpItem] = useState<'json' | 'cli' | null>(null);
+  const mcpSetup = buildMcpSetupInfo({ desktopMcpPath });
+
+  const copyMcpSnippet = (kind: 'json' | 'cli', text: string) => {
+    void navigator.clipboard?.writeText(text).catch(() => undefined);
+    setCopiedMcpItem(kind);
+    setTimeout(() => {
+      setCopiedMcpItem((prev) => (prev === kind ? null : prev));
+    }, 2000);
+  };
 
   useEffect(() => {
     const vaultApi = window.myfboxDesktop?.vault;
@@ -420,31 +432,59 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       </header>
 
-      {desktopMcpPath ? (
+      {mcpSetup.environment === 'desktop' ? (
         <div className="bk-card-footer" style={{ marginBottom: '0.75rem' }}>
           <span className="field-hint">
             <strong>App Desktop:</strong> o servidor MCP já vem empacotado em{' '}
-            <code>{desktopMcpPath}</code>. Clique em <strong>Instruções</strong> acima para copiar o{' '}
-            <code>mcp.json</code> pronto.
+            <code>{mcpSetup.serverPath}</code>. Copie o <code>mcp.json</code> ou o comando abaixo
+            para registrar no seu assistente de IA.
           </span>
         </div>
       ) : (
-        typeof window !== 'undefined' &&
-        window.location.hostname !== '127.0.0.1' &&
-        window.location.hostname !== 'localhost' && (
+        mcpSetup.environment === 'web-remote' && (
           <div className="bk-warning-banner" role="note" style={{ marginBottom: '0.75rem' }}>
             <AlertTriangle size={16} aria-hidden />
             <div>
-              <strong>Ponte MCP na versão Web:</strong> para conectar um assistente de IA a partir
-              deste endereço, use o JSON pré-configurado com{' '}
-              <code>{`MYFBOX_APP_URL=${window.location.origin}`}</code> em{' '}
-              <strong>Instruções</strong> acima (Chrome/Edge/Firefox; o Safari pode bloquear
-              conexões locais). Para uso sem configuração extra, prefira o{' '}
-              <strong>app Desktop</strong>.
+              <strong>Ponte MCP na versão Web:</strong> esta configuração já inclui{' '}
+              <code>{`MYFBOX_APP_URL=${mcpSetup.appOrigin}`}</code>. Exige Node.js e o repositório
+              local do MyFBox (Chrome/Edge/Firefox; o Safari pode bloquear conexões locais). Para uso
+              sem configuração extra, prefira o <strong>app Desktop</strong>.
             </div>
           </div>
         )
       )}
+
+      <div className="mcp-code-block-wrap" style={{ marginBottom: '0.85rem' }}>
+        <div className="mcp-code-header">
+          <span>
+            {mcpSetup.environment === 'desktop'
+              ? 'mcp.json (Desktop — pronto para colar)'
+              : mcpSetup.environment === 'web-remote'
+                ? 'mcp.json (Web — com MYFBOX_APP_URL)'
+                : 'mcp.json (Local)'}
+          </span>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => copyMcpSnippet('cli', mcpSetup.claudeCliCommand)}
+              title="Copiar comando único para Claude Code (claude mcp add)"
+            >
+              {copiedMcpItem === 'cli' ? <Check size={12} /> : <Terminal size={12} />}
+              {copiedMcpItem === 'cli' ? 'CLI copiado!' : 'Copiar CLI'}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => copyMcpSnippet('json', mcpSetup.mcpConfigJson)}
+            >
+              {copiedMcpItem === 'json' ? <Check size={12} /> : <Copy size={12} />}
+              {copiedMcpItem === 'json' ? 'Copiado!' : 'Copiar JSON'}
+            </button>
+          </div>
+        </div>
+        <pre className="mono">{mcpSetup.mcpConfigJson}</pre>
+      </div>
 
       {mcp.enabled ? (
         <>

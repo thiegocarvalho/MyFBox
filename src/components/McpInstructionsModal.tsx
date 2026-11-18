@@ -13,6 +13,7 @@ import {
   Wallet,
   HelpCircle,
 } from 'lucide-react';
+import { buildMcpSetupInfo } from '../utils/mcpConfig';
 
 interface McpInstructionsModalProps {
   isOpen: boolean;
@@ -343,22 +344,8 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
     };
   }, []);
 
-  const isRemoteWeb =
-    !window.myfboxDesktop?.isDesktop &&
-    typeof window !== 'undefined' &&
-    window.location.hostname !== '127.0.0.1' &&
-    window.location.hostname !== 'localhost';
-
-  const mcpConfigObject = {
-    mcpServers: {
-      myfbox: {
-        command: 'node',
-        args: [desktopMcpPath ?? '/CAMINHO/ABSOLUTO/MyFBox/mcp/server.mjs'],
-        ...(isRemoteWeb ? { env: { MYFBOX_APP_URL: window.location.origin } } : {}),
-      },
-    },
-  };
-  const mcpConfigJson = JSON.stringify(mcpConfigObject, null, 2);
+  const mcpSetup = buildMcpSetupInfo({ desktopMcpPath });
+  const { mcpConfigJson } = mcpSetup;
   const [searchQuery, setSearchQuery] = useState('');
   const [promptCategoryFilter, setPromptCategoryFilter] = useState<string>('todos');
 
@@ -628,10 +615,68 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-guide-step">
                 <div className="mcp-step-num">1</div>
                 <div className="mcp-step-content">
-                  <h4>Configuração Automática (.mcp.json)</h4>
+                  <h4>Instalação Prática neste Ambiente</h4>
                   <p>
-                    O projeto já inclui o arquivo <code>.mcp.json</code> pronto na raiz. Ao abrir seu assistente
-                    de IA nesta pasta, o servidor MCP <code>myfbox</code> é detectado automaticamente.
+                    {mcpSetup.environment === 'desktop'
+                      ? 'Configuração pronta para o app Desktop (caminho detectado automaticamente):'
+                      : mcpSetup.environment === 'web-remote'
+                        ? 'Configuração para esta versão Web (inclui MYFBOX_APP_URL deste endereço; exige Node.js e o repositório local):'
+                        : 'Adicione à configuração de MCP do seu cliente apontando para o script mcp/server.mjs:'}
+                  </p>
+                  {mcpSetup.environment === 'web-remote' && (
+                    <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
+                      <div className="mcp-code-header">
+                        <span>1º passo (só na 1ª vez): baixar o servidor MCP local</span>
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm"
+                          onClick={() => handleCopy('clone-mcp-code', mcpSetup.cloneCommand)}
+                        >
+                          {copiedId === 'clone-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
+                          {copiedId === 'clone-mcp-code' ? 'Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                      <pre className="mono">{mcpSetup.cloneCommand}</pre>
+                    </div>
+                  )}
+                  <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
+                    <div className="mcp-code-header">
+                      <span>Configuração MCP (JSON — Claude Desktop, Cursor, Windsurf, Antigravity)</span>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => handleCopy('manual-mcp-code', mcpConfigJson)}
+                      >
+                        {copiedId === 'manual-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedId === 'manual-mcp-code' ? 'Copiado!' : 'Copiar JSON'}
+                      </button>
+                    </div>
+                    <pre className="mono">{mcpConfigJson}</pre>
+                  </div>
+                  <div className="mcp-code-block-wrap">
+                    <div className="mcp-code-header">
+                      <span>Atalho via terminal (Claude Code CLI)</span>
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => handleCopy('cli-mcp-code', mcpSetup.claudeCliCommand)}
+                      >
+                        {copiedId === 'cli-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
+                        {copiedId === 'cli-mcp-code' ? 'Copiado!' : 'Copiar CLI'}
+                      </button>
+                    </div>
+                    <pre className="mono">{mcpSetup.claudeCliCommand}</pre>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mcp-guide-step">
+                <div className="mcp-step-num">2</div>
+                <div className="mcp-step-content">
+                  <h4>Uso Direto na Pasta do Repositório (.mcp.json)</h4>
+                  <p>
+                    Se você abriu seu assistente de IA diretamente dentro da pasta clonada do MyFBox,
+                    o arquivo <code>.mcp.json</code> na raiz já registra o servidor automaticamente:
                   </p>
                   <div className="mcp-code-block-wrap">
                     <div className="mcp-code-header">
@@ -669,34 +714,6 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
     }
   }
 }`}</pre>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mcp-guide-step">
-                <div className="mcp-step-num">2</div>
-                <div className="mcp-step-content">
-                  <h4>Configuração Manual em Outros Clientes MCP</h4>
-                  <p>
-                    {desktopMcpPath
-                      ? 'Configuração pronta para o app Desktop (caminho detectado automaticamente):'
-                      : isRemoteWeb
-                      ? 'Configuração para esta versão Web (inclui MYFBOX_APP_URL deste endereço; exige Node.js e o arquivo mcp/server.mjs local):'
-                      : 'Adicione à configuração de MCP do seu cliente ou ambiente apontando para o script mcp/server.mjs com o caminho absoluto:'}
-                  </p>
-                  <div className="mcp-code-block-wrap">
-                    <div className="mcp-code-header">
-                      <span>Configuração MCP (JSON)</span>
-                      <button
-                        type="button"
-                        className="btn-ghost btn-sm"
-                        onClick={() => handleCopy('manual-mcp-code', mcpConfigJson)}
-                      >
-                        {copiedId === 'manual-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
-                        {copiedId === 'manual-mcp-code' ? 'Copiado!' : 'Copiar'}
-                      </button>
-                    </div>
-                    <pre className="mono">{mcpConfigJson}</pre>
                   </div>
                 </div>
               </div>
