@@ -282,6 +282,10 @@ export function App() {
 
   const [mcpStatus, setMcpStatus] = useState<McpBridgeStatus>('off');
   const [mcpDetail, setMcpDetail] = useState<string | undefined>();
+  const [securityConfigTarget, setSecurityConfigTarget] = useState<{
+    tab: 'all' | 'mcp';
+    key: number;
+  }>({ tab: 'all', key: 0 });
   const mcpQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const persistRef = useRef(persistVaultUpdate);
   const usdRateRef = useRef<number | undefined>(undefined);
@@ -730,22 +734,20 @@ export function App() {
           <button
             type="button"
             className={`mcp-header-btn status-${mcpStatus}`}
-            onClick={() => handleUpdateMcpSettings({ mcpEnabled: !vault.settings.mcpEnabled })}
-            aria-pressed={Boolean(vault.settings.mcpEnabled)}
+            onClick={() => {
+              setSecurityConfigTarget((prev) => ({ tab: 'mcp', key: prev.key + 1 }));
+              setActiveTab('security');
+            }}
             title={
               mcpStatus === 'connected'
-                ? 'MCP em execução — clique para desligar'
+                ? 'MCP conectado — clique para abrir configurações do MCP'
                 : mcpStatus === 'connecting'
-                ? 'MCP procurando servidor local — clique para desligar'
+                ? 'MCP procurando servidor local — clique para abrir configurações do MCP'
                 : mcpStatus === 'error'
-                ? `MCP sem conexão${mcpDetail ? `: ${mcpDetail}` : ''} — clique para desligar`
-                : 'MCP desligado — clique para ligar'
+                ? `MCP sem conexão${mcpDetail ? `: ${mcpDetail}` : ''} — clique para abrir configurações do MCP`
+                : 'MCP desligado — clique para abrir configurações do MCP'
             }
-            aria-label={
-              vault.settings.mcpEnabled
-                ? `Desligar Modo MCP (status: ${mcpStatus})`
-                : 'Ligar Modo MCP'
-            }
+            aria-label={`Status do MCP: ${mcpStatus}. Abrir configurações do MCP`}
           >
             <span className="mcp-header-dot" aria-hidden />
             <Bot size={15} aria-hidden />
@@ -864,6 +866,7 @@ export function App() {
 
           {activeTab === 'security' && (
             <BackupSecurityView
+              key={securityConfigTarget.key}
               envelope={envelope}
               transactions={vault.transactions}
               categories={vault.categories}
@@ -905,6 +908,7 @@ export function App() {
                 detail: mcpDetail,
               }}
               onUpdateMcpSettings={handleUpdateMcpSettings}
+              initialConfigTab={securityConfigTarget.tab}
             />
           )}
         </Suspense>

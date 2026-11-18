@@ -112,6 +112,7 @@ interface BackupSecurityViewProps {
   onUpdateMcpSettings: (
     patch: Partial<Pick<VaultSettings, 'mcpEnabled' | 'mcpToken' | 'mcpPort'>>
   ) => void;
+  initialConfigTab?: ConfigTab;
 }
 
 export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
@@ -136,6 +137,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   onUpdateManualUsdRate,
   mcp,
   onUpdateMcpSettings,
+  initialConfigTab,
 }) => {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
@@ -172,7 +174,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [restoring, setRestoring] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [showMcpInstructions, setShowMcpInstructions] = useState(false);
-  const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('all');
+  const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>(initialConfigTab ?? 'all');
   const [desktopVaultPath, setDesktopVaultPath] = useState<string | null>(null);
   const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
   const [copiedMcpItem, setCopiedMcpItem] = useState<'json' | 'cli' | null>(null);
