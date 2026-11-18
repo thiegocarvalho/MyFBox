@@ -160,7 +160,7 @@ e2e/                        testes ponta a ponta com Playwright
 mcp/server.mjs              servidor MCP (stdio) + ponte WebSocket/HTTP autenticada em 127.0.0.1
 ```
 
-Mais detalhes de arquitetura para quem vai contribuir estão em [CLAUDE.md](CLAUDE.md).
+Mais detalhes para quem vai contribuir estão em [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) e [CLAUDE.md](CLAUDE.md).
 
 ## Licença
 

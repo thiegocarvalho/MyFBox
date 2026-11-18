@@ -1,0 +1,37 @@
+name: Relato de Bug
+description: Reportar um erro ou comportamento inesperado no MyFBox (Web ou Desktop).
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Se encontrou uma **vulnerabilidade de segurança**, não abra uma issue pública — use a aba **Security › Report a vulnerability**.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Ambiente
+      options:
+        - Web (GitHub Pages / Navegador)
+        - Desktop Electron (Linux)
+        - Desktop Electron (Windows)
+        - Desktop Electron (macOS)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o comportamento observado e o comportamento esperado.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Abra o app...
+        2. Clique em...
+        3. Erro observado...
+    validations:
+      required: true

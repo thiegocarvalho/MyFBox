@@ -1,0 +1,19 @@
+name: Sugestão de Melhoria
+description: Propor uma nova funcionalidade ou melhoria de UX/arquitetura.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Explique o caso de uso ou necessidade.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solução proposta
+      description: Como você imagina que isso deve funcionar, respeitando o modelo local-first/offline.
+    validations:
+      required: true
