@@ -66,9 +66,9 @@ const PROMPT_ITEMS: PromptItem[] = [
   {
     id: 'acc-create-multi',
     category: 'Lançamentos',
-    title: 'Criar conta em moeda estrangeira ou cripto',
+    title: 'Criar conta em moeda estrangeira',
     prompt: 'Crie uma conta corrente em Euro chamada "Wise Europa" com saldo inicial de 500 EUR.',
-    description: 'Adiciona uma nova conta em qualquer uma das 16 moedas globais e criptos suportadas no cofre.',
+    description: 'Adiciona uma nova conta em qualquer uma das 13 moedas globais suportadas no cofre.',
     toolsUsed: ['create_account'],
   },
   {
