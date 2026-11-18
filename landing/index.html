@@ -579,25 +579,62 @@
         flex-direction: column;
       }
 
+      .mcp-pane.gpt-window {
+        background: #212121;
+        border: 1px solid #303030;
+        border-radius: 16px;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      .gpt-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1.1rem;
+        background: #171717;
+        border-bottom: 1px solid #2b2b2b;
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: #ececec;
+      }
+
+      .gpt-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #b4b4b4;
+        background: #262626;
+        padding: 0.22rem 0.6rem;
+        border-radius: 999px;
+      }
+
+      .gpt-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10a37f;
+      }
+
       .mcp-pane.live {
         border-color: var(--accent);
         box-shadow: -8px 8px 0 var(--accent);
       }
 
       .mcp-chat-body {
-        padding: 1.15rem;
+        padding: 1.15rem 1.2rem;
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
+        gap: 1rem;
         min-height: 360px;
       }
 
       .chat-msg {
-        max-width: 88%;
-        padding: 0.75rem 0.95rem;
-        border: 1px solid var(--border);
-        font-size: 0.9rem;
-        line-height: 1.45;
+        font-size: 0.91rem;
+        line-height: 1.5;
+        color: #ececec;
         opacity: 0;
         transform: translateY(8px);
         transition: opacity 0.3s ease, transform 0.3s ease;
@@ -610,52 +647,95 @@
 
       .chat-msg.user {
         align-self: flex-end;
-        background: var(--surface-2);
-        border-color: var(--border-strong);
+        max-width: 80%;
+        background: #2f2f2f;
+        padding: 0.65rem 1rem;
+        border-radius: 18px;
       }
 
       .chat-msg.ai {
         align-self: flex-start;
-        background: #12170a;
-        border-color: var(--accent);
+        max-width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
       }
 
-      .chat-role {
-        display: block;
-        font-family: var(--font-mono);
-        font-size: 0.68rem;
-        letter-spacing: 0.06em;
-        color: var(--muted);
-        margin-bottom: 0.25rem;
+      .gpt-avatar {
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #101010;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 800;
+        margin-top: 2px;
       }
 
-      .chat-msg.ai .chat-role {
-        color: var(--accent);
+      .gpt-tool-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.72rem;
+        color: #b4b4b4;
+        background: #2a2a2a;
+        border: 1px solid #383838;
+        padding: 0.14rem 0.55rem;
+        border-radius: 999px;
+        margin-bottom: 0.35rem;
       }
 
-      .mcp-replay {
-        margin-top: auto;
-        padding: 0.75rem 1.15rem;
-        border-top: 1px solid var(--border);
+      .gpt-composer {
+        margin: auto 1rem 1rem;
+        padding: 0.5rem 0.55rem 0.5rem 1rem;
+        background: #2f2f2f;
+        border-radius: 26px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-size: 0.82rem;
-        color: var(--muted);
+        gap: 0.75rem;
       }
 
-      .mcp-replay button {
-        background: var(--surface-2);
-        color: var(--text);
-        border: 1px solid var(--border-strong);
-        padding: 0.35rem 0.75rem;
-        font-family: var(--font-mono);
-        font-size: 0.75rem;
+      .gpt-composer-hint {
+        font-size: 0.84rem;
+        color: #9b9b9b;
+      }
+
+      .gpt-composer-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .gpt-replay-btn {
+        background: #3d3d3d;
+        color: #ececec;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.38rem 0.8rem;
+        font-size: 0.76rem;
+        font-weight: 600;
         cursor: pointer;
       }
-      .mcp-replay button:hover {
-        border-color: var(--accent);
-        color: var(--accent);
+      .gpt-replay-btn:hover {
+        background: #4b4b4b;
+      }
+
+      .gpt-send-dot {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #101010;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.85rem;
       }
 
       .live-app-body {
@@ -1033,40 +1113,52 @@
           </p>
 
           <div class="mcp-stage" id="mcp-demo">
-            <div class="mcp-pane">
-              <div class="stage-bar">
-                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
-                <span>CHAT // ASSISTENTE LOCAL (MCP)</span>
+            <div class="mcp-pane gpt-window">
+              <div class="gpt-bar">
+                <span>Seu Assistente de IA</span>
+                <span class="gpt-status">
+                  <span class="gpt-status-dot" aria-hidden="true"></span>
+                  MyFBox MCP conectado
+                </span>
               </div>
               <div class="mcp-chat-body" id="mcp-chat-body">
                 <div class="chat-msg user" data-step="1">
-                  <span class="chat-role">VOCÊ</span>
                   Paguei R$ 84,50 no mercado hoje no Nubank
                 </div>
                 <div class="chat-msg ai" data-step="2">
-                  <span class="chat-role">ASSISTENTE · SALVO NO COFRE</span>
-                  Registrado em Alimentação (Nubank). Saldo de hoje atualizado.
+                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <div>
+                    <span class="gpt-tool-pill">Usou MyFBox MCP · registrar lançamento</span>
+                    <div>Registrado em Alimentação (Nubank). Seu saldo de hoje foi atualizado.</div>
+                  </div>
                 </div>
                 <div class="chat-msg user" data-step="3">
-                  <span class="chat-role">VOCÊ</span>
                   Quanto já gastei em mercado este mês?
                 </div>
                 <div class="chat-msg ai" data-step="4">
-                  <span class="chat-role">ASSISTENTE · CONSULTA LOCAL</span>
-                  R$ 505,30 em 2 compras — 56% da sua meta de R$ 900,00.
+                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <div>
+                    <span class="gpt-tool-pill">Usou MyFBox MCP · consultar mês</span>
+                    <div>Você gastou R$ 505,30 em 2 compras — 56% da sua meta de R$ 900,00.</div>
+                  </div>
                 </div>
                 <div class="chat-msg user" data-step="5">
-                  <span class="chat-role">VOCÊ</span>
                   Lembra que dia 25 vence a internet de R$ 149,90
                 </div>
                 <div class="chat-msg ai" data-step="6">
-                  <span class="chat-role">ASSISTENTE · AGENDADO</span>
-                  Lançado como pendente para 25/11. Previsão do mês atualizada.
+                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <div>
+                    <span class="gpt-tool-pill">Usou MyFBox MCP · agendar pendente</span>
+                    <div>Agendado para 25/11 como pendente. A previsão do mês já foi atualizada.</div>
+                  </div>
                 </div>
               </div>
-              <div class="mcp-replay">
-                <span>Desligado por padrão · só roda na sua máquina</span>
-                <button type="button" id="mcp-replay-btn">Repetir cena</button>
+              <div class="gpt-composer">
+                <span class="gpt-composer-hint">Pergunte sobre seus gastos...</span>
+                <span class="gpt-composer-actions">
+                  <button type="button" class="gpt-replay-btn" id="mcp-replay-btn">Repetir</button>
+                  <span class="gpt-send-dot" aria-hidden="true">↑</span>
+                </span>
               </div>
             </div>
 
