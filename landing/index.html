@@ -953,9 +953,14 @@
       }
 
       footer a {
-        color: var(--text);
-        text-decoration: underline;
-        text-underline-offset: 3px;
+        color: var(--muted);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+
+      footer a:hover,
+      footer a:focus-visible {
+        color: var(--accent);
       }
 
       /* Animação discreta de entrada no scroll */
