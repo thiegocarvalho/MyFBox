@@ -49,7 +49,7 @@ Elige cómo prefieres usar MyFBox — ambos formatos son **gratuitos**, funciona
 
 | Resumen | Movimientos | Metas |
 |---|---|---|
-| ![MyFBox Resumen](landing/assets/screen-dashboard.png) | ![MyFBox Movimientos](landing/assets/screen-transactions.png) | ![MyFBox Metas](landing/assets/screen-budgets.png) |
+| ![MyFBox Resumen](landing/assets/es/screen-dashboard.png) | ![MyFBox Movimientos](landing/assets/es/screen-transactions.png) | ![MyFBox Metas](landing/assets/es/screen-budgets.png) |
 
 ---
 

@@ -49,7 +49,7 @@ Choose how you prefer to use MyFBox — both formats are **free**, work offline,
 
 | Overview | Transactions | Budgets |
 |---|---|---|
-| ![MyFBox Overview](landing/assets/screen-dashboard.png) | ![MyFBox Transactions](landing/assets/screen-transactions.png) | ![MyFBox Budgets](landing/assets/screen-budgets.png) |
+| ![MyFBox Overview](landing/assets/en-gb/screen-dashboard.png) | ![MyFBox Transactions](landing/assets/en-gb/screen-transactions.png) | ![MyFBox Budgets](landing/assets/en-gb/screen-budgets.png) |
 
 ---
 

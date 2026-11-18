@@ -49,7 +49,7 @@
 
 | 总览 | 收支明细 | 预算目标 |
 |---|---|---|
-| ![MyFBox 总览](landing/assets/screen-dashboard.png) | ![MyFBox 收支明细](landing/assets/screen-transactions.png) | ![MyFBox 预算目标](landing/assets/screen-budgets.png) |
+| ![MyFBox 总览](landing/assets/zh-cn/screen-dashboard.png) | ![MyFBox 收支明细](landing/assets/zh-cn/screen-transactions.png) | ![MyFBox 预算目标](landing/assets/zh-cn/screen-budgets.png) |
 
 ---
 
