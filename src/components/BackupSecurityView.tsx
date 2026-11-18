@@ -26,12 +26,15 @@ import {
 } from 'lucide-react';
 import type {
   Account,
+  AppLanguage,
   Category,
   EncryptedVaultEnvelope,
   ExchangeRate,
   Transaction,
   VaultSettings,
 } from '../types/finance';
+import { LanguageSelector } from './LanguageSelector';
+import { useI18n } from '../i18n/useI18n';
 import { exportTransactionsToCSV } from '../services/importExport';
 import { passwordStrength } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
@@ -50,20 +53,7 @@ const McpInstructionsModal = lazy(() =>
   import('./McpInstructionsModal').then((m) => ({ default: m.McpInstructionsModal }))
 );
 
-const MCP_STATUS_LABEL: Record<McpBridgeStatus, string> = {
-  off: 'Desligado',
-  connecting: 'Procurando o servidor...',
-  connected: 'Conectado',
-  error: 'Sem conexão',
-};
-
 const AUTO_LOCK_OPTIONS = [5, 15, 30, 60];
-const AUTO_LOCK_LABELS: Record<number, { title: string; desc: string }> = {
-  5: { title: '5 minutos', desc: 'Mais restrito — ideal para computadores compartilhados' },
-  15: { title: '15 minutos (recomendado)', desc: 'Equilíbrio ideal entre segurança e praticidade' },
-  30: { title: '30 minutos', desc: 'Permite pausas mais longas sem trancar o cofre' },
-  60: { title: '1 hora', desc: 'Tranca apenas após longos períodos de inatividade' },
-};
 const BACKUP_STALE_DAYS = 7;
 
 function daysSince(iso: string | undefined): number | null {
@@ -71,13 +61,6 @@ function daysSince(iso: string | undefined): number | null {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
   return Math.floor((Date.now() - t) / 86_400_000);
-}
-
-function describeBackupAge(days: number | null): string {
-  if (days === null) return 'Nunca feito';
-  if (days === 0) return 'Hoje';
-  if (days === 1) return 'Ontem';
-  return `Há ${days} dias`;
 }
 
 type ConfigTab = 'all' | 'security' | 'backups' | 'currency' | 'mcp' | 'danger';
@@ -89,6 +72,8 @@ interface BackupSecurityViewProps {
   accounts: Account[];
   autoLockMinutes: number;
   onUpdateAutoLockMinutes: (mins: number) => void;
+  language?: AppLanguage;
+  onUpdateLanguage?: (lang: AppLanguage) => Promise<void> | void;
   onChangeMasterPassword: (newPassword: string) => Promise<void>;
   onRestoreBackupEnvelope: (envelope: EncryptedVaultEnvelope, password: string) => Promise<void>;
   lastBackupAt?: string;
@@ -122,6 +107,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   accounts,
   autoLockMinutes,
   onUpdateAutoLockMinutes,
+  language,
+  onUpdateLanguage,
   onChangeMasterPassword,
   onRestoreBackupEnvelope,
   lastBackupAt,
@@ -139,6 +126,35 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   onUpdateMcpSettings,
   initialConfigTab,
 }) => {
+  const { t, language: activeLanguage } = useI18n();
+
+  const mcpStatusLabel = (status: McpBridgeStatus) => {
+    switch (status) {
+      case 'off':
+        return t('backup.mcp.statusOff');
+      case 'connecting':
+        return t('backup.mcp.statusConnecting');
+      case 'connected':
+        return t('backup.mcp.statusConnected');
+      case 'error':
+        return t('backup.mcp.statusError');
+    }
+  };
+
+  const autoLockInfo = (mins: number) => {
+    if (mins === 5) return { title: t('backup.autolock.5.title'), desc: t('backup.autolock.5.desc') };
+    if (mins === 15) return { title: t('backup.autolock.15.title'), desc: t('backup.autolock.15.desc') };
+    if (mins === 30) return { title: t('backup.autolock.30.title'), desc: t('backup.autolock.30.desc') };
+    if (mins === 60) return { title: t('backup.autolock.60.title'), desc: t('backup.autolock.60.desc') };
+    return { title: t('backup.autolock.customTitle', { minutes: mins }), desc: '' };
+  };
+
+  const describeBackupAge = (days: number | null): string => {
+    if (days === null) return t('backup.age.never');
+    if (days === 0) return t('backup.age.today');
+    if (days === 1) return t('backup.age.yesterday');
+    return t('backup.age.daysAgo', { days });
+  };
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -152,7 +168,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
     try {
       await onDeleteVault(deletePassword);
     } catch {
-      setDeleteError('Senha mestra incorreta. Nada foi apagado.');
+      setDeleteError(t('backup.delete.wrongPassword'));
       setDeleting(false);
     }
   };
@@ -239,16 +255,16 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
     const from = normalizeCurrency(rateFromInput);
     const to = normalizeCurrency(rateToInput);
     if (!from || !to) {
-      setRateFormError('Informe os códigos das moedas de origem e destino.');
+      setRateFormError(t('backup.currency.errorMissingCodes'));
       return;
     }
     if (from === to) {
-      setRateFormError('As moedas de origem e destino devem ser diferentes.');
+      setRateFormError(t('backup.currency.errorSameCurrency'));
       return;
     }
     const val = parseDecimalInput(rateValueInput);
     if (!Number.isFinite(val) || val <= 0) {
-      setRateFormError('Informe uma cotação numérica válida maior que zero.');
+      setRateFormError(t('backup.currency.errorInvalidRate'));
       return;
     }
     if (onSaveExchangeRate) {
@@ -300,18 +316,18 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword.length < 8) {
-      setFeedback({ type: 'err', text: 'A nova senha mestra deve ter pelo menos 8 caracteres.' });
+      setFeedback({ type: 'err', text: t('backup.password.errorMinLength') });
       return;
     }
     if (pwStrength.score === 0) {
       setFeedback({
         type: 'err',
-        text: pwStrength.tip ?? 'Escolha uma senha mestra menos previsível.',
+        text: pwStrength.tip ?? t('backup.password.errorPredictable'),
       });
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setFeedback({ type: 'err', text: 'A confirmação da nova senha não coincide.' });
+      setFeedback({ type: 'err', text: t('backup.password.errorMismatch') });
       return;
     }
     setChangingPw(true);
@@ -322,12 +338,12 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       setConfirmNewPassword('');
       setFeedback({
         type: 'ok',
-        text: 'Senha mestra atualizada! Novo sal criptográfico gerado e cofre re-criptografado em AES-256-GCM.',
+        text: t('backup.password.success'),
       });
     } catch (err) {
       setFeedback({
         type: 'err',
-        text: err instanceof Error ? err.message : 'Erro ao re-criptografar cofre.',
+        text: err instanceof Error ? err.message : t('backup.password.errorReencrypt'),
       });
     } finally {
       setChangingPw(false);
@@ -345,7 +361,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       const text = await file.text();
       const parsed = JSON.parse(text) as EncryptedVaultEnvelope;
       if (parsed.app !== 'MyFBox' || !parsed.cipher || !parsed.kdf) {
-        throw new Error('Arquivo não é um backup criptografado .myfbox válido.');
+        throw new Error(t('backup.restore.errorInvalidFile'));
       }
       setBackupToRestore(parsed);
       setBackupFileName(file.name);
@@ -353,7 +369,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
     } catch (err) {
       setFeedback({
         type: 'err',
-        text: err instanceof Error ? err.message : 'Backup inválido.',
+        text: err instanceof Error ? err.message : t('backup.restore.errorInvalidGeneric'),
       });
     }
   };
@@ -369,12 +385,12 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       setBackupPassword('');
       setFeedback({
         type: 'ok',
-        text: 'Backup descriptografado e restaurado com sucesso!',
+        text: t('backup.restore.success'),
       });
     } catch (err) {
       setFeedback({
         type: 'err',
-        text: err instanceof Error ? err.message : 'Senha incorreta para este backup.',
+        text: err instanceof Error ? err.message : t('backup.restore.errorWrongPassword'),
       });
     } finally {
       setRestoring(false);
@@ -404,58 +420,58 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <span className="bk-num">{num}</span>
         <div className="bk-mcp-title-wrap">
           <div className="bk-mcp-title-row">
-            <h3>Modo MCP local (Model Context Protocol)</h3>
+            <h3>{t('backup.mcp.title')}</h3>
             <div className="bk-mcp-header-actions">
               <button
                 type="button"
                 className="btn-secondary btn-sm bk-btn-instructions"
                 onClick={() => setShowMcpInstructions(true)}
-                title="Abrir guia de instruções, prompts prontos e capacidades do MCP"
+                title={t('backup.mcp.instructionsTitle')}
               >
                 <BookOpen size={14} />
-                Instruções
+                {t('backup.mcp.instructionsBtn')}
               </button>
               <button
                 type="button"
                 role="switch"
                 aria-checked={mcp.enabled}
-                aria-label="Ativar Modo MCP local"
+                aria-label={t('backup.mcp.switchAria')}
                 className={`bk-switch ${mcp.enabled ? 'on' : ''}`}
                 onClick={toggleMcp}
               >
                 <span className="bk-switch-knob" />
-                <span className="bk-switch-label">{mcp.enabled ? 'Ligado' : 'Desligado'}</span>
+                <span className="bk-switch-label">
+                  {mcp.enabled ? t('backup.mcp.on') : t('backup.mcp.off')}
+                </span>
               </button>
             </div>
           </div>
-          <p>
-            Conecte seu assistente de IA (Claude, Cursor, Antigravity) ao cofre desbloqueado.
-          </p>
+          <p>{t('backup.mcp.subtitle')}</p>
         </div>
       </header>
 
       {mcpSetup.environment === 'desktop' ? (
         <p className="field-hint" style={{ marginBottom: '0.75rem' }}>
-          <strong>App Desktop:</strong> o servidor MCP já vem incluído no app. Requer apenas Node.js instalado.
+          <strong>{t('backup.mcp.desktopLabel')}</strong> {t('backup.mcp.desktopHint')}
         </p>
       ) : (
         mcpSetup.environment === 'web-remote' && (
           <p className="field-hint" style={{ marginBottom: '0.75rem' }}>
-            <strong>Versão Web:</strong> requer Node.js e Git (Chrome, Edge, Firefox ou Brave; o Safari pode bloquear conexões locais em <code>127.0.0.1</code>).
+            <strong>{t('backup.mcp.webLabel')}</strong> {t('backup.mcp.webHint')}
           </p>
         )
       )}
 
       <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
         <div className="mcp-code-header">
-          <span>Jeito fácil — envie este prompt para sua IA configurar e conectar</span>
+          <span>{t('backup.mcp.easyWayTitle')}</span>
           <button
             type="button"
             className="btn-ghost btn-sm"
             onClick={() => copyMcpSnippet('prompt', mcpSetup.agentPrompt)}
           >
             {copiedMcpItem === 'prompt' ? <Check size={12} /> : <Copy size={12} />}
-            {copiedMcpItem === 'prompt' ? 'Prompt copiado!' : 'Copiar prompt'}
+            {copiedMcpItem === 'prompt' ? t('backup.mcp.promptCopied') : t('backup.mcp.copyPrompt')}
           </button>
         </div>
         <div style={{ padding: '10px 14px', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
@@ -467,20 +483,20 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <div className="mcp-code-header">
           <span>
             {mcpSetup.environment === 'desktop'
-              ? 'Configuração manual — mcp.json (Desktop)'
+              ? t('backup.mcp.manualDesktop')
               : mcpSetup.environment === 'web-remote'
-                ? 'Configuração manual — mcp.json (Web)'
-                : 'Configuração manual — mcp.json (Local)'}
+                ? t('backup.mcp.manualWeb')
+                : t('backup.mcp.manualLocal')}
           </span>
           <div className="mcp-code-actions">
             <button
               type="button"
               className="btn-ghost btn-sm"
               onClick={() => copyMcpSnippet('cli', mcpSetup.claudeCliCommand)}
-              title="Copiar comando único para Claude Code (claude mcp add)"
+              title={t('backup.mcp.copyCliTitle')}
             >
               {copiedMcpItem === 'cli' ? <Check size={12} /> : <Terminal size={12} />}
-              {copiedMcpItem === 'cli' ? 'CLI copiado!' : 'Copiar CLI'}
+              {copiedMcpItem === 'cli' ? t('backup.mcp.cliCopied') : t('backup.mcp.copyCli')}
             </button>
             <button
               type="button"
@@ -488,7 +504,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               onClick={() => copyMcpSnippet('json', mcpSetup.mcpConfigJson)}
             >
               {copiedMcpItem === 'json' ? <Check size={12} /> : <Copy size={12} />}
-              {copiedMcpItem === 'json' ? 'Copiado!' : 'Copiar JSON'}
+              {copiedMcpItem === 'json' ? t('backup.mcp.jsonCopied') : t('backup.mcp.copyJson')}
             </button>
           </div>
         </div>
@@ -501,16 +517,14 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             <Bot size={16} />
             {mcp.token ? (
               <>
-                <strong>{MCP_STATUS_LABEL[mcp.status]}</strong>
+                <strong>{mcpStatusLabel(mcp.status)}</strong>
                 {mcp.status !== 'connected' && mcp.detail && <span>{mcp.detail}</span>}
-                {mcp.status === 'connected' && (
-                  <span>O assistente pode ler e registrar lançamentos no cofre aberto.</span>
-                )}
+                {mcp.status === 'connected' && <span>{t('backup.mcp.connectedDesc')}</span>}
               </>
             ) : (
               <>
-                <strong>Aguardando pareamento</strong>
-                <span>Envie o prompt acima (ou cole o JSON) e abra o link gerado pela IA para autorizar.</span>
+                <strong>{t('backup.mcp.waitingTitle')}</strong>
+                <span>{t('backup.mcp.waitingDesc')}</span>
               </>
             )}
           </div>
@@ -518,28 +532,26 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           {mcp.token ? (
             <div className="bk-mcp-paired">
               <div>
-                <span className="eyebrow">PAREADO</span>
+                <span className="eyebrow">{t('backup.mcp.pairedEyebrow')}</span>
                 <span>
-                  Código <strong className="mono">{mcpCode ?? '····-····'}</strong> · porta{' '}
-                  <strong className="mono">{mcp.port}</strong>
+                  {t('backup.mcp.codeLabel')} <strong className="mono">{mcpCode ?? '····-····'}</strong> ·{' '}
+                  {t('backup.mcp.portLabel')} <strong className="mono">{mcp.port}</strong>
                 </span>
               </div>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => onUpdateMcpSettings({ mcpEnabled: false, mcpToken: undefined })}
-                title="Desliga e esquece este pareamento; para voltar, pareie de novo pelo link"
+                title={t('backup.mcp.forgetTitle')}
               >
-                <Unlink size={15} /> Esquecer pareamento
+                <Unlink size={15} /> {t('backup.mcp.forgetBtn')}
               </button>
             </div>
           ) : null}
         </>
       ) : (
         <div className="bk-card-footer">
-          <span className="field-hint">
-            Desligado por segurança. Ative o interruptor acima quando quiser usar com um assistente de IA.
-          </span>
+          <span className="field-hint">{t('backup.mcp.disabledHint')}</span>
         </div>
       )}
     </section>
@@ -550,17 +562,23 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       <header className="bk-card-header">
         <span className="bk-num">{num}</span>
         <div>
-          <h3>Bloqueio Automático</h3>
-          <p>Tranca o cofre após inatividade para proteger seus dados de olhares curiosos.</p>
+          <h3>{t('backup.autolock.title')}</h3>
+          <p>{t('backup.autolock.subtitle')}</p>
         </div>
       </header>
 
       <div className="form-field">
-        <label id="bk-autolock">Tempo de inatividade até trancar</label>
+        <label>{t('language.settingsTitle')}</label>
+        <p className="bk-hint">{t('language.settingsDesc')}</p>
+        <LanguageSelector variant="buttons" value={language} onChange={onUpdateLanguage} />
+      </div>
+
+      <div className="form-field">
+        <label id="bk-autolock">{t('backup.autolock.inactivityLabel')}</label>
         <div className="bk-autolock-vertical" role="radiogroup" aria-labelledby="bk-autolock">
           {AUTO_LOCK_OPTIONS.map((m) => {
             const isSelected = autoLockMinutes === m;
-            const info = AUTO_LOCK_LABELS[m] ?? { title: `${m} minutos`, desc: '' };
+            const info = autoLockInfo(m);
             return (
               <button
                 key={m}
@@ -585,10 +603,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       </div>
 
       <div className="bk-card-footer">
-        <span className="field-hint">
-          Ao trancar, a chave criptográfica em memória é totalmente apagada. Para destravar,
-          sua senha mestra será exigida novamente.
-        </span>
+        <span className="field-hint">{t('backup.autolock.footerHint')}</span>
       </div>
     </section>
   );
@@ -598,17 +613,16 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       <header className="bk-card-header">
         <span className="bk-num">{num}</span>
         <div>
-          <h3>Gestão de Câmbio Multimoeda (100% Offline)</h3>
-          <p>
-            Cadastre cotações entre qualquer par de moedas. O MyFBox é 100% offline:
-            as taxas são inseridas manualmente pelo painel ou atualizadas pelo agente de IA via MCP.
-          </p>
+          <h3>{t('backup.currency.title')}</h3>
+          <p>{t('backup.currency.subtitle')}</p>
         </div>
       </header>
 
       <div className="bk-currency-box">
         <div className="bk-rates-header">
-          <span className="bk-rate-label">Cotações Cadastradas ({allRates.length})</span>
+          <span className="bk-rate-label">
+            {t('backup.currency.registeredRates', { count: allRates.length })}
+          </span>
           {!isAddingRate && (
             <button
               type="button"
@@ -616,7 +630,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               onClick={startNewRate}
             >
               <Plus size={14} />
-              Adicionar Cotação
+              {t('backup.currency.addRate')}
             </button>
           )}
         </div>
@@ -624,12 +638,16 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         {isAddingRate && (
           <form onSubmit={handleRateFormSubmit} className="bk-rate-add-card">
             <div className="bk-rate-form-title">
-              <strong>{editingPair ? `Editar Cotação: ${editingPair}` : 'Nova Cotação de Câmbio'}</strong>
+              <strong>
+                {editingPair
+                  ? t('backup.currency.editRateTitle', { pair: editingPair })
+                  : t('backup.currency.newRateTitle')}
+              </strong>
             </div>
 
             <div className="bk-rate-form-grid">
               <div className="form-field">
-                <label htmlFor="rate-from">Moeda Origem</label>
+                <label htmlFor="rate-from">{t('backup.currency.fromLabel')}</label>
                 <select
                   id="rate-from"
                   value={rateFromInput}
@@ -647,7 +665,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               </div>
 
               <div className="form-field">
-                <label htmlFor="rate-to">Moeda Destino</label>
+                <label htmlFor="rate-to">{t('backup.currency.toLabel')}</label>
                 <select
                   id="rate-to"
                   value={rateToInput}
@@ -666,7 +684,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
               <div className="form-field">
                 <label htmlFor="rate-val">
-                  Taxa (1 {rateFromInput} = ? {rateToInput})
+                  {t('backup.currency.rateLabel', { from: rateFromInput, to: rateToInput })}
                 </label>
                 <input
                   id="rate-val"
@@ -677,7 +695,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                     setRateFormError(null);
                     setRateValueInput(e.target.value);
                   }}
-                  placeholder="Ex: 5,65"
+                  placeholder={t('backup.currency.ratePlaceholder')}
                   className="mono"
                   autoFocus={!editingPair}
                   required
@@ -693,14 +711,14 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
             <div className="bk-rate-form-actions">
               <button type="submit" className="btn-primary btn-sm">
-                Salvar Cotação
+                {t('backup.currency.saveBtn')}
               </button>
               <button
                 type="button"
                 className="btn-secondary btn-sm"
                 onClick={cancelRateForm}
               >
-                Cancelar
+                {t('backup.actions.cancel')}
               </button>
             </div>
           </form>
@@ -708,7 +726,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
         {allRates.length === 0 ? (
           <div className="bk-rate-empty">
-            <span>Nenhuma cotação cadastrada no cofre ainda. Clique em "Adicionar Cotação" ou peça ao assistente de IA.</span>
+            <span>{t('backup.currency.empty')}</span>
           </div>
         ) : (
           <div className="bk-rates-grid">
@@ -734,7 +752,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                       <button
                         type="button"
                         className="bk-rate-action-btn"
-                        title={`Editar cotação ${pairKey}`}
+                        title={t('backup.currency.editIconTitle', { pair: pairKey })}
                         onClick={() => startEditRate(r.from, r.to, r.rate)}
                       >
                         <Edit3 size={13} />
@@ -743,7 +761,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                         <button
                           type="button"
                           className="bk-rate-action-btn danger"
-                          title={`Remover cotação ${pairKey}`}
+                          title={t('backup.currency.deleteIconTitle', { pair: pairKey })}
                           onClick={() => handleDeleteRate(r.from, r.to)}
                         >
                           <Trash2 size={13} />
@@ -758,11 +776,15 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
 
                   <div className="bk-rate-meta">
                     <span className="bk-rate-updated">
-                      {r.updatedAt ? `Atualizado: ${r.updatedAt}` : 'Manual'}
+                      {r.updatedAt
+                        ? t('backup.currency.updatedAt', { date: r.updatedAt })
+                        : t('backup.currency.manual')}
                     </span>
                     {r.source && (
                       <span className="bk-rate-source-tag">
-                        {r.source === 'mcp' || r.source === 'agent' ? 'MCP / Agente' : 'Manual'}
+                        {r.source === 'mcp' || r.source === 'agent'
+                          ? t('backup.currency.mcpAgent')
+                          : t('backup.currency.manual')}
                       </span>
                     )}
                   </div>
@@ -773,11 +795,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         )}
       </div>
 
-      <span className="field-hint">
-        Cotações locais são usadas para converter saldos e lançamentos na <strong>Visão Geral</strong>,{' '}
-        <strong>Comparativos</strong> e <strong>Metas</strong>. Ao liquidar um lançamento em moeda
-        estrangeira, a cotação é congelada nele.
-      </span>
+      <span className="field-hint">{t('backup.currency.footerHint')}</span>
     </section>
   );
 
@@ -786,8 +804,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       <header className="bk-card-header">
         <span className="bk-num">{num}</span>
         <div>
-          <h3>Alterar Senha Mestra</h3>
-          <p>Gera um novo sal criptográfico e re-criptografa todo o cofre em AES-256-GCM.</p>
+          <h3>{t('backup.password.title')}</h3>
+          <p>{t('backup.password.subtitle')}</p>
         </div>
       </header>
 
@@ -795,14 +813,14 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <div className="form-field">
           <label htmlFor="bk-new-pw">
             <KeyRound size={13} style={{ display: 'inline', marginRight: 4 }} />
-            Nova senha mestra
+            {t('backup.password.newLabel')}
           </label>
           <input
             id="bk-new-pw"
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Mínimo 8 caracteres"
+            placeholder={t('backup.password.newPlaceholder')}
             autoComplete="new-password"
             required
           />
@@ -822,7 +840,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               <div className="gate-strength-time">
                 <Clock size={13} aria-hidden />
                 <span>
-                  Tempo para descobrir: <strong>{pwStrength.crackTimeText}</strong>
+                  {t('backup.password.crackTimeLabel')} <strong>{pwStrength.crackTimeText}</strong>
                 </span>
               </div>
             </div>
@@ -831,28 +849,26 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           </div>
         )}
         <div className="form-field">
-          <label htmlFor="bk-new-pw2">Confirmar nova senha</label>
+          <label htmlFor="bk-new-pw2">{t('backup.password.confirmLabel')}</label>
           <input
             id="bk-new-pw2"
             type="password"
             value={confirmNewPassword}
             onChange={(e) => setConfirmNewPassword(e.target.value)}
-            placeholder="Repita a nova senha"
+            placeholder={t('backup.password.confirmPlaceholder')}
             autoComplete="new-password"
             required
           />
           {confirmNewPassword && (
             <span className={`field-hint ${pwMatches ? 'ok' : 'bad'}`}>
-              {pwMatches ? 'As senhas coincidem' : 'As senhas ainda não coincidem'}
+              {pwMatches ? t('backup.password.matchOk') : t('backup.password.matchFail')}
             </span>
           )}
         </div>
         <button type="submit" className="btn-secondary" disabled={changingPw}>
-          {changingPw ? 'Recifrando o cofre...' : 'Trocar senha e recifrar cofre'}
+          {changingPw ? t('backup.password.submitting') : t('backup.password.submitBtn')}
         </button>
-        <span className="field-hint">
-          Backups baixados anteriormente continuam protegidos pela senha antiga.
-        </span>
+        <span className="field-hint">{t('backup.password.footerHint')}</span>
       </form>
     </section>
   );
@@ -862,11 +878,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       <header className="bk-card-header">
         <span className="bk-num">{num}</span>
         <div>
-          <h3>Exportar Backup Cifrado</h3>
-          <p>
-            O arquivo <code>.myfbox.json</code> contém todo o cofre criptografado.
-            Pode ser salvo com segurança na nuvem ou em um pen-drive.
-          </p>
+          <h3>{t('backup.export.title')}</h3>
+          <p>{t('backup.export.subtitle')}</p>
         </div>
       </header>
 
@@ -875,8 +888,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           <AlertTriangle size={15} />
           <span>
             {backupDays === null
-              ? 'Você ainda não fez nenhum backup. Se este navegador for limpo, o cofre se perde junto.'
-              : `Seu último backup tem ${backupDays} dias. Lançamentos recentes não estão salvos fora.`}
+              ? t('backup.export.staleNever')
+              : t('backup.export.staleDays', { days: backupDays })}
           </span>
         </div>
       )}
@@ -888,20 +901,18 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           disabled={!envelope}
           onClick={onDownloadBackup}
         >
-          <Download size={16} /> Baixar backup cifrado (.myfbox.json)
+          <Download size={16} /> {t('backup.export.downloadBtn')}
         </button>
         <button
           type="button"
           className="btn-secondary bk-btn-full"
           onClick={() => exportTransactionsToCSV(transactions, categories, accounts)}
-          title="Planilha sem criptografia, para usar no Excel ou Google Sheets"
+          title={t('backup.export.csvTitle')}
         >
-          <FileSpreadsheet size={16} /> Exportar planilha (.csv)
+          <FileSpreadsheet size={16} /> {t('backup.export.csvBtn')}
         </button>
       </div>
-      <span className="field-hint">
-        A planilha .csv é gerada <strong>sem criptografia</strong>. Guarde em local protegido.
-      </span>
+      <span className="field-hint">{t('backup.export.csvHint')}</span>
     </section>
   );
 
@@ -910,8 +921,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       <header className="bk-card-header">
         <span className="bk-num">{num}</span>
         <div>
-          <h3>Restaurar Backup</h3>
-          <p>Carrega um arquivo <code>.myfbox.json</code> e substitui os dados deste navegador.</p>
+          <h3>{t('backup.restore.title')}</h3>
+          <p>{t('backup.restore.subtitle')}</p>
         </div>
       </header>
 
@@ -940,10 +951,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           <span className="gate-dropzone-icon">
             <Upload size={20} />
           </span>
-          <strong>Arraste o backup aqui</strong>
-          <span>
-            ou <u>clique para selecionar</u> um <code>.myfbox.json</code>
-          </span>
+          <strong>{t('backup.restore.dropTitle')}</strong>
+          <span>{t('backup.restore.dropSubtitle')}</span>
         </div>
       ) : (
         <form onSubmit={handleRestoreBackupSubmit} className="bk-form">
@@ -959,30 +968,27 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                 setBackupPassword('');
               }}
             >
-              Trocar
+              {t('backup.restore.changeFile')}
             </button>
           </div>
           <div className="bk-callout danger">
             <AlertTriangle size={15} />
-            <span>
-              Isso <strong>substitui</strong> o cofre atual deste navegador. Baixe um backup do
-              cofre atual antes se quiser mantê-lo.
-            </span>
+            <span>{t('backup.restore.warning')}</span>
           </div>
           <div className="form-field">
-            <label htmlFor="bk-restore-pw">Senha mestra do backup</label>
+            <label htmlFor="bk-restore-pw">{t('backup.restore.passwordLabel')}</label>
             <input
               id="bk-restore-pw"
               type="password"
               value={backupPassword}
               onChange={(e) => setBackupPassword(e.target.value)}
-              placeholder="Senha mestra usada neste backup"
+              placeholder={t('backup.restore.passwordPlaceholder')}
               autoComplete="current-password"
               required
             />
           </div>
           <button type="submit" className="btn-primary" disabled={restoring || !backupPassword}>
-            {restoring ? 'Restaurando...' : 'Substituir e restaurar'}
+            {restoring ? t('backup.restore.submitting') : t('backup.restore.submitBtn')}
           </button>
         </form>
       )}
@@ -995,8 +1001,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <summary className="bk-collapsible-header">
           <span className="bk-num">{num1}</span>
           <div className="bk-collapsible-title">
-            <h3>O que está no disco</h3>
-            <p>A prova de que este navegador armazena exclusivamente bytes cifrados, nada em texto aberto.</p>
+            <h3>{t('backup.disk.title')}</h3>
+            <p>{t('backup.disk.subtitle')}</p>
           </div>
           <ChevronDown size={18} className="bk-collapsible-chevron" />
         </summary>
@@ -1005,31 +1011,31 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           {envelope ? (
             <div className="crypto-inspector-box mono">
               <div>
-                <span className="crypto-key">ALG / KDF:</span> {envelope.cipher.algorithm} +{' '}
-                {envelope.kdf.algorithm} ({envelope.kdf.iterations.toLocaleString('pt-BR')} iter)
+                <span className="crypto-key">{t('backup.disk.algKdf')}</span> {envelope.cipher.algorithm} +{' '}
+                {envelope.kdf.algorithm} ({envelope.kdf.iterations.toLocaleString(activeLanguage)} iter)
               </div>
               <div>
-                <span className="crypto-key">KEY FINGERPRINT:</span> {envelope.keyFingerprint}
+                <span className="crypto-key">{t('backup.disk.keyFingerprint')}</span> {envelope.keyFingerprint}
               </div>
               <div>
-                <span className="crypto-key">SALT (128-bit Base64):</span>{' '}
+                <span className="crypto-key">{t('backup.disk.salt')}</span>{' '}
                 {envelope.kdf.saltBase64}
               </div>
               <div>
-                <span className="crypto-key">IV ATUAL (96-bit Base64):</span>{' '}
+                <span className="crypto-key">{t('backup.disk.iv')}</span>{' '}
                 {envelope.cipher.ivBase64}
               </div>
               <div>
-                <span className="crypto-key">CIPHERTEXT SIZE:</span>{' '}
-                {envelope.cipher.ciphertextBase64.length.toLocaleString('pt-BR')} bytes Base64
+                <span className="crypto-key">{t('backup.disk.ciphertextSize')}</span>{' '}
+                {envelope.cipher.ciphertextBase64.length.toLocaleString(activeLanguage)} bytes Base64
               </div>
               <div className="ciphertext-sample">
-                <span className="crypto-key">AMOSTRA DO CIPHERTEXT:</span>
+                <span className="crypto-key">{t('backup.disk.ciphertextSample')}</span>
                 <code>{envelope.cipher.ciphertextBase64.slice(0, 148)}...</code>
               </div>
             </div>
           ) : (
-            <span className="field-hint">Nenhum envelope gravado ainda.</span>
+            <span className="field-hint">{t('backup.disk.empty')}</span>
           )}
         </div>
       </details>
@@ -1038,11 +1044,8 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <header className="bk-card-header">
           <span className="bk-num">{num2}</span>
           <div>
-            <h3>Apagar este cofre e recomeçar</h3>
-            <p>
-              Remove o cofre cifrado deste navegador (contas, lançamentos, categorias, metas,
-              insights e pareamento MCP). Ação irreversível.
-            </p>
+            <h3>{t('backup.delete.title')}</h3>
+            <p>{t('backup.delete.subtitle')}</p>
           </div>
         </header>
 
@@ -1051,24 +1054,28 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             <AlertTriangle size={15} />
             <span>
               {backupDays === null
-                ? 'Você nunca fez backup deste cofre.'
-                : `Seu último backup tem ${backupDays} dias.`}{' '}
-              Baixe um backup antes de apagar.
+                ? t('backup.delete.staleNever')
+                : t('backup.delete.staleDays', { days: backupDays })}{' '}
+              {t('backup.delete.downloadBefore')}
             </span>
             <button type="button" className="btn-secondary bk-inline-btn" onClick={onDownloadBackup}>
-              <Download size={14} /> Baixar backup
+              <Download size={14} /> {t('backup.delete.downloadBtn')}
             </button>
           </div>
         ) : (
           <div className="bk-callout warn">
             <CheckCircle2 size={15} />
-            <span>Último backup: {describeBackupAge(backupDays).toLowerCase()}. Confira se está guardado antes de apagar.</span>
+            <span>
+              {t('backup.delete.recentBackup', {
+                age: describeBackupAge(backupDays).toLowerCase(),
+              })}
+            </span>
           </div>
         )}
 
         <form onSubmit={handleDeleteVaultSubmit} className="bk-form bk-danger-form" style={{ marginTop: 'auto' }}>
           <div className="form-field">
-            <label htmlFor="bk-delete-pw">Senha mestra atual</label>
+            <label htmlFor="bk-delete-pw">{t('backup.delete.passwordLabel')}</label>
             <input
               id="bk-delete-pw"
               type="password"
@@ -1077,7 +1084,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                 setDeletePassword(e.target.value);
                 setDeleteError(null);
               }}
-              placeholder="Confirme com a senha deste cofre"
+              placeholder={t('backup.delete.passwordPlaceholder')}
               autoComplete="current-password"
             />
             {deleteError && <span className="field-hint bad">{deleteError}</span>}
@@ -1088,14 +1095,14 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               checked={deleteConfirmed}
               onChange={(e) => setDeleteConfirmed(e.target.checked)}
             />
-            <span>Entendo que isso apaga o cofre deste navegador e não pode ser desfeito.</span>
+            <span>{t('backup.delete.confirmCheckbox')}</span>
           </label>
           <button
             type="submit"
             className="bk-btn-danger"
             disabled={!deleteConfirmed || !deletePassword || deleting}
           >
-            {deleting ? 'Conferindo a senha...' : 'Apagar este cofre definitivamente'}
+            {deleting ? t('backup.delete.submitting') : t('backup.delete.submitBtn')}
           </button>
         </form>
       </section>
@@ -1118,36 +1125,40 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <div className="bk-status-item">
           <ShieldCheck size={18} />
           <div>
-            <span>Criptografia</span>
+            <span>{t('backup.status.encryption')}</span>
             <strong>AES-256-GCM</strong>
           </div>
         </div>
         <div className={`bk-status-item ${backupIsStale ? 'warn' : 'ok'}`}>
           {backupIsStale ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
           <div>
-            <span>Último backup</span>
+            <span>{t('backup.status.lastBackup')}</span>
             <strong>{describeBackupAge(backupDays)}</strong>
           </div>
         </div>
         <div className="bk-status-item">
           <Clock size={18} />
           <div>
-            <span>Auto-bloqueio</span>
-            <strong>{autoLockMinutes < 60 ? `${autoLockMinutes} min` : '1 hora'}</strong>
+            <span>{t('backup.status.autoLock')}</span>
+            <strong>
+              {autoLockMinutes < 60
+                ? t('backup.status.autoLockMins', { minutes: autoLockMinutes })
+                : t('backup.status.autoLockHour')}
+            </strong>
           </div>
         </div>
         <div className={`bk-status-item ${storageStatus === 'persisted' ? 'ok' : 'warn'}`}>
           {storageStatus === 'persisted' ? <HardDrive size={18} /> : <AlertTriangle size={18} />}
           <div>
-            <span>Armazenamento</span>
+            <span>{t('backup.status.storage')}</span>
             <strong>
               {desktopVaultPath
-                ? 'Arquivo local'
+                ? t('backup.status.storageDesktop')
                 : storageStatus === 'persisted'
-                ? 'Persistente'
+                ? t('backup.status.storagePersisted')
                 : storageStatus === 'unsupported'
-                ? 'Sem garantia'
-                : 'Pode ser apagado'}
+                ? t('backup.status.storageUnsupported')
+                : t('backup.status.storageNotPersisted')}
             </strong>
             {desktopVaultPath && (
               <span className="mono" title={desktopVaultPath} style={{ fontSize: '0.72rem', opacity: 0.78, wordBreak: 'break-all' }}>
@@ -1156,7 +1167,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             )}
             {!desktopVaultPath && storageStatus === 'not-persisted' && (
               <button type="button" className="bk-status-action" onClick={onRequestPersist}>
-                Pedir ao navegador
+                {t('backup.status.requestPersistBtn')}
               </button>
             )}
           </div>
@@ -1164,54 +1175,54 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         <div className="bk-status-item">
           <Fingerprint size={18} />
           <div>
-            <span>Impressão da chave</span>
+            <span>{t('backup.status.keyFingerprint')}</span>
             <strong className="mono">{envelope?.keyFingerprint ?? '—'}</strong>
           </div>
         </div>
       </section>
 
-      <nav className="bk-tabs" aria-label="Categorias de configurações">
+      <nav className="bk-tabs" aria-label={t('backup.tabs.ariaLabel')}>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'all' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('all')}
         >
-          <SlidersHorizontal size={14} /> Todas as Opções
+          <SlidersHorizontal size={14} /> {t('backup.tabs.all')}
         </button>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'mcp' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('mcp')}
         >
-          <Bot size={14} /> Assistente IA (MCP)
+          <Bot size={14} /> {t('backup.tabs.mcp')}
         </button>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'currency' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('currency')}
         >
-          <Coins size={14} /> Câmbio ({allRates.length})
+          <Coins size={14} /> {t('backup.tabs.currency', { count: allRates.length })}
         </button>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'security' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('security')}
         >
-          <ShieldCheck size={14} /> Segurança & Acesso
+          <ShieldCheck size={14} /> {t('backup.tabs.security')}
         </button>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'backups' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('backups')}
         >
-          <Download size={14} /> Backups & Arquivos
+          <Download size={14} /> {t('backup.tabs.backups')}
         </button>
         <button
           type="button"
           className={`bk-tab-btn ${activeConfigTab === 'danger' ? 'active' : ''}`}
           onClick={() => setActiveConfigTab('danger')}
         >
-          <Terminal size={14} /> Auditoria & Avançado
+          <Terminal size={14} /> {t('backup.tabs.danger')}
         </button>
       </nav>
 
@@ -1262,9 +1273,9 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             <div className="bk-section-header">
               <div className="bk-section-title-wrap">
                 <Terminal size={16} />
-                <h4>Auditoria Técnica & Zona de Perigo</h4>
+                <h4>{t('backup.dangerSection.title')}</h4>
               </div>
-              <span className="bk-section-desc">Inspeção no armazenamento local e opções destrutivas</span>
+              <span className="bk-section-desc">{t('backup.dangerSection.subtitle')}</span>
             </div>
           )}
           {renderDangerSection(activeConfigTab === 'all' ? '.07' : '.01', activeConfigTab === 'all' ? '.08' : '.02')}

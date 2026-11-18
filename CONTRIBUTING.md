@@ -1,3 +1,5 @@
+🇧🇷 [Português (Brasil)](CONTRIBUTING.md) · 🇬🇧 [English (UK)](docs/i18n/CONTRIBUTING.en-GB.md) · 🇪🇸 [Español](docs/i18n/CONTRIBUTING.es.md) · 🇨🇳 [简体中文](docs/i18n/CONTRIBUTING.zh-CN.md)
+
 # Como contribuir com o MyFBox
 
 Obrigado pelo interesse em contribuir com o MyFBox! Este guia resume o fluxo de trabalho, os padrões de código e as verificações obrigatórias antes de abrir um Pull Request.

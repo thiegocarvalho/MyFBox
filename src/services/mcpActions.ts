@@ -4,6 +4,7 @@ import {
   transferBetweenAccountsInVault,
   upsertVaultExchangeRate,
 } from '../domain/vaultUseCases';
+import { tDomainMcp } from '../i18n/modules/domainMcp';
 import type {
   Account,
   AccountType,
@@ -67,21 +68,21 @@ const CATEGORY_COLORS = [
 function str(args: Args, key: string, required = false): string | undefined {
   const v = args[key];
   if (v === undefined || v === null || v === '') {
-    if (required) throw new McpActionError(`Campo obrigatório ausente: ${key}`);
+    if (required) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingRequiredField', { key }));
     return undefined;
   }
-  if (typeof v !== 'string') throw new McpActionError(`Campo ${key} deve ser texto`);
+  if (typeof v !== 'string') throw new McpActionError(tDomainMcp('domainMcp.mcpActions.fieldMustBeText', { key }));
   return v.trim();
 }
 
 function num(args: Args, key: string, required = false): number | undefined {
   const v = args[key];
   if (v === undefined || v === null) {
-    if (required) throw new McpActionError(`Campo obrigatório ausente: ${key}`);
+    if (required) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingRequiredField', { key }));
     return undefined;
   }
   if (typeof v !== 'number' || !Number.isFinite(v)) {
-    throw new McpActionError(`Campo ${key} deve ser número`);
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.fieldMustBeNumber', { key }));
   }
   return v;
 }
@@ -90,7 +91,9 @@ function oneOf<T extends string>(args: Args, key: string, options: readonly T[])
   const v = str(args, key);
   if (v === undefined) return undefined;
   if (!options.includes(v as T)) {
-    throw new McpActionError(`Campo ${key} deve ser um de: ${options.join(', ')}`);
+    throw new McpActionError(
+      tDomainMcp('domainMcp.mcpActions.fieldMustBeOneOf', { key, options: options.join(', ') })
+    );
   }
   return v as T;
 }
@@ -99,7 +102,7 @@ function isoDate(args: Args, key: string): string | undefined {
   const v = str(args, key);
   if (v === undefined) return undefined;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    throw new McpActionError(`${key} deve estar no formato AAAA-MM-DD`);
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.invalidIsoDate', { key }));
   }
   return v;
 }
@@ -108,7 +111,7 @@ function yearMonth(args: Args, key: string): string | undefined {
   const v = str(args, key);
   if (v === undefined) return undefined;
   if (!/^\d{4}-\d{2}$/.test(v)) {
-    throw new McpActionError(`${key} deve estar no formato AAAA-MM`);
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.invalidYearMonth', { key }));
   }
   return v;
 }
@@ -169,20 +172,23 @@ function describeTransaction(tx: Transaction, vault: VaultPayload) {
 function findAccount(vault: VaultPayload, accountId?: string, accountName?: string): Account {
   if (accountId) {
     const acc = vault.accounts.find((a) => a.id === accountId);
-    if (!acc) throw new McpActionError(`Conta não encontrada: ${accountId}`);
+    if (!acc) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.accountNotFound', { id: accountId }));
     return acc;
   }
   if (accountName) {
     const acc = vault.accounts.find((a) => a.name.toLowerCase() === accountName.toLowerCase());
     if (!acc) {
       throw new McpActionError(
-        `Conta "${accountName}" não encontrada. Contas: ${vault.accounts.map((a) => a.name).join(', ')}`
+        tDomainMcp('domainMcp.mcpActions.accountNameNotFound', {
+          name: accountName,
+          accounts: vault.accounts.map((a) => a.name).join(', '),
+        })
       );
     }
     return acc;
   }
   const first = vault.accounts[0];
-  if (!first) throw new McpActionError('O cofre não tem nenhuma conta.');
+  if (!first) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.noAccountsInVault'));
   return first;
 }
 
@@ -196,16 +202,18 @@ function resolveCategory(
   const sameType = vault.categories.filter((c) => c.type === type);
   if (categoryId) {
     const cat = sameType.find((c) => c.id === categoryId);
-    if (!cat) throw new McpActionError(`Categoria de ${type} não encontrada: ${categoryId}`);
+    if (!cat) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.categoryNotFound', { type, id: categoryId }));
     return cat;
   }
   if (categoryName) {
     const cat = sameType.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
     if (cat) return cat;
     throw new McpActionError(
-      `Categoria "${categoryName}" (${type}) não existe. Crie com create_category ou use uma destas: ${
-        sameType.map((c) => c.name).join(', ') || '(nenhuma)'
-      }`
+      tDomainMcp('domainMcp.mcpActions.categoryNameNotFound', {
+        name: categoryName,
+        type,
+        categories: sameType.map((c) => c.name).join(', ') || tDomainMcp('domainMcp.mcpActions.none'),
+      })
     );
   }
   const prediction = predictCategory(description, type, vault.categories, vault.transactions);
@@ -340,7 +348,7 @@ function createAccount(
       account: describeAccount(account, nextVault, month),
     },
     nextVault,
-    notice: `MCP criou a conta "${name}" (${currency})`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeCreatedAccount', { name, currency }),
   };
 }
 
@@ -355,17 +363,17 @@ function transferBetweenAccounts(
   const toName = str(args, 'toAccountName');
 
   if (!fromId && !fromName) {
-    throw new McpActionError('Informe fromAccountId ou fromAccountName para a conta de origem.');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingFromAccount'));
   }
   if (!toId && !toName) {
-    throw new McpActionError('Informe toAccountId ou toAccountName para a conta de destino.');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingToAccount'));
   }
 
   const fromAcc = findAccount(vault, fromId, fromName);
   const toAcc = findAccount(vault, toId, toName);
   const amount = num(args, 'amount', true)!;
   if (amount <= 0) {
-    throw new McpActionError('amount deve ser maior que zero');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.amountPositive'));
   }
 
   const date = isoDate(args, 'date') ?? ctx.today;
@@ -393,17 +401,20 @@ function transferBetweenAccounts(
       incomingTransaction: describeTransaction(inTx, outcome.nextVault),
     },
     nextVault: outcome.nextVault,
-    notice: `MCP transferiu de "${fromAcc.name}" para "${toAcc.name}"`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeTransferred', {
+      from: fromAcc.name,
+      to: toAcc.name,
+    }),
   };
 }
 
 function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
   const name = str(args, 'name', true)!;
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
-  if (!type) throw new McpActionError('Campo obrigatório ausente: type (income ou expense)');
+  if (!type) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingType'));
   const budget = num(args, 'monthlyBudget');
   if (budget !== undefined && budget < 0) {
-    throw new McpActionError('monthlyBudget não pode ser negativo');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.budgetNonNegative'));
   }
 
   const existing = vault.categories.find(
@@ -434,7 +445,7 @@ function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext):
   return {
     result: { created: true, category: describeCategory(category) },
     nextVault: { ...vault, categories: [...vault.categories, category] },
-    notice: `MCP criou a categoria "${name}"`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeCreatedCategory', { name }),
   };
 }
 
@@ -442,12 +453,12 @@ function setCategoryBudget(vault: VaultPayload, args: Args): McpActionOutcome {
   const categoryId = str(args, 'categoryId', true)!;
   const raw = args.monthlyBudget;
   if (raw !== null && (typeof raw !== 'number' || !Number.isFinite(raw) || raw < 0)) {
-    throw new McpActionError('monthlyBudget deve ser um número >= 0, ou null para remover a meta');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.budgetInvalidValue'));
   }
   const cat = vault.categories.find((c) => c.id === categoryId);
-  if (!cat) throw new McpActionError(`Categoria não encontrada: ${categoryId}`);
+  if (!cat) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.categoryNotFoundById', { id: categoryId }));
   if (cat.type !== 'expense') {
-    throw new McpActionError('Metas só existem para categorias de despesa');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.budgetExpenseOnly'));
   }
   const budget = raw === null || raw === 0 ? undefined : (raw as number);
   const rawBudgetCurrency = str(args, 'budgetCurrency') ?? str(args, 'currency');
@@ -466,8 +477,8 @@ function setCategoryBudget(vault: VaultPayload, args: Args): McpActionOutcome {
       categories: vault.categories.map((c) => (c.id === cat.id ? updated : c)),
     },
     notice: budget
-      ? `MCP definiu a meta de "${cat.name}"`
-      : `MCP removeu a meta de "${cat.name}"`,
+      ? tDomainMcp('domainMcp.mcpActions.noticeSetBudget', { name: cat.name })
+      : tDomainMcp('domainMcp.mcpActions.noticeRemovedBudget', { name: cat.name }),
   };
 }
 
@@ -479,10 +490,10 @@ function createTransaction(
   const description = str(args, 'description', true)!;
   const amount = num(args, 'amount', true)!;
   if (amount <= 0) {
-    throw new McpActionError('amount deve ser maior que zero (o tipo define o sinal)');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.amountPositiveWithType'));
   }
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
-  if (!type) throw new McpActionError('Campo obrigatório ausente: type (income ou expense)');
+  if (!type) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingType'));
 
   const date = isoDate(args, 'date') ?? ctx.today;
   const account = findAccount(vault, str(args, 'accountId'), str(args, 'accountName'));
@@ -503,7 +514,7 @@ function createTransaction(
   const repeatMonths = Math.max(1, Math.min(36, Math.floor(num(args, 'repeatMonths') ?? 1)));
   const explicitRate = num(args, 'exchangeRate');
   if (explicitRate !== undefined && !isValidRate(explicitRate)) {
-    throw new McpActionError('exchangeRate deve ser maior que zero');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.ratePositive'));
   }
   const notes = str(args, 'notes');
 
@@ -550,8 +561,11 @@ function createTransaction(
     nextVault,
     notice:
       created.length > 1
-        ? `MCP registrou ${created.length} lançamentos de "${description}"`
-        : `MCP registrou "${description}"`,
+        ? tDomainMcp('domainMcp.mcpActions.noticeCreatedTxMany', {
+            count: created.length,
+            desc: description,
+          })
+        : tDomainMcp('domainMcp.mcpActions.noticeCreatedTxOne', { desc: description }),
   };
 }
 
@@ -562,14 +576,14 @@ function updateTransaction(
 ): McpActionOutcome {
   const id = str(args, 'id', true)!;
   const tx = vault.transactions.find((t) => t.id === id);
-  if (!tx) throw new McpActionError(`Lançamento não encontrado: ${id}`);
+  if (!tx) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.txNotFound', { id }));
 
   const next: Transaction = { ...tx };
   const description = str(args, 'description');
   if (description) next.description = description;
   const amount = num(args, 'amount');
   if (amount !== undefined) {
-    if (amount <= 0) throw new McpActionError('amount deve ser maior que zero');
+    if (amount <= 0) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.amountPositive'));
     next.amount = round2(amount);
   }
   const type = oneOf(args, 'type', ['income', 'expense'] as const);
@@ -580,7 +594,7 @@ function updateTransaction(
   if (date) next.date = date;
 
   const paidAt = isoDate(args, 'paidAt');
-  if (paidAt && paidAt > ctx.today) throw new McpActionError('paidAt não pode ser no futuro');
+  if (paidAt && paidAt > ctx.today) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.paidAtFuture'));
   if (next.status === 'paid') {
     next.paidAt = paidAt ?? (status === 'paid' && tx.status !== 'paid' ? ctx.today : next.paidAt);
   } else {
@@ -598,7 +612,7 @@ function updateTransaction(
   const explicitRate = num(args, 'exchangeRate');
   if (explicitRate !== undefined) {
     if (!isValidRate(explicitRate)) {
-      throw new McpActionError('exchangeRate deve ser maior que zero');
+      throw new McpActionError(tDomainMcp('domainMcp.mcpActions.ratePositive'));
     }
     next.exchangeRate = explicitRate;
   }
@@ -647,18 +661,18 @@ function updateTransaction(
       ...vault,
       transactions: vault.transactions.map((t) => (t.id === id ? next : t)),
     },
-    notice: `MCP atualizou "${next.description}"`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeUpdatedTx', { desc: next.description }),
   };
 }
 
 function deleteTransaction(vault: VaultPayload, args: Args): McpActionOutcome {
   const id = str(args, 'id', true)!;
   const tx = vault.transactions.find((t) => t.id === id);
-  if (!tx) throw new McpActionError(`Lançamento não encontrado: ${id}`);
+  if (!tx) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.txNotFound', { id }));
   return {
     result: { deleted: describeTransaction(tx, vault) },
     nextVault: { ...vault, transactions: vault.transactions.filter((t) => t.id !== id) },
-    notice: `MCP excluiu "${tx.description}"`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeDeletedTx', { desc: tx.description }),
   };
 }
 
@@ -703,14 +717,14 @@ function listInsights(vault: VaultPayload, args: Args): McpActionOutcome {
 
 function saveInsight(vault: VaultPayload, args: Args, ctx: McpActionContext): McpActionOutcome {
   const month = yearMonth(args, 'month');
-  if (!month) throw new McpActionError('Campo obrigatório ausente: month (AAAA-MM)');
+  if (!month) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingMonth'));
   const title = str(args, 'title', true)!;
   const body = str(args, 'body', true)!;
-  if (title.length > 120) throw new McpActionError('title deve ter até 120 caracteres');
-  if (body.length > 4000) throw new McpActionError('body deve ter até 4000 caracteres');
+  if (title.length > 120) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.titleMaxLength'));
+  if (body.length > 4000) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.bodyMaxLength'));
   const rawHighlights = args.highlights;
   if (rawHighlights !== undefined && !Array.isArray(rawHighlights)) {
-    throw new McpActionError('highlights deve ser uma lista de textos');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.highlightsMustBeTextList'));
   }
   const highlights = (rawHighlights as unknown[] | undefined)
     ?.filter((h): h is string => typeof h === 'string' && h.trim() !== '')
@@ -740,20 +754,20 @@ function saveInsight(vault: VaultPayload, args: Args, ctx: McpActionContext): Mc
     result: { saved: existing ? 'updated' : 'created', insight },
     nextVault: { ...vault, insights: [...others, insight] },
     notice: existing
-      ? `MCP atualizou o insight de ${month}`
-      : `MCP escreveu o insight de ${month}`,
+      ? tDomainMcp('domainMcp.mcpActions.noticeUpdatedInsight', { month })
+      : tDomainMcp('domainMcp.mcpActions.noticeCreatedInsight', { month }),
   };
 }
 
 function deleteInsight(vault: VaultPayload, args: Args): McpActionOutcome {
   const month = yearMonth(args, 'month');
-  if (!month) throw new McpActionError('Campo obrigatório ausente: month (AAAA-MM)');
+  if (!month) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.missingMonth'));
   const existing = (vault.insights ?? []).find((i) => i.month === month);
-  if (!existing) throw new McpActionError(`Não há insight para ${month}`);
+  if (!existing) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.insightNotFound', { month }));
   return {
     result: { deleted: month },
     nextVault: { ...vault, insights: (vault.insights ?? []).filter((i) => i.month !== month) },
-    notice: `MCP removeu o insight de ${month}`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeDeletedInsight', { month }),
   };
 }
 
@@ -770,7 +784,7 @@ function listExchangeRates(vault: VaultPayload): McpActionOutcome {
         symbol: c.symbol,
         flag: c.flag,
       })),
-      note: 'O MyFBox opera de forma 100% offline. Cotações são cadastradas manualmente ou pelo agente via MCP.',
+      note: tDomainMcp('domainMcp.mcpActions.offlineRatesNote'),
     },
   };
 }
@@ -784,25 +798,31 @@ function setExchangeRate(
   const to = str(args, 'to', true);
   const rate = num(args, 'rate', true);
 
-  if (!from || !to) throw new McpActionError('from e to são obrigatórios');
+  if (!from || !to) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.fromToRequired'));
   if (!rate || rate <= 0) {
-    throw new McpActionError('rate deve ser um número positivo maior que zero');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.ratePositiveNumber'));
   }
 
   const normFrom = normalizeCurrency(from);
   const normTo = normalizeCurrency(to);
   if (!isSupportedCurrency(normFrom)) {
     throw new McpActionError(
-      `Moeda de origem "${normFrom}" não é suportada. Escolha uma das moedas: ${POPULAR_CURRENCY_CODES.join(', ')}`
+      tDomainMcp('domainMcp.mcpActions.unsupportedFromCurrency', {
+        from: normFrom,
+        supported: POPULAR_CURRENCY_CODES.join(', '),
+      })
     );
   }
   if (!isSupportedCurrency(normTo)) {
     throw new McpActionError(
-      `Moeda de destino "${normTo}" não é suportada. Escolha uma das moedas: ${POPULAR_CURRENCY_CODES.join(', ')}`
+      tDomainMcp('domainMcp.mcpActions.unsupportedToCurrency', {
+        to: normTo,
+        supported: POPULAR_CURRENCY_CODES.join(', '),
+      })
     );
   }
   if (normFrom === normTo) {
-    throw new McpActionError('Moeda de origem e destino devem ser diferentes');
+    throw new McpActionError(tDomainMcp('domainMcp.mcpActions.sameCurrencyError'));
   }
 
   const nextVault: VaultPayload = {
@@ -824,7 +844,11 @@ function setExchangeRate(
       updatedAt: updatedEntry?.updatedAt,
     },
     nextVault,
-    notice: `MCP definiu cotação ${normFrom}/${normTo}: ${rate}`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeSetRate', {
+      from: normFrom,
+      to: normTo,
+      rate,
+    }),
   };
 }
 
@@ -835,7 +859,7 @@ function deleteExchangeRate(
 ): McpActionOutcome {
   const from = str(args, 'from', true);
   const to = str(args, 'to', true);
-  if (!from || !to) throw new McpActionError('from e to são obrigatórios');
+  if (!from || !to) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.fromToRequired'));
 
   const normFrom = normalizeCurrency(from);
   const normTo = normalizeCurrency(to);
@@ -847,7 +871,10 @@ function deleteExchangeRate(
   return {
     result: { deleted: true, pair: `${normFrom}/${normTo}` },
     nextVault,
-    notice: `MCP removeu cotação ${normFrom}/${normTo}`,
+    notice: tDomainMcp('domainMcp.mcpActions.noticeDeletedRate', {
+      from: normFrom,
+      to: normTo,
+    }),
   };
 }
 
@@ -888,22 +915,29 @@ export const MCP_ACTIONS = {
 
 export type McpActionName = keyof typeof MCP_ACTIONS;
 
-const FORBIDDEN_MCP_ACTIONS: Readonly<Record<string, string>> = {
-  create_vault: 'Criar cofre é uma operação exclusiva do usuário na interface do navegador.',
-  init_vault: 'Criar cofre é uma operação exclusiva do usuário na interface do navegador.',
-  delete_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
-  destroy_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
-  reset_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
-  wipe_vault: 'Apagar o cofre é uma operação exclusiva do usuário na interface do navegador.',
-  export_csv:
-    'O MCP não faz backup sem criptografia. Exportar CSV é exclusivo do usuário pela interface do app (Backups › Exportar CSV).',
-  export_unencrypted:
-    'O MCP não faz backup sem criptografia. Use export_backup para gerar um backup cifrado (.myfbox.json com AES-256-GCM).',
-  export_plaintext:
-    'O MCP não faz backup sem criptografia. Use export_backup para gerar um backup cifrado (.myfbox.json com AES-256-GCM).',
-  change_password: 'Alterar a senha mestra é exclusivo do usuário na interface do navegador.',
-  restore_backup: 'Restaurar backup é exclusivo do usuário na interface do navegador.',
-};
+function getForbiddenActionMessage(name: string): string {
+  switch (name) {
+    case 'create_vault':
+    case 'init_vault':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenCreateVault');
+    case 'delete_vault':
+    case 'destroy_vault':
+    case 'reset_vault':
+    case 'wipe_vault':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenDeleteVault');
+    case 'export_csv':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenExportCsv');
+    case 'export_unencrypted':
+    case 'export_plaintext':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenExportUnencrypted');
+    case 'change_password':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenChangePassword');
+    case 'restore_backup':
+      return tDomainMcp('domainMcp.mcpActions.forbiddenRestoreBackup');
+    default:
+      return tDomainMcp('domainMcp.mcpActions.unknownAction', { name });
+  }
+}
 
 export function runMcpAction(
   name: string,
@@ -911,8 +945,21 @@ export function runMcpAction(
   args: Args,
   ctx: McpActionContext
 ): McpActionOutcome {
-  if (name in FORBIDDEN_MCP_ACTIONS) {
-    throw new McpActionError(FORBIDDEN_MCP_ACTIONS[name]);
+  const forbidden = [
+    'create_vault',
+    'init_vault',
+    'delete_vault',
+    'destroy_vault',
+    'reset_vault',
+    'wipe_vault',
+    'export_csv',
+    'export_unencrypted',
+    'export_plaintext',
+    'change_password',
+    'restore_backup',
+  ];
+  if (forbidden.includes(name)) {
+    throw new McpActionError(getForbiddenActionMessage(name));
   }
   const action = (
     MCP_ACTIONS as Record<
@@ -920,6 +967,6 @@ export function runMcpAction(
       (v: VaultPayload, a: Args, c: McpActionContext) => McpActionOutcome
     >
   )[name];
-  if (!action) throw new McpActionError(`Ação desconhecida: ${name}`);
+  if (!action) throw new McpActionError(tDomainMcp('domainMcp.mcpActions.unknownAction', { name }));
   return action(vault, args ?? {}, ctx);
 }

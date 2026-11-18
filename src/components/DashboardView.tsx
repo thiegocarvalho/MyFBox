@@ -27,22 +27,23 @@ import {
   txAmountInBrl,
 } from '../utils/money';
 import type { ExchangeRateSource } from '../services/currencyService';
+import { useI18n } from '../i18n/useI18n';
 
 const PENDING_PREVIEW = 6;
-const MONTHS_SHORT = [
-  'Jan',
-  'Fev',
-  'Mar',
-  'Abr',
-  'Mai',
-  'Jun',
-  'Jul',
-  'Ago',
-  'Set',
-  'Out',
-  'Nov',
-  'Dez',
-];
+const MONTH_KEYS = [
+  'analytics.months.jan',
+  'analytics.months.feb',
+  'analytics.months.mar',
+  'analytics.months.apr',
+  'analytics.months.may',
+  'analytics.months.jun',
+  'analytics.months.jul',
+  'analytics.months.aug',
+  'analytics.months.sep',
+  'analytics.months.oct',
+  'analytics.months.nov',
+  'analytics.months.dec',
+] as const;
 
 function daysBetween(from: string, to: string): number {
   const [y1, m1, d1] = from.split('-').map(Number);
@@ -77,6 +78,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewTransaction,
   onNavigateTab,
 }) => {
+  const { t, language } = useI18n();
   const effectiveRates = rateSource ?? usdToBrlRate;
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const accMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
@@ -167,20 +169,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const pendingIncome = metrics.incomePending.brl + overdue.income;
   const hasAnyPending = metrics.hasPending || overdue.income > 0 || overdue.expense > 0;
-  const monthName = formatMonthYearLabel(selectedYearMonth).split(' ')[0].toLowerCase();
+  const rawMonthName = formatMonthYearLabel(selectedYearMonth, language).split(' ')[0];
+  const monthName = language === 'en-GB' ? rawMonthName : rawMonthName.toLowerCase();
   const lastDayLabel = (() => {
     const [y, m] = selectedYearMonth.split('-').map(Number);
     const last = new Date(y, m, 0).getDate();
     return `${String(last).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
   })();
   const usdText = (value: number | null) =>
-    value === null ? 'US$ — (sem cotação)' : formatMoney(value, 'USD', hideValues);
+    value === null ? t('analytics.dashboard.noRate') : formatMoney(value, 'USD', hideValues);
 
   const twelveMonthSeries = useMemo(() => {
     const [year] = selectedYearMonth.split('-');
     const buckets = Array.from({ length: 12 }, (_, i) => ({
       ym: `${year}-${String(i + 1).padStart(2, '0')}`,
-      label: MONTHS_SHORT[i],
+      label: t(MONTH_KEYS[i]),
       income: 0,
       expense: 0,
       net: 0,
@@ -200,7 +203,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
 
     return buckets;
-  }, [transactions, selectedYearMonth, effectiveRates]);
+  }, [transactions, selectedYearMonth, effectiveRates, t]);
 
   const maxChartValue = useMemo(() => {
     return Math.max(100, ...twelveMonthSeries.flatMap((s) => [s.income, s.expense]));
@@ -229,7 +232,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const pctOfBudget = budget > 0 ? (stats.total / budget) * 100 : 0;
         return {
           categoryId,
-          name: cat?.name || 'Outros',
+          name: cat?.name || t('analytics.dashboard.otherCategory'),
           color: cat?.color || '#94A3B8',
           ...stats,
           budget,
@@ -238,7 +241,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [monthTransactions, catMap, effectiveRates]);
+  }, [monthTransactions, catMap, effectiveRates, t]);
 
   const pendingTransactions = useMemo(() => {
     return monthTransactions
@@ -270,26 +273,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       >
         <div className="cf-tooltip" role="tooltip" aria-hidden="true">
           <div className="cf-tooltip-header">
-            <span className="cf-tooltip-title">{formatMonthYearLabel(item.ym)}</span>
-            {isActualCurrent && <span className="cf-tooltip-badge">Atual</span>}
-            {isSelected && <span className="cf-tooltip-badge focal">Foco</span>}
+            <span className="cf-tooltip-title">{formatMonthYearLabel(item.ym, language)}</span>
+            {isActualCurrent && (
+              <span className="cf-tooltip-badge">{t('analytics.dashboard.badgeCurrent')}</span>
+            )}
+            {isSelected && (
+              <span className="cf-tooltip-badge focal">{t('analytics.dashboard.badgeFocus')}</span>
+            )}
           </div>
           <div className="cf-tooltip-body">
             <div className="cf-tooltip-row pos">
               <span className="cf-tooltip-label">
-                <i className="cf-tooltip-dot income" /> Receitas
+                <i className="cf-tooltip-dot income" /> {t('analytics.dashboard.income')}
               </span>
               <span className="mono">{formatBRL(item.income, hideValues)}</span>
             </div>
             <div className="cf-tooltip-row neg">
               <span className="cf-tooltip-label">
-                <i className="cf-tooltip-dot expense" /> Despesas
+                <i className="cf-tooltip-dot expense" /> {t('analytics.dashboard.expense')}
               </span>
               <span className="mono">{formatBRL(item.expense, hideValues)}</span>
             </div>
             <div className="cf-tooltip-divider" />
             <div className={`cf-tooltip-row net ${item.net >= 0 ? 'pos' : 'neg'}`}>
-              <span className="cf-tooltip-label">Saldo</span>
+              <span className="cf-tooltip-label">{t('analytics.dashboard.balance')}</span>
               <strong className="mono">
                 {item.net > 0 ? '+' : ''}
                 {formatBRL(item.net, hideValues)}
@@ -300,9 +307,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="cf-col-badge-wrapper">
           {isActualCurrent ? (
-            <span className="cf-col-badge-current">ATUAL</span>
+            <span className="cf-col-badge-current">
+              {t('analytics.dashboard.badgeCurrentUpper')}
+            </span>
           ) : isSelected ? (
-            <span className="cf-col-badge-selected">FOCO</span>
+            <span className="cf-col-badge-selected">
+              {t('analytics.dashboard.badgeFocusUpper')}
+            </span>
           ) : (
             <span className="cf-col-badge-spacer" />
           )}
@@ -322,12 +333,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div
             className="cf-bar income"
             style={{ height: `${item.income > 0 ? incHeight : 3}px` }}
-            title={`Receitas: ${formatBRL(item.income, hideValues)}`}
+            title={t('analytics.dashboard.incomeTooltip', {
+              amount: formatBRL(item.income, hideValues),
+            })}
           />
           <div
             className="cf-bar expense"
             style={{ height: `${item.expense > 0 ? expHeight : 3}px` }}
-            title={`Despesas: ${formatBRL(item.expense, hideValues)}`}
+            title={t('analytics.dashboard.expenseTooltip', {
+              amount: formatBRL(item.expense, hideValues),
+            })}
           />
         </div>
 
@@ -345,12 +360,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SALDO HOJE</span>
+            <span className="kpi-label">{t('analytics.dashboard.kpiBalanceToday')}</span>
             <Wallet size={17} className="kpi-icon teal" />
           </div>
           <div className="kpi-value mono">{formatBRL(netWorth.current.brl, hideValues)}</div>
           <div className="kpi-sub">
-            <span>Só o que já foi pago ou recebido</span>
+            <span>{t('analytics.dashboard.kpiBalanceTodaySub')}</span>
           </div>
           {netWorth.current.usd !== null && (
             <div className="kpi-sub kpi-usd-line">≈ {usdText(netWorth.current.usd)}</div>
@@ -359,19 +374,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">ENTRADAS DO MÊS</span>
+            <span className="kpi-label">{t('analytics.dashboard.kpiMonthIncome')}</span>
             <TrendingUp size={17} className="kpi-icon green" />
           </div>
           <div className="kpi-value mono positive">
             {formatBRL(metrics.incomePaid.brl, hideValues)}
           </div>
           <div className="kpi-sub">
-            <span>Recebido em {monthName}</span>
+            <span>{t('analytics.dashboard.receivedInMonth', { month: monthName })}</span>
           </div>
           {pendingIncome > 0 && (
             <div className="kpi-sub">
               <span className="pending-tag">
-                + {formatBRL(pendingIncome, hideValues)} a receber
+                {t('analytics.dashboard.pendingToReceive', {
+                  amount: formatBRL(pendingIncome, hideValues),
+                })}
               </span>
             </div>
           )}
@@ -379,26 +396,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SAÍDAS DO MÊS</span>
+            <span className="kpi-label">{t('analytics.dashboard.kpiMonthExpense')}</span>
             <TrendingDown size={17} className="kpi-icon coral" />
           </div>
           <div className="kpi-value mono negative">
             {formatBRL(metrics.expensePaid.brl, hideValues)}
           </div>
           <div className="kpi-sub">
-            <span>Pago em {monthName}</span>
+            <span>{t('analytics.dashboard.paidInMonth', { month: monthName })}</span>
           </div>
           {metrics.expensePending.brl > 0 && (
             <div className="kpi-sub">
               <span className="pending-tag">
-                + {formatBRL(metrics.expensePending.brl, hideValues)} a pagar até {lastDayLabel}
+                {t('analytics.dashboard.pendingToPayUntil', {
+                  amount: formatBRL(metrics.expensePending.brl, hideValues),
+                  date: lastDayLabel,
+                })}
               </span>
             </div>
           )}
           {overdue.expense > 0 && (
             <div className="kpi-sub">
               <span className="overdue-tag">
-                + {formatBRL(overdue.expense, hideValues)} em atraso de meses anteriores
+                {t('analytics.dashboard.overdueFromPreviousMonths', {
+                  amount: formatBRL(overdue.expense, hideValues),
+                })}
               </span>
             </div>
           )}
@@ -406,7 +428,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SALDO PREVISTO</span>
+            <span className="kpi-label">{t('analytics.dashboard.kpiProjectedBalance')}</span>
             <Scale size={17} className="kpi-icon brass" />
           </div>
           <div className={`kpi-value mono ${netWorth.projected.brl >= 0 ? '' : 'negative'}`}>
@@ -415,8 +437,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="kpi-sub">
             <span>
               {hasAnyPending
-                ? `Em ${lastDayLabel}, depois de pagar e receber o que está pendente`
-                : `Em ${lastDayLabel} · nada pendente`}
+                ? t('analytics.dashboard.projectedWithPending', { date: lastDayLabel })
+                : t('analytics.dashboard.projectedNoPending', { date: lastDayLabel })}
             </span>
           </div>
           {netWorth.projected.usd !== null && (
@@ -429,33 +451,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <section className="panel-card cashflow-panel-card">
           <header className="panel-header cashflow-panel-header">
             <div>
-              <span className="eyebrow">HISTÓRICO E PROJEÇÃO</span>
+              <span className="eyebrow">{t('analytics.dashboard.cashflowEyebrow')}</span>
               <div className="cashflow-title-row">
-                <h3>Fluxo de Caixa Comparativo (12 Meses)</h3>
+                <h3>{t('analytics.dashboard.cashflowTitle')}</h3>
                 {selectedYearMonth === actualCurrentYearMonth ? (
-                  <span className="cf-current-pill" title="Visualizando o mês atual do calendário">
+                  <span
+                    className="cf-current-pill"
+                    title={t('analytics.dashboard.currentMonthPillTitle')}
+                  >
                     <span className="cf-pulse-dot" />
-                    Mês Atual
+                    {t('analytics.dashboard.currentMonthPill')}
                   </span>
                 ) : (
                   <button
                     type="button"
                     className="cf-current-quick-btn"
                     onClick={() => onSelectYearMonth(actualCurrentYearMonth)}
-                    title="Voltar visualização para o mês atual"
+                    title={t('analytics.dashboard.goToCurrentMonthTitle')}
                   >
                     <Calendar size={13} />
-                    Ir para Mês Atual
+                    {t('analytics.dashboard.goToCurrentMonth')}
                   </button>
                 )}
               </div>
             </div>
             <div className="chart-legend-inline">
               <span>
-                <i className="legend-swatch income" /> Receitas
+                <i className="legend-swatch income" /> {t('analytics.dashboard.income')}
               </span>
               <span>
-                <i className="legend-swatch expense" /> Despesas
+                <i className="legend-swatch expense" /> {t('analytics.dashboard.expense')}
               </span>
             </div>
           </header>
@@ -464,11 +489,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="cf-semester-block">
               <div className="cf-semester-header">
                 <div className="cf-semester-title-wrap">
-                  <span className="cf-semester-tag">1º Semestre</span>
-                  <span className="cf-semester-meta">Jan – Jun</span>
+                  <span className="cf-semester-tag">{t('analytics.dashboard.semester1')}</span>
+                  <span className="cf-semester-meta">
+                    {t('analytics.dashboard.semester1Range')}
+                  </span>
                 </div>
                 <div className="cf-semester-summary mono">
-                  <span className="cf-sem-label">Saldo Semestral:</span>
+                  <span className="cf-sem-label">{t('analytics.dashboard.semesterBalance')}</span>
                   <strong className={h1Net >= 0 ? 'pos' : 'neg'}>
                     {h1Net > 0 ? '+' : ''}
                     {formatBRL(h1Net, hideValues)}
@@ -481,11 +508,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="cf-semester-block">
               <div className="cf-semester-header">
                 <div className="cf-semester-title-wrap">
-                  <span className="cf-semester-tag">2º Semestre</span>
-                  <span className="cf-semester-meta">Jul – Dez</span>
+                  <span className="cf-semester-tag">{t('analytics.dashboard.semester2')}</span>
+                  <span className="cf-semester-meta">
+                    {t('analytics.dashboard.semester2Range')}
+                  </span>
                 </div>
                 <div className="cf-semester-summary mono">
-                  <span className="cf-sem-label">Saldo Semestral:</span>
+                  <span className="cf-sem-label">{t('analytics.dashboard.semesterBalance')}</span>
                   <strong className={h2Net >= 0 ? 'pos' : 'neg'}>
                     {h2Net > 0 ? '+' : ''}
                     {formatBRL(h2Net, hideValues)}
@@ -500,15 +529,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <section className="panel-card">
           <header className="panel-header">
             <div>
-              <span className="eyebrow">LIQUIDAÇÃO RÁPIDA</span>
-              <h3>Pendentes neste Mês ({pendingTransactions.length})</h3>
+              <span className="eyebrow">{t('analytics.dashboard.quickSettleEyebrow')}</span>
+              <h3>
+                {t('analytics.dashboard.pendingThisMonthTitle', {
+                  count: pendingTransactions.length,
+                })}
+              </h3>
             </div>
             <button
               type="button"
               className="panel-header-action"
               onClick={() => onNavigateTab('transactions')}
             >
-              <span>Ver todos os lançamentos</span>
+              <span>{t('analytics.dashboard.viewAllTransactions')}</span>
               <ArrowRight size={13} className="action-arrow" aria-hidden />
             </button>
           </header>
@@ -517,7 +550,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="empty-state-compact">
               <CheckCircle2 size={22} style={{ color: 'var(--color-accent)' }} />
               <p>
-                Todos os lançamentos de {formatMonthYearLabel(selectedYearMonth)} estão quitados.
+                {t('analytics.dashboard.allSettledForMonth', {
+                  month: formatMonthYearLabel(selectedYearMonth, language),
+                })}
               </p>
             </div>
           ) : (
@@ -532,19 +567,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <li key={tx.id} className={`pq-item ${daysLate > 0 ? 'late' : ''}`}>
                       <span className="pq-date" aria-hidden>
                         <span className="pq-day">{dd}</span>
-                        <span className="pq-month">{MONTHS_SHORT[Number(mm) - 1]}</span>
+                        <span className="pq-month">{t(MONTH_KEYS[Number(mm) - 1])}</span>
                       </span>
                       <div className="pq-info">
                         <strong className="pq-title">{tx.description}</strong>
                         <span className="pq-meta">
                           {daysLate > 0 && (
                             <span className="pq-late">
-                              {daysLate === 1 ? 'Venceu ontem' : `Venceu há ${daysLate} dias`}
+                              {daysLate === 1
+                                ? t('analytics.dashboard.dueYesterday')
+                                : t('analytics.dashboard.dueDaysAgo', { days: daysLate })}
                             </span>
                           )}
-                          {daysLate === 0 && <span className="pq-today">Vence hoje</span>}
-                          <span>{cat?.name || 'Geral'}</span>
-                          {accounts.length > 1 && <span>{acc?.name || 'Conta'}</span>}
+                          {daysLate === 0 && (
+                            <span className="pq-today">{t('analytics.dashboard.dueToday')}</span>
+                          )}
+                          <span>{cat?.name || t('analytics.dashboard.generalCategory')}</span>
+                          {accounts.length > 1 && (
+                            <span>{acc?.name || t('analytics.dashboard.defaultAccount')}</span>
+                          )}
                         </span>
                       </div>
                       <span
@@ -557,10 +598,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         type="button"
                         className="pq-action"
                         onClick={() => handleOpenSettleModal(tx)}
-                        aria-label={`${tx.type === 'income' ? 'Receber' : 'Quitar'}: ${tx.description}`}
+                        aria-label={
+                          tx.type === 'income'
+                            ? t('analytics.dashboard.actionReceiveAria', {
+                                description: tx.description,
+                              })
+                            : t('analytics.dashboard.actionSettleAria', {
+                                description: tx.description,
+                              })
+                        }
                       >
                         <CheckCircle2 size={15} aria-hidden />
-                        {tx.type === 'income' ? 'Receber' : 'Quitar'}
+                        {tx.type === 'income'
+                          ? t('analytics.dashboard.actionReceive')
+                          : t('analytics.dashboard.actionSettle')}
                       </button>
                     </li>
                   );
@@ -572,7 +623,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="btn-link-sm pq-more"
                   onClick={() => onNavigateTab('transactions')}
                 >
-                  <span>Ver mais {pendingTransactions.length - PENDING_PREVIEW} pendentes</span>
+                  <span>
+                    {t('analytics.dashboard.viewMorePending', {
+                      count: pendingTransactions.length - PENDING_PREVIEW,
+                    })}
+                  </span>
                   <ArrowRight size={13} className="action-arrow" aria-hidden />
                 </button>
               )}
@@ -585,28 +640,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <section className="panel-card">
           <header className="panel-header">
             <div>
-              <span className="eyebrow">DISTRIBUIÇÃO DE GASTOS</span>
-              <h3>Despesas por Categoria no Mês</h3>
+              <span className="eyebrow">
+                {t('analytics.dashboard.spendingDistributionEyebrow')}
+              </span>
+              <h3>{t('analytics.dashboard.expensesByCategoryTitle')}</h3>
             </div>
             <button
               type="button"
               className="panel-header-action"
               onClick={() => onNavigateTab('budgets')}
             >
-              <span>Configurar Metas</span>
+              <span>{t('analytics.dashboard.configureBudgets')}</span>
               <ArrowRight size={13} className="action-arrow" aria-hidden />
             </button>
           </header>
 
           {categoryBreakdown.length === 0 ? (
             <div className="empty-state-compact">
-              <p>Nenhuma despesa registrada em {formatMonthYearLabel(selectedYearMonth)}.</p>
+              <p>
+                {t('analytics.dashboard.noExpensesInMonth', {
+                  month: formatMonthYearLabel(selectedYearMonth, language),
+                })}
+              </p>
               <button
                 type="button"
                 className="btn-secondary-sm"
                 onClick={() => onOpenNewTransaction('expense')}
               >
-                + Registrar primeira despesa
+                {t('analytics.dashboard.registerFirstExpense')}
               </button>
             </div>
           ) : (
@@ -625,10 +686,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           {item.pctOfExpense.toFixed(0)}%
                         </span>
                         {overBudget && (
-                          <span className="budget-alert-chip danger">Acima da meta</span>
+                          <span className="budget-alert-chip danger">
+                            {t('analytics.dashboard.overBudget')}
+                          </span>
                         )}
                         {warnBudget && (
-                          <span className="budget-alert-chip warning">80%+ da meta</span>
+                          <span className="budget-alert-chip warning">
+                            {t('analytics.dashboard.warnBudget')}
+                          </span>
                         )}
                       </div>
                       <div className="cat-row-figures mono">
@@ -666,15 +731,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <section className="panel-card">
           <header className="panel-header">
             <div>
-              <span className="eyebrow">PATRIMÔNIO DISPONÍVEL</span>
-              <h3>Saldos por Conta / Carteira</h3>
+              <span className="eyebrow">{t('analytics.dashboard.availableAssetsEyebrow')}</span>
+              <h3>{t('analytics.dashboard.balancesByAccountTitle')}</h3>
             </div>
             <button
               type="button"
               className="panel-header-action"
               onClick={() => onNavigateTab('accounts')}
             >
-              <span>Gerenciar Contas</span>
+              <span>{t('analytics.dashboard.manageAccounts')}</span>
               <ArrowRight size={13} className="action-arrow" aria-hidden />
             </button>
           </header>
@@ -687,7 +752,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div>
                     <strong>{acc.name}</strong>
                     <span className="account-inst-sub">
-                      {acc.institution || 'Carteira Local'}
+                      {acc.institution || t('analytics.dashboard.localWallet')}
                     </span>
                   </div>
                 </div>
@@ -707,7 +772,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     return (
                       <span className="account-inst-sub">
                         {converted !== null && <>≈ {formatMoney(converted, other, hideValues)} · </>}
-                        Previsão: {formatMoney(acc.projectedBalance, acc.currency, hideValues)}
+                        {t('analytics.dashboard.projectedAccountBalance', {
+                          amount: formatMoney(acc.projectedBalance, acc.currency, hideValues),
+                        })}
                       </span>
                     );
                   })()}
@@ -736,14 +803,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <header className="modal-header">
               <h2 id="settle-title">
                 {settlingTransaction.type === 'income'
-                  ? 'Confirmar Recebimento'
-                  : 'Confirmar Quitação'}
+                  ? t('analytics.dashboard.confirmReceiveTitle')
+                  : t('analytics.dashboard.confirmSettleTitle')}
               </h2>
               <button
                 type="button"
                 className="icon-btn"
                 onClick={handleCloseSettleModal}
-                aria-label="Fechar"
+                aria-label={t('analytics.common.close')}
               >
                 <X size={18} />
               </button>
@@ -760,8 +827,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="settle-modal-main">
                   <span className="eyebrow">
                     {settlingTransaction.type === 'income'
-                      ? 'RECEITA A RECEBER'
-                      : 'DESPESA A QUITAR'}
+                      ? t('analytics.dashboard.incomeToReceiveEyebrow')
+                      : t('analytics.dashboard.expenseToSettleEyebrow')}
                   </span>
                   <h3 className="settle-modal-title">{settlingTransaction.description}</h3>
                   <div
@@ -787,10 +854,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           catMap.get(settlingTransaction.categoryId)?.color || '#94A3B8',
                       }}
                     />
-                    {catMap.get(settlingTransaction.categoryId)?.name || 'Geral'}
+                    {catMap.get(settlingTransaction.categoryId)?.name ||
+                      t('analytics.dashboard.generalCategory')}
                   </span>
                   <span className="settle-modal-meta-item">
-                    Vencimento: {settlingTransaction.date.split('-').reverse().join('/')}
+                    {t('analytics.dashboard.dueDateLabel', {
+                      date: settlingTransaction.date.split('-').reverse().join('/'),
+                    })}
                   </span>
                 </div>
               </div>
@@ -798,8 +868,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="form-field">
                 <label htmlFor={accountBalances.length > 1 ? 'settle-account' : undefined}>
                   {settlingTransaction.type === 'income'
-                    ? 'Conta de recebimento'
-                    : 'Conta que está pagando'}
+                    ? t('analytics.dashboard.receivingAccountLabel')
+                    : t('analytics.dashboard.payingAccountLabel')}
                 </label>
                 {accountBalances.length > 1 ? (
                   <select
@@ -809,8 +879,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     {accountBalances.map((acc) => (
                       <option key={acc.id} value={acc.id}>
-                        {acc.name} — Saldo:{' '}
-                        {formatMoney(acc.currentBalance, acc.currency, hideValues)}
+                        {t('analytics.dashboard.accountOptionBalance', {
+                          name: acc.name,
+                          balance: formatMoney(acc.currentBalance, acc.currency, hideValues),
+                        })}
                       </option>
                     ))}
                   </select>
@@ -824,19 +896,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             selectedSettleAccount?.color || 'var(--color-accent)',
                         }}
                       />
-                      <strong>{selectedSettleAccount?.name || 'Conta principal'}</strong>
+                      <strong>
+                        {selectedSettleAccount?.name || t('analytics.dashboard.primaryAccount')}
+                      </strong>
                     </span>
                     <span
                       className={`mono settle-single-account-balance ${
                         (selectedSettleAccount?.currentBalance ?? 0) >= 0 ? 'pos' : 'neg'
                       }`}
                     >
-                      Saldo:{' '}
-                      {formatMoney(
-                        selectedSettleAccount?.currentBalance ?? 0,
-                        selectedSettleAccount?.currency || 'BRL',
-                        hideValues
-                      )}
+                      {t('analytics.dashboard.balanceLabel', {
+                        balance: formatMoney(
+                          selectedSettleAccount?.currentBalance ?? 0,
+                          selectedSettleAccount?.currency || 'BRL',
+                          hideValues
+                        ),
+                      })}
                     </span>
                   </div>
                 )}
@@ -845,8 +920,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="form-field">
                 <label htmlFor="settle-paid-on">
                   {settlingTransaction.type === 'income'
-                    ? 'Data do recebimento'
-                    : 'Data do pagamento'}
+                    ? t('analytics.dashboard.receiptDateLabel')
+                    : t('analytics.dashboard.paymentDateLabel')}
                 </label>
                 <input
                   id="settle-paid-on"
@@ -858,8 +933,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   autoFocus
                 />
                 <span className="field-hint">
-                  A data não pode ser futura. Padrão: hoje (
-                  {todayStr.split('-').reverse().join('/')}).
+                  {t('analytics.dashboard.dateHint', {
+                    date: todayStr.split('-').reverse().join('/'),
+                  })}
                 </span>
               </div>
 
@@ -869,7 +945,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   className="btn-secondary"
                   onClick={handleCloseSettleModal}
                 >
-                  Cancelar
+                  {t('analytics.common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -878,8 +954,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <CheckCircle2 size={15} />
                   {settlingTransaction.type === 'income'
-                    ? 'Confirmar Recebimento'
-                    : 'Confirmar Quitação'}
+                    ? t('analytics.dashboard.confirmReceiveTitle')
+                    : t('analytics.dashboard.confirmSettleTitle')}
                 </button>
               </footer>
             </form>

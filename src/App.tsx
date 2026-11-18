@@ -73,6 +73,14 @@ import {
 import { VaultLockScreen } from './components/VaultLockScreen';
 import { MyFBoxBrand } from './components/MyFBoxLogo';
 import { MobileMenu, MobileMenuButton, type NavItem } from './components/MobileMenu';
+import { LanguageSelector } from './components/LanguageSelector';
+import {
+  getActiveLanguage,
+  getLanguageMeta,
+  setActiveLanguage,
+  type AppLanguage,
+} from './i18n';
+import { useI18n } from './i18n/useI18n';
 
 const DEFAULT_MCP_PORT = 4777;
 
@@ -121,6 +129,7 @@ function prefetchViews() {
 type ActiveTab = 'dashboard' | 'transactions' | 'compare' | 'budgets' | 'accounts' | 'security';
 
 export function App() {
+  const { language, t } = useI18n();
   const [loadingDisk, setLoadingDisk] = useState(true);
   const [envelope, setEnvelope] = useState<EncryptedVaultEnvelope | null>(null);
   const envelopeRef = useRef<EncryptedVaultEnvelope | null>(null);
@@ -237,9 +246,9 @@ export function App() {
       if (!from || !to) return;
       const nextVault = upsertVaultExchangeRate(currentVault, from, to, newRate, 'manual');
       await persistVaultUpdate(nextVault);
-      showToast(`Cotação salva: 1 ${from} = ${formatRate(newRate)} ${to}`);
+      showToast(t('app.toast.rateSaved', { from, rate: formatRate(newRate), to }));
     },
-    [persistVaultUpdate, showToast]
+    [persistVaultUpdate, showToast, t]
   );
 
   const handleDeleteExchangeRate = useCallback(
@@ -251,9 +260,9 @@ export function App() {
       if (!from || !to) return;
       const nextVault = removeVaultExchangeRate(currentVault, from, to);
       await persistVaultUpdate(nextVault);
-      showToast(`Cotação ${from}/${to} removida`);
+      showToast(t('app.toast.rateDeleted', { from, to }));
     },
-    [persistVaultUpdate, showToast]
+    [persistVaultUpdate, showToast, t]
   );
 
   const handleUpdateManualUsdRate = useCallback(
@@ -290,10 +299,12 @@ export function App() {
   const persistRef = useRef(persistVaultUpdate);
   const usdRateRef = useRef<number | undefined>(undefined);
   const showToastRef = useRef(showToast);
+  const tRef = useRef(t);
 
   useEffect(() => {
     persistRef.current = persistVaultUpdate;
     showToastRef.current = showToast;
+    tRef.current = t;
     usdRateRef.current = usdRate || vault?.settings.usdToBrlRate;
   });
 
@@ -313,7 +324,7 @@ export function App() {
       onCall: (action, args) => {
         const run = mcpQueueRef.current.then(async () => {
           const current = vaultRef.current;
-          if (!current) throw new Error('Cofre trancado.');
+          if (!current) throw new Error(tRef.current('app.error.vaultLocked'));
 
           if (action === 'export_backup') {
             await persistRef.current({
@@ -322,7 +333,7 @@ export function App() {
             });
             const env = envelopeRef.current;
             if (!env || env.cipher?.algorithm !== 'AES-256-GCM' || !env.cipher?.ciphertextBase64) {
-              throw new Error('Ainda não há envelope cifrado válido gravado.');
+              throw new Error(tRef.current('app.error.noValidEnvelope'));
             }
             const result = {
               envelope: env,
@@ -331,7 +342,7 @@ export function App() {
               envelopeUpdatedAt: env.updatedAt,
               transactionCount: current.transactions.length,
             };
-            showToastRef.current('MCP salvou um backup cifrado na pasta do projeto');
+            showToastRef.current(tRef.current('app.toast.mcpBackupSaved'));
             return result;
           }
 
@@ -436,6 +447,9 @@ export function App() {
     setSession(activeSession);
     setVault(payload);
     setHideValues(payload.settings.hideValuesByDefault || false);
+    if (payload.settings.language) {
+      setActiveLanguage(payload.settings.language);
+    }
   };
 
   const handleCreateVault = async (
@@ -445,6 +459,7 @@ export function App() {
   ) => {
     const newSession = await createNewCryptoSession(password);
     const initialPayload = createInitialVaultPayload(vaultName, initialAccount);
+    initialPayload.settings.language = getActiveLanguage();
     const newEnv = await encryptPayloadToEnvelope(initialPayload, newSession);
     await saveEncryptedEnvelopeToDisk(newEnv);
     envelopeRef.current = newEnv;
@@ -474,6 +489,9 @@ export function App() {
     setEnvelope(freshEnvelope);
     setSession(restoredSession);
     setVault(payload);
+    if (payload.settings.language) {
+      setActiveLanguage(payload.settings.language);
+    }
     setActiveTab('dashboard');
   };
 
@@ -488,7 +506,7 @@ export function App() {
 
   const handleDeleteVault = async (password: string) => {
     const env = envelopeRef.current;
-    if (!env) throw new Error('Não há cofre gravado neste navegador.');
+    if (!env) throw new Error(t('app.error.noVaultStored'));
     await unlockEnvelopeWithPassword(env, password);
     await deleteEncryptedVaultFromDisk();
     envelopeRef.current = null;
@@ -506,17 +524,31 @@ export function App() {
     await persistVaultUpdate(vault, newSession);
   };
 
+  const handleHeaderLanguageChange = useCallback(
+    async (nextLang: AppLanguage) => {
+      setActiveLanguage(nextLang);
+      const currentVault = vaultRef.current;
+      if (currentVault) {
+        await persistVaultUpdate({
+          ...currentVault,
+          settings: { ...currentVault.settings, language: nextLang },
+        });
+      }
+    },
+    [persistVaultUpdate]
+  );
+
   const handleSaveTransactions = async (txsToSave: Transaction[], isEdit: boolean) => {
     if (!vault) return;
     const nextVault = saveTransactionsInVault(vault, txsToSave, isEdit);
     if (isEdit && txsToSave.length === 1) {
-      showToast(`Lançamento "${txsToSave[0].description}" atualizado no cofre`);
+      showToast(t('app.toast.txUpdated', { description: txsToSave[0].description }));
     } else {
       const count = txsToSave.length;
       showToast(
         count === 1
-          ? `Lançamento "${txsToSave[0].description}" salvo no cofre`
-          : `${count} lançamentos registrados no cofre`
+          ? t('app.toast.txSaved', { description: txsToSave[0].description })
+          : t('app.toast.txsSaved', { count })
       );
     }
     await persistVaultUpdate(nextVault);
@@ -625,7 +657,7 @@ export function App() {
   };
 
   if (loadingDisk) {
-    return <div className="loading-screen mono">Carregando cofre criptografado...</div>;
+    return <div className="loading-screen mono">{t('app.loadingVault')}</div>;
   }
 
   if (!session || !vault) {
@@ -641,18 +673,20 @@ export function App() {
   }
 
   const navItems: NavItem<ActiveTab>[] = [
-    { id: 'dashboard', label: 'Visão Geral', icon: LayoutDashboard },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
     {
       id: 'transactions',
-      label: 'Lançamentos',
+      label: t('nav.transactions'),
       icon: ReceiptText,
       count: vault.transactions.length,
     },
-    { id: 'compare', label: 'Comparativos', icon: BarChart3 },
-    { id: 'budgets', label: 'Metas', icon: Target },
-    { id: 'accounts', label: 'Contas', icon: Wallet, count: vault.accounts.length },
-    { id: 'security', label: 'Configurações', icon: Settings },
+    { id: 'compare', label: t('nav.compare'), icon: BarChart3 },
+    { id: 'budgets', label: t('nav.budgets'), icon: Target },
+    { id: 'accounts', label: t('nav.accounts'), icon: Wallet, count: vault.accounts.length },
+    { id: 'security', label: t('nav.security'), icon: Settings },
   ];
+
+  const currentMonthLabel = formatMonthYearLabel(getCurrentYearMonth());
 
   return (
     <div className="app-shell">
@@ -667,7 +701,7 @@ export function App() {
               type="button"
               className="month-nav-btn"
               onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, -1))}
-              title="Mês anterior"
+              title={t('app.month.prevTitle')}
             >
               <ChevronLeft size={16} />
             </button>
@@ -678,7 +712,7 @@ export function App() {
               type="button"
               className="month-nav-btn"
               onClick={() => setSelectedYearMonth((ym) => shiftYearMonth(ym, 1))}
-              title="Próximo mês"
+              title={t('app.month.nextTitle')}
             >
               <ChevronRight size={16} />
             </button>
@@ -687,18 +721,18 @@ export function App() {
                 type="button"
                 className="month-today-btn"
                 onClick={() => setSelectedYearMonth(getCurrentYearMonth())}
-                aria-label={`Voltar para ${formatMonthYearLabel(getCurrentYearMonth())}`}
-                title={`Voltar para ${formatMonthYearLabel(getCurrentYearMonth())}`}
+                aria-label={t('app.month.backToCurrentAria', { month: currentMonthLabel })}
+                title={t('app.month.backToCurrentAria', { month: currentMonthLabel })}
               >
                 <Undo2 size={15} strokeWidth={2.5} aria-hidden />
-                <span className="month-today-long">Mês atual</span>
-                <span className="month-today-short">Atual</span>
+                <span className="month-today-long">{t('app.month.currentLong')}</span>
+                <span className="month-today-short">{t('app.month.currentShort')}</span>
               </button>
             )}
           </div>
         </div>
 
-        <nav className="workspace-tabs" aria-label="Seções do app">
+        <nav className="workspace-tabs" aria-label={t('menu.sectionsAria')}>
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -731,6 +765,11 @@ export function App() {
         />
 
         <div className="header-right">
+          <LanguageSelector
+            variant="compact"
+            value={vault?.settings.language ?? language}
+            onChange={handleHeaderLanguageChange}
+          />
           <button
             type="button"
             className={`mcp-header-btn status-${mcpStatus}`}
@@ -740,14 +779,16 @@ export function App() {
             }}
             title={
               mcpStatus === 'connected'
-                ? 'MCP conectado — clique para abrir configurações do MCP'
+                ? t('app.mcp.titleConnected')
                 : mcpStatus === 'connecting'
-                ? 'MCP procurando servidor local — clique para abrir configurações do MCP'
+                ? t('app.mcp.titleConnecting')
                 : mcpStatus === 'error'
-                ? `MCP sem conexão${mcpDetail ? `: ${mcpDetail}` : ''} — clique para abrir configurações do MCP`
-                : 'MCP desligado — clique para abrir configurações do MCP'
+                ? mcpDetail
+                  ? t('app.mcp.titleErrorDetail', { detail: mcpDetail })
+                  : t('app.mcp.titleError')
+                : t('app.mcp.titleOff')
             }
-            aria-label={`Status do MCP: ${mcpStatus}. Abrir configurações do MCP`}
+            aria-label={t('app.mcp.aria', { status: mcpStatus })}
           >
             <span className="mcp-header-dot" aria-hidden />
             <Bot size={15} aria-hidden />
@@ -758,7 +799,7 @@ export function App() {
             type="button"
             className="icon-action-btn"
             onClick={() => setHideValues((v) => !v)}
-            title={hideValues ? 'Mostrar valores monetários' : 'Ocultar valores (Modo Privacidade)'}
+            title={hideValues ? t('app.privacy.showTitle') : t('app.privacy.hideTitle')}
           >
             {hideValues ? <Eye size={16} /> : <EyeOff size={16} />}
           </button>
@@ -767,7 +808,7 @@ export function App() {
             type="button"
             className="icon-action-btn lock"
             onClick={lockVault}
-            title="Trancar Cofre"
+            title={t('app.lockVaultTitle')}
           >
             <Lock size={15} />
           </button>
@@ -776,9 +817,9 @@ export function App() {
             type="button"
             className="btn-primary btn-sm"
             onClick={() => handleOpenNewTransaction('expense')}
-            title="Adicionar lançamento (Tecla N)"
+            title={t('app.newTxTitle')}
           >
-            <Plus size={15} /> Novo
+            <Plus size={15} /> {t('app.newTxButton')}
           </button>
         </div>
       </header>
@@ -878,6 +919,17 @@ export function App() {
                   settings: { ...vault.settings, autoLockMinutes: mins },
                 })
               }
+              language={vault.settings.language ?? language}
+              onUpdateLanguage={async (nextLang: AppLanguage) => {
+                setActiveLanguage(nextLang);
+                await persistVaultUpdate({
+                  ...vault,
+                  settings: { ...vault.settings, language: nextLang },
+                });
+                showToast(
+                  t('language.savedToast', { language: getLanguageMeta(nextLang).label })
+                );
+              }}
               onChangeMasterPassword={handleChangeMasterPassword}
               onRestoreBackupEnvelope={handleRestoreBackupEnvelope}
               onDeleteVault={handleDeleteVault}
@@ -888,10 +940,10 @@ export function App() {
                 const status = await handleRequestPersist();
                 showToast(
                   status === 'persisted'
-                    ? 'Armazenamento persistente ativo: o navegador não vai apagar o cofre sozinho.'
+                    ? t('app.toast.storagePersisted')
                     : status === 'unsupported'
-                      ? 'Este navegador não permite pedir armazenamento persistente.'
-                      : 'O navegador recusou por enquanto. Favoritar o app ou usá-lo com frequência costuma liberar.'
+                      ? t('app.toast.storageUnsupported')
+                      : t('app.toast.storageDenied')
                 );
               }}
               usdRate={usdRate || vault.settings.usdToBrlRate}
@@ -947,11 +999,11 @@ export function App() {
                 mcpToken: req.token,
                 mcpPort: req.port,
               });
-              showToast('Assistente autorizado. Conectando ao servidor MCP local...');
+              showToast(t('app.toast.mcpApproved'));
             }}
             onReject={() => {
               setPendingPair(null);
-              showToast('Pareamento recusado. Nada foi alterado.');
+              showToast(t('app.toast.mcpRejected'));
             }}
           />
         )}

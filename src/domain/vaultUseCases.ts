@@ -19,6 +19,7 @@ import {
   getDefaultCategoryId,
   isProtectedCategory,
 } from '../utils/categories';
+import { tDomainMcp } from '../i18n/modules/domainMcp';
 import { accountCurrency, convertAmount, isValidRate, txCurrency } from '../utils/money';
 import { generateEntityId } from './id';
 
@@ -88,7 +89,7 @@ export function duplicateTransactionInVault(
   const clone: Transaction = {
     ...tx,
     id: generateEntityId('tx'),
-    description: `${tx.description} (Cópia)`,
+    description: `${tx.description} ${tDomainMcp('domainMcp.vaultUseCases.copySuffix')}`,
     createdAt: new Date().toISOString(),
   };
 
@@ -125,7 +126,7 @@ export function updateCategoryInVault(
   const original = vault.categories.find((c) => c.id === updatedCat.id);
   const safeCat: Category =
     original && isProtectedCategory(original)
-      ? { ...updatedCat, name: 'Outros', isSystem: true }
+      ? { ...updatedCat, name: tDomainMcp('domainMcp.categories.other'), isSystem: true }
       : updatedCat;
 
   return {
@@ -219,7 +220,7 @@ export function transferBetweenAccountsInVault(
   const fromAccount = vault.accounts.find((a) => a.id === input.fromAccId);
   const toAccount = vault.accounts.find((a) => a.id === input.toAccId);
   if (!fromAccount || !toAccount || fromAccount.id === toAccount.id) {
-    return { error: 'Selecione contas de origem e destino válidas e distintas.' };
+    return { error: tDomainMcp('domainMcp.vaultUseCases.transferInvalidAccounts') };
   }
 
   const fromCurrency = accountCurrency(fromAccount);
@@ -233,7 +234,10 @@ export function transferBetweenAccountsInVault(
 
   if (convertedAmount === null) {
     return {
-      error: `Sem cotação ${fromCurrency}/${toCurrency} cadastrada para converter entre moedas diferentes.`,
+      error: tDomainMcp('domainMcp.vaultUseCases.transferNoRate', {
+        from: fromCurrency,
+        to: toCurrency,
+      }),
     };
   }
 
@@ -251,9 +255,13 @@ export function transferBetweenAccountsInVault(
       ? findExchangeRate(vault.settings, toCurrency, 'BRL') ?? undefined
       : undefined;
 
+  const internalTransferNote = tDomainMcp('domainMcp.vaultUseCases.transferInternalNote');
+
   const outTx: Transaction = {
     id: generateEntityId('tx_trf_out'),
-    description: `${input.description} (Para ${toAccount.name})`,
+    description: `${input.description} (${tDomainMcp('domainMcp.vaultUseCases.transferTo', {
+      account: toAccount.name,
+    })})`,
     amount: input.amount,
     currency: fromCurrency,
     exchangeRate: isValidRate(outRateToBrl) ? outRateToBrl : undefined,
@@ -263,13 +271,15 @@ export function transferBetweenAccountsInVault(
     paidAt: input.date,
     categoryId: expCat,
     accountId: input.fromAccId,
-    notes: 'Transferência interna entre contas',
+    notes: internalTransferNote,
     createdAt: nowIso,
   };
 
   const inTx: Transaction = {
     id: generateEntityId('tx_trf_in'),
-    description: `${input.description} (De ${fromAccount.name})`,
+    description: `${input.description} (${tDomainMcp('domainMcp.vaultUseCases.transferFrom', {
+      account: fromAccount.name,
+    })})`,
     amount: inAmount,
     currency: toCurrency,
     exchangeRate: isValidRate(inRateToBrl) ? inRateToBrl : undefined,
@@ -279,7 +289,7 @@ export function transferBetweenAccountsInVault(
     paidAt: input.date,
     categoryId: incCat,
     accountId: input.toAccId,
-    notes: 'Transferência interna entre contas',
+    notes: internalTransferNote,
     createdAt: nowIso,
   };
 
@@ -307,7 +317,9 @@ export function upsertVaultExchangeRate(
     exchangeRates: nextRates,
   };
 
-  const stamp = timestampLabel ?? `${formatRateDate()} (${source === 'mcp' ? 'MCP' : 'manual'})`;
+  const stamp =
+    timestampLabel ??
+    `${formatRateDate()} (${source === 'mcp' ? 'MCP' : tDomainMcp('domainMcp.vaultUseCases.rateSourceManual')})`;
   if (from === 'USD' && to === 'BRL') {
     nextSettings.usdToBrlRate = newRate;
     nextSettings.usdRateUpdatedAt = stamp;

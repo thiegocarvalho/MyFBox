@@ -1,3 +1,5 @@
+🇧🇷 [Português (Brasil)](SECURITY.md) · 🇬🇧 [English (UK)](docs/i18n/SECURITY.en-GB.md) · 🇪🇸 [Español](docs/i18n/SECURITY.es.md) · 🇨🇳 [简体中文](docs/i18n/SECURITY.zh-CN.md)
+
 # Segurança do MyFBox
 
 ## Modelo de ameaças

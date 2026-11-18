@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   X,
   Copy,
@@ -14,6 +14,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { buildMcpSetupInfo } from '../utils/mcpConfig';
+import { useI18n } from '../i18n/useI18n';
+import type { TranslationKey } from '../i18n';
 
 interface McpInstructionsModalProps {
   isOpen: boolean;
@@ -22,309 +24,315 @@ interface McpInstructionsModalProps {
 
 type ModalTab = 'prompts' | 'capabilities' | 'install' | 'security';
 
-interface PromptItem {
+interface PromptDefinition {
   id: string;
-  category: 'Lançamentos' | 'Baixas' | 'Cotações' | 'Metas' | 'Consultas' | 'Comparativos' | 'Backups';
-  title: string;
-  prompt: string;
-  description: string;
+  categoryKey: TranslationKey;
+  titleKey: TranslationKey;
+  promptKey: TranslationKey;
+  descKey: TranslationKey;
   toolsUsed: string[];
 }
 
-const PROMPT_ITEMS: PromptItem[] = [
+const PROMPT_DEFINITIONS: PromptDefinition[] = [
   {
     id: 'tx-simple',
-    category: 'Lançamentos',
-    title: 'Registrar despesa do dia a dia',
-    prompt: 'Registre uma despesa de R$ 42,00 no almoço de hoje na categoria Alimentação.',
-    description: 'Lança um gasto pago na data atual. Se omitir a categoria, o app sugere automaticamente pelo histórico e descrição.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.txSimple.title',
+    promptKey: 'domainMcp.prompt.txSimple.prompt',
+    descKey: 'domainMcp.prompt.txSimple.desc',
     toolsUsed: ['create_transaction'],
   },
   {
     id: 'tx-future',
-    category: 'Lançamentos',
-    title: 'Agendar conta a pagar no futuro',
-    prompt: 'Agende uma despesa de R$ 2.200 do aluguel para o dia 10 do mês que vem na categoria Moradia.',
-    description: 'Datas futuras ficam como pendentes automaticamente e entram na previsão financeira do mês correspondente.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.txFuture.title',
+    promptKey: 'domainMcp.prompt.txFuture.prompt',
+    descKey: 'domainMcp.prompt.txFuture.desc',
     toolsUsed: ['create_transaction'],
   },
   {
     id: 'tx-installments',
-    category: 'Lançamentos',
-    title: 'Lançar compra parcelada em N vezes',
-    prompt: 'Lance a compra parcelada de um notebook no valor de R$ 3.600 em 10 parcelas mensais começando hoje.',
-    description: 'Cria as parcelas mensais calculando o valor unitário e marcando as futuras como pendentes de forma vinculada.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.txInstallments.title',
+    promptKey: 'domainMcp.prompt.txInstallments.prompt',
+    descKey: 'domainMcp.prompt.txInstallments.desc',
     toolsUsed: ['create_transaction'],
   },
   {
     id: 'tx-foreign-currency',
-    category: 'Lançamentos',
-    title: 'Receita ou despesa em moeda estrangeira (USD / EUR)',
-    prompt: 'Recebi US$ 1.500 de uma consultoria internacional hoje. Registre como receita na minha conta em Dólar.',
-    description: 'Registra o lançamento na moeda especificada com conversão pela taxa de câmbio offline fixada no cofre.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.txForeignCurrency.title',
+    promptKey: 'domainMcp.prompt.txForeignCurrency.prompt',
+    descKey: 'domainMcp.prompt.txForeignCurrency.desc',
     toolsUsed: ['create_transaction'],
   },
   {
     id: 'acc-create-multi',
-    category: 'Lançamentos',
-    title: 'Criar conta em moeda estrangeira',
-    prompt: 'Crie uma conta corrente em Euro chamada "Wise Europa" com saldo inicial de 500 EUR.',
-    description: 'Adiciona uma nova conta em qualquer uma das 13 moedas globais suportadas no cofre.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.accCreateMulti.title',
+    promptKey: 'domainMcp.prompt.accCreateMulti.prompt',
+    descKey: 'domainMcp.prompt.accCreateMulti.desc',
     toolsUsed: ['create_account'],
   },
   {
     id: 'acc-transfer',
-    category: 'Lançamentos',
-    title: 'Transferir valores entre contas (mesma ou outra moeda)',
-    prompt: 'Transfira R$ 1.200 da Conta Principal para a Reserva de Emergência hoje.',
-    description: 'Lança automaticamente o par de saída e entrada. Entre moedas diferentes, converte usando a cotação offline do cofre.',
+    categoryKey: 'domainMcp.promptCat.transactions',
+    titleKey: 'domainMcp.prompt.accTransfer.title',
+    promptKey: 'domainMcp.prompt.accTransfer.prompt',
+    descKey: 'domainMcp.prompt.accTransfer.desc',
     toolsUsed: ['transfer_between_accounts'],
   },
   {
     id: 'tx-settle',
-    category: 'Baixas',
-    title: 'Dar baixa (quitar) lançamento pendente',
-    prompt: 'Localize a conta de luz pendente deste mês e dê baixa marcando como paga com data de hoje.',
-    description: 'Pesquisa o lançamento pendente, marca como pago e registra a data do pagamento sem alterar a competência original.',
+    categoryKey: 'domainMcp.promptCat.settlements',
+    titleKey: 'domainMcp.prompt.txSettle.title',
+    promptKey: 'domainMcp.prompt.txSettle.prompt',
+    descKey: 'domainMcp.prompt.txSettle.desc',
     toolsUsed: ['list_transactions', 'update_transaction'],
   },
   {
     id: 'tx-edit-val',
-    category: 'Baixas',
-    title: 'Corrigir valor ou descrição de lançamento',
-    prompt: 'Altere o valor do lançamento de ontem no Supermercado para R$ 185,50 e adicione a nota "Compras da semana".',
-    description: 'Atualiza valores, datas, notas ou descrições de qualquer lançamento já existente.',
+    categoryKey: 'domainMcp.promptCat.settlements',
+    titleKey: 'domainMcp.prompt.txEditVal.title',
+    promptKey: 'domainMcp.prompt.txEditVal.prompt',
+    descKey: 'domainMcp.prompt.txEditVal.desc',
     toolsUsed: ['list_transactions', 'update_transaction'],
   },
   {
     id: 'tx-change-category',
-    category: 'Baixas',
-    title: 'Mudar a categoria de um lançamento',
-    prompt: 'Mude a categoria do lançamento "Farmácia São Paulo" para a categoria Saúde & Farmácia.',
-    description: 'Reclassifica o gasto para a categoria desejada mantendo as regras e metas orçamentárias íntegras.',
+    categoryKey: 'domainMcp.promptCat.settlements',
+    titleKey: 'domainMcp.prompt.txChangeCat.title',
+    promptKey: 'domainMcp.prompt.txChangeCat.prompt',
+    descKey: 'domainMcp.prompt.txChangeCat.desc',
     toolsUsed: ['list_categories', 'update_transaction'],
   },
   {
     id: 'rate-set-usd',
-    category: 'Cotações',
-    title: 'Definir cotação offline do Dólar (USD → BRL)',
-    prompt: 'Defina a cotação do Dólar (USD para BRL) em 5,85 no meu cofre.',
-    description: '100% offline soberano: atualiza a taxa sem acessar APIs externas e sincroniza as conversões em todo o app.',
+    categoryKey: 'domainMcp.promptCat.rates',
+    titleKey: 'domainMcp.prompt.rateSetUsd.title',
+    promptKey: 'domainMcp.prompt.rateSetUsd.prompt',
+    descKey: 'domainMcp.prompt.rateSetUsd.desc',
     toolsUsed: ['set_exchange_rate'],
   },
   {
     id: 'rate-set-any',
-    category: 'Cotações',
-    title: 'Cadastrar cotação entre moedas populares (ex: EUR / BRL)',
-    prompt: 'Cadastre a cotação do Euro: 1 EUR = 6,32 BRL, e me mostre a lista de cotações salvas.',
-    description: 'Aceita qualquer par entre as 13 moedas globais suportadas (USD, EUR, GBP, etc.).',
+    categoryKey: 'domainMcp.promptCat.rates',
+    titleKey: 'domainMcp.prompt.rateSetAny.title',
+    promptKey: 'domainMcp.prompt.rateSetAny.prompt',
+    descKey: 'domainMcp.prompt.rateSetAny.desc',
     toolsUsed: ['set_exchange_rate', 'list_exchange_rates'],
   },
   {
     id: 'rate-list',
-    category: 'Cotações',
-    title: 'Listar cotações e moedas suportadas',
-    prompt: 'Quais cotações de moedas estão cadastradas no meu cofre atualmente?',
-    description: 'Retorna todos os pares salvos no cofre, data de atualização, fonte e a lista fechada de moedas válidas.',
+    categoryKey: 'domainMcp.promptCat.rates',
+    titleKey: 'domainMcp.prompt.rateList.title',
+    promptKey: 'domainMcp.prompt.rateList.prompt',
+    descKey: 'domainMcp.prompt.rateList.desc',
     toolsUsed: ['list_exchange_rates'],
   },
   {
     id: 'cat-create-budget',
-    category: 'Metas',
-    title: 'Criar nova categoria com teto mensal',
-    prompt: 'Crie uma nova categoria de despesa chamada "Pets" com teto mensal de R$ 350.',
-    description: 'Cria a categoria no cofre e define o limite orçamentário mensal para acompanhamento nas metas.',
+    categoryKey: 'domainMcp.promptCat.budgets',
+    titleKey: 'domainMcp.prompt.catCreateBudget.title',
+    promptKey: 'domainMcp.prompt.catCreateBudget.prompt',
+    descKey: 'domainMcp.prompt.catCreateBudget.desc',
     toolsUsed: ['create_category', 'set_category_budget'],
   },
   {
     id: 'cat-adjust-budget',
-    category: 'Metas',
-    title: 'Ajustar ou remover meta de gastos',
-    prompt: 'Aumente o teto mensal da categoria "Supermercado" para R$ 1.600.',
-    description: 'Ajusta o limite de gastos mensal de despesas existentes. Use "null" ou "remover meta" para retirar o teto.',
+    categoryKey: 'domainMcp.promptCat.budgets',
+    titleKey: 'domainMcp.prompt.catAdjustBudget.title',
+    promptKey: 'domainMcp.prompt.catAdjustBudget.prompt',
+    descKey: 'domainMcp.prompt.catAdjustBudget.desc',
     toolsUsed: ['list_categories', 'set_category_budget'],
   },
   {
     id: 'query-overview',
-    category: 'Consultas',
-    title: 'Resumo do mês e previsão de saldo',
-    prompt: 'Como estão minhas finanças este mês? Me mostre o saldo confirmado, previsto e quanto ainda tenho a pagar.',
-    description: 'Devolve a visão geral executiva do mês em BRL e USD, entradas, saídas e pendências a vencer.',
+    categoryKey: 'domainMcp.promptCat.queries',
+    titleKey: 'domainMcp.prompt.queryOverview.title',
+    promptKey: 'domainMcp.prompt.queryOverview.prompt',
+    descKey: 'domainMcp.prompt.queryOverview.desc',
     toolsUsed: ['get_overview'],
   },
   {
     id: 'query-category-spending',
-    category: 'Consultas',
-    title: 'Consultar gastos por categoria',
-    prompt: 'Quanto eu já gastei com Supermercado e Transporte neste mês?',
-    description: 'Filtra os lançamentos do mês pela categoria solicitada e soma os valores realizados.',
-    toolsUsed: ['list_categories', 'list_transactions'],
+    categoryKey: 'domainMcp.promptCat.queries',
+    titleKey: 'domainMcp.prompt.queryCatSpending.title',
+    promptKey: 'domainMcp.prompt.queryCatSpending.prompt',
+    descKey: 'domainMcp.prompt.queryCatSpending.desc',
+    toolsUsed: ['list_transactions', 'list_categories'],
   },
   {
-    id: 'query-accounts',
-    category: 'Consultas',
-    title: 'Saldos de todas as contas',
-    prompt: 'Liste todas as minhas contas cadastradas com os saldos atuais e moedas.',
-    description: 'Exibe cada conta bancária, carteira física ou conta internacional com saldos confirmados e projetados.',
-    toolsUsed: ['list_accounts'],
+    id: 'query-future-pending',
+    categoryKey: 'domainMcp.promptCat.queries',
+    titleKey: 'domainMcp.prompt.queryAccounts.title',
+    promptKey: 'domainMcp.prompt.queryAccounts.prompt',
+    descKey: 'domainMcp.prompt.queryAccounts.desc',
+    toolsUsed: ['list_transactions'],
   },
   {
-    id: 'compare-months',
-    category: 'Comparativos',
-    title: 'Comparativo de gastos dos últimos meses',
-    prompt: 'Compare meus gastos deste mês com os últimos 3 meses e me aponte as maiores variações.',
-    description: 'Analisa as variações mês a mês por competência e indica as categorias que mais subiram ou desceram.',
+    id: 'compare-recent',
+    categoryKey: 'domainMcp.promptCat.comparisons',
+    titleKey: 'domainMcp.prompt.compareMonths.title',
+    promptKey: 'domainMcp.prompt.compareMonths.prompt',
+    descKey: 'domainMcp.prompt.compareMonths.desc',
     toolsUsed: ['get_month_comparison'],
   },
   {
-    id: 'insight-generate',
-    category: 'Comparativos',
-    title: 'Gerar insight financeiro na aba Comparativos',
-    prompt: 'Gere o insight financeiro para a aba Comparativos do mês atual com destaques e análise das maiores saídas.',
-    description: 'A IA redige um insight objetivo com causas, riscos e próximos passos, gravando cifrado diretamente no cofre.',
+    id: 'insight-monthly',
+    categoryKey: 'domainMcp.promptCat.comparisons',
+    titleKey: 'domainMcp.prompt.insightGenerate.title',
+    promptKey: 'domainMcp.prompt.insightGenerate.prompt',
+    descKey: 'domainMcp.prompt.insightGenerate.desc',
     toolsUsed: ['get_month_comparison', 'save_insight'],
   },
   {
-    id: 'backup-export',
-    category: 'Backups',
-    title: 'Gerar backup cifrado do cofre (.myfbox.json)',
-    prompt: 'Gere um backup cifrado do meu cofre agora usando a ferramenta export_backup.',
-    description: 'Exporta o envelope seguro (AES-256-GCM) para a pasta vaults/ do projeto e atualiza o carimbo de último backup.',
+    id: 'backup-snapshot',
+    categoryKey: 'domainMcp.promptCat.backups',
+    titleKey: 'domainMcp.prompt.backupExport.title',
+    promptKey: 'domainMcp.prompt.backupExport.prompt',
+    descKey: 'domainMcp.prompt.backupExport.desc',
     toolsUsed: ['export_backup'],
   },
 ];
 
-interface ToolDoc {
+interface ToolDefinition {
   name: string;
-  category: string;
-  description: string;
-  args: string;
+  categoryKey: TranslationKey;
+  descKey: TranslationKey;
+  argsKey?: TranslationKey;
+  defaultArgs?: string;
 }
 
-const MCP_TOOLS_DOCS: ToolDoc[] = [
+const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'connect_app',
-    category: 'Conexão',
-    description: 'Verifica o status da conexão com o app aberto ou gera o link de pareamento seguro.',
-    args: '—',
+    categoryKey: 'domainMcp.toolCat.connection',
+    descKey: 'domainMcp.tool.connectApp.desc',
+    defaultArgs: '—',
   },
   {
     name: 'get_overview',
-    category: 'Visão Geral',
-    description: 'Resumo do mês: saldo confirmado e previsto (BRL/USD), total recebido e pago, pendências e cotações ativas.',
-    args: 'month? (AAAA-MM)',
+    categoryKey: 'domainMcp.toolCat.overview',
+    descKey: 'domainMcp.tool.getOverview.desc',
+    argsKey: 'domainMcp.tool.getOverview.args',
   },
   {
     name: 'list_accounts',
-    category: 'Contas',
-    description: 'Lista contas com moeda, saldo confirmado e previsto até o fim do mês.',
-    args: '—',
+    categoryKey: 'domainMcp.toolCat.accounts',
+    descKey: 'domainMcp.tool.listAccounts.desc',
+    defaultArgs: '—',
   },
   {
     name: 'create_account',
-    category: 'Contas',
-    description: 'Cria uma conta bancária, reserva, investimento ou carteira em qualquer das 16 moedas suportadas.',
-    args: 'name, type?, currency?, initialBalance?, institution?, color?',
+    categoryKey: 'domainMcp.toolCat.accounts',
+    descKey: 'domainMcp.tool.createAccount.desc',
+    defaultArgs: 'name, type?, currency?, initialBalance?, institution?, color?',
   },
   {
     name: 'transfer_between_accounts',
-    category: 'Contas',
-    description: 'Transfere valores entre duas contas com conversão multimoeda automática.',
-    args: 'fromAccountName?, toAccountName?, amount, date?, description?',
+    categoryKey: 'domainMcp.toolCat.accounts',
+    descKey: 'domainMcp.tool.transferBetweenAccounts.desc',
+    defaultArgs: 'fromAccountName?, toAccountName?, amount, date?, description?',
   },
   {
     name: 'list_categories',
-    category: 'Categorias',
-    description: 'Lista todas as categorias com tipo (income/expense), cor e meta mensal.',
-    args: 'type? ("income" | "expense")',
+    categoryKey: 'domainMcp.toolCat.categories',
+    descKey: 'domainMcp.tool.listCategories.desc',
+    defaultArgs: 'type? ("income" | "expense")',
   },
   {
     name: 'create_category',
-    category: 'Categorias',
-    description: 'Cria nova categoria no cofre (não duplica nome e tipo).',
-    args: 'name, type, monthlyBudget?, color?',
+    categoryKey: 'domainMcp.toolCat.categories',
+    descKey: 'domainMcp.tool.createCategory.desc',
+    defaultArgs: 'name, type, monthlyBudget?, color?',
   },
   {
     name: 'set_category_budget',
-    category: 'Metas',
-    description: 'Define, ajusta ou remove o teto de gastos mensal em reais de uma despesa.',
-    args: 'categoryId, monthlyBudget (número ou null)',
+    categoryKey: 'domainMcp.toolCat.budgets',
+    descKey: 'domainMcp.tool.setCategoryBudget.desc',
+    argsKey: 'domainMcp.tool.setCategoryBudget.args',
   },
   {
     name: 'list_transactions',
-    category: 'Lançamentos',
-    description: 'Consulta lançamentos com filtros ricos por mês, tipo, status, categoria ou busca textual.',
-    args: 'month?, type?, status?, categoryId?, accountId?, search?, limit?',
+    categoryKey: 'domainMcp.toolCat.transactions',
+    descKey: 'domainMcp.tool.listTransactions.desc',
+    defaultArgs: 'month?, type?, status?, categoryId?, accountId?, search?, limit?',
   },
   {
     name: 'create_transaction',
-    category: 'Lançamentos',
-    description: 'Registra lançamento único ou parcelado (2 a 36x) com sugestão automática inteligente de categoria.',
-    args: 'description, amount, type, date?, categoryName?, accountName?, status?, currency?, repeatMonths?',
+    categoryKey: 'domainMcp.toolCat.transactions',
+    descKey: 'domainMcp.tool.createTransaction.desc',
+    defaultArgs:
+      'description, amount, type, date?, categoryName?, accountName?, status?, currency?, repeatMonths?',
   },
   {
     name: 'update_transaction',
-    category: 'Lançamentos',
-    description: 'Atualiza campos de um lançamento, altera valores, notas ou dá baixa (status="paid", paidAt).',
-    args: 'id, ...campos a alterar',
+    categoryKey: 'domainMcp.toolCat.transactions',
+    descKey: 'domainMcp.tool.updateTransaction.desc',
+    argsKey: 'domainMcp.tool.updateTransaction.args',
   },
   {
     name: 'delete_transaction',
-    category: 'Lançamentos',
-    description: 'Exclui definitivamente um lançamento do cofre.',
-    args: 'id',
+    categoryKey: 'domainMcp.toolCat.transactions',
+    descKey: 'domainMcp.tool.deleteTransaction.desc',
+    defaultArgs: 'id',
   },
   {
     name: 'set_exchange_rate',
-    category: 'Câmbio Offline',
-    description: 'Cadastra ou atualiza cotação de qualquer par entre moedas populares (100% offline).',
-    args: 'from (código), to (código), rate (número > 0)',
+    categoryKey: 'domainMcp.toolCat.offlineFx',
+    descKey: 'domainMcp.tool.setExchangeRate.desc',
+    argsKey: 'domainMcp.tool.setExchangeRate.args',
   },
   {
     name: 'list_exchange_rates',
-    category: 'Câmbio Offline',
-    description: 'Lista todas as cotações salvas no cofre e a relação de moedas populares suportadas.',
-    args: '—',
+    categoryKey: 'domainMcp.toolCat.offlineFx',
+    descKey: 'domainMcp.tool.listExchangeRates.desc',
+    defaultArgs: '—',
   },
   {
     name: 'delete_exchange_rate',
-    category: 'Câmbio Offline',
-    description: 'Remove a taxa de câmbio de um par específico do cofre.',
-    args: 'from (código), to (código)',
+    categoryKey: 'domainMcp.toolCat.offlineFx',
+    descKey: 'domainMcp.tool.deleteExchangeRate.desc',
+    argsKey: 'domainMcp.tool.deleteExchangeRate.args',
   },
   {
     name: 'get_month_comparison',
-    category: 'Comparativos',
-    description: 'Comparativo mês a mês (até 24 meses) com receitas, despesas, variações e categorias com maior oscilação.',
-    args: 'month?, months? (padrão 6)',
+    categoryKey: 'domainMcp.toolCat.comparisons',
+    descKey: 'domainMcp.tool.getMonthComparison.desc',
+    argsKey: 'domainMcp.tool.getMonthComparison.args',
   },
   {
     name: 'save_insight',
-    category: 'Insights IA',
-    description: 'Salva o insight analítico do mês cifrado no cofre (com título, narrativa, destaques e assinatura).',
-    args: 'month, title, body, highlights?',
+    categoryKey: 'domainMcp.toolCat.aiInsights',
+    descKey: 'domainMcp.tool.saveInsight.desc',
+    defaultArgs: 'month, title, body, highlights?',
   },
   {
     name: 'list_insights',
-    category: 'Insights IA',
-    description: 'Lê os insights salvos pelo assistente no cofre.',
-    args: 'month?',
+    categoryKey: 'domainMcp.toolCat.aiInsights',
+    descKey: 'domainMcp.tool.listInsights.desc',
+    defaultArgs: 'month?',
   },
   {
     name: 'delete_insight',
-    category: 'Insights IA',
-    description: 'Remove um insight salvo no cofre.',
-    args: 'month',
+    categoryKey: 'domainMcp.toolCat.aiInsights',
+    descKey: 'domainMcp.tool.deleteInsight.desc',
+    defaultArgs: 'month',
   },
   {
     name: 'export_backup',
-    category: 'Backups',
-    description: 'Salva um backup cifrado (AES-256-GCM) em vaults/ do projeto e atualiza "Último backup".',
-    args: '—',
+    categoryKey: 'domainMcp.toolCat.backups',
+    descKey: 'domainMcp.tool.exportBackup.desc',
+    defaultArgs: '—',
   },
 ];
 
-export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOpen, onClose }) => {
+export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<ModalTab>('prompts');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
@@ -349,7 +357,30 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
   const [searchQuery, setSearchQuery] = useState('');
   const [promptCategoryFilter, setPromptCategoryFilter] = useState<string>('todos');
 
-  if (!isOpen) return null;
+  const promptItems = useMemo(
+    () =>
+      PROMPT_DEFINITIONS.map((p) => ({
+        id: p.id,
+        category: t(p.categoryKey),
+        rawCategoryKey: p.categoryKey,
+        title: t(p.titleKey),
+        prompt: t(p.promptKey),
+        description: t(p.descKey),
+        toolsUsed: p.toolsUsed,
+      })),
+    [t]
+  );
+
+  const mcpToolsDocs = useMemo(
+    () =>
+      TOOL_DEFINITIONS.map((d) => ({
+        name: d.name,
+        category: t(d.categoryKey),
+        description: t(d.descKey),
+        args: d.argsKey ? t(d.argsKey) : (d.defaultArgs ?? '—'),
+      })),
+    [t]
+  );
 
   const handleCopy = (id: string, text: string) => {
     void navigator.clipboard?.writeText(text).catch(() => undefined);
@@ -359,20 +390,28 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
     }, 2000);
   };
 
-  const filteredPrompts = PROMPT_ITEMS.filter((item) => {
-    const matchesCategory = promptCategoryFilter === 'todos' || item.category === promptCategoryFilter;
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return matchesCategory;
-    const matchesQuery =
-      item.title.toLowerCase().includes(q) ||
-      item.prompt.toLowerCase().includes(q) ||
-      item.description.toLowerCase().includes(q) ||
-      item.category.toLowerCase().includes(q) ||
-      item.toolsUsed.some((t) => t.toLowerCase().includes(q));
-    return matchesCategory && matchesQuery;
-  });
+  const categories = useMemo(() => {
+    const rawKeys = Array.from(new Set(PROMPT_DEFINITIONS.map((p) => p.categoryKey)));
+    return ['todos', ...rawKeys];
+  }, []);
 
-  const categories = ['todos', ...Array.from(new Set(PROMPT_ITEMS.map((p) => p.category)))];
+  const filteredPrompts = useMemo(() => {
+    return promptItems.filter((item) => {
+      const matchesCategory =
+        promptCategoryFilter === 'todos' || item.rawCategoryKey === promptCategoryFilter;
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return matchesCategory;
+      const matchesQuery =
+        item.title.toLowerCase().includes(q) ||
+        item.prompt.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q) ||
+        item.toolsUsed.some((tu) => tu.toLowerCase().includes(q));
+      return matchesCategory && matchesQuery;
+    });
+  }, [promptItems, promptCategoryFilter, searchQuery]);
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -394,19 +433,16 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
           <div className="mcp-modal-title-wrap">
             <div className="mcp-badge">
               <Bot size={14} />
-              <span>MCP & SKILLS OFICIAIS</span>
+              <span>{t('domainMcp.modal.badge')}</span>
             </div>
-            <h2 id="mcp-instructions-title">Guia de Instruções & Prompts MCP</h2>
-            <p>
-              Opere seu cofre financeiro com qualquer assistente ou agente de IA compatível com MCP
-              através de uma ponte local 100% segura e soberana.
-            </p>
+            <h2 id="mcp-instructions-title">{t('domainMcp.modal.title')}</h2>
+            <p>{t('domainMcp.modal.subtitle')}</p>
           </div>
           <button
             type="button"
             className="icon-btn"
             onClick={onClose}
-            aria-label="Fechar modal de instruções"
+            aria-label={t('domainMcp.modal.closeAria')}
           >
             <X size={20} />
           </button>
@@ -419,7 +455,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             onClick={() => setActiveTab('prompts')}
           >
             <Sparkles size={13} />
-            <span>Prompts ({PROMPT_ITEMS.length})</span>
+            <span>{t('domainMcp.modal.tabPrompts', { count: promptItems.length })}</span>
           </button>
 
           <button
@@ -428,7 +464,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             onClick={() => setActiveTab('capabilities')}
           >
             <ListTree size={13} />
-            <span>Capacidades ({MCP_TOOLS_DOCS.length})</span>
+            <span>{t('domainMcp.modal.tabCapabilities', { count: mcpToolsDocs.length })}</span>
           </button>
 
           <button
@@ -437,7 +473,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             onClick={() => setActiveTab('install')}
           >
             <Terminal size={13} />
-            <span>Instalação</span>
+            <span>{t('domainMcp.modal.tabInstall')}</span>
           </button>
 
           <button
@@ -446,7 +482,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
             onClick={() => setActiveTab('security')}
           >
             <ShieldCheck size={13} />
-            <span>Segurança</span>
+            <span>{t('domainMcp.modal.tabSecurity')}</span>
           </button>
         </div>
 
@@ -460,14 +496,14 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por prompt, ação, ferramenta ou categoria..."
+                    placeholder={t('domainMcp.modal.searchPlaceholder')}
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       className="mcp-clear-search"
                       onClick={() => setSearchQuery('')}
-                      aria-label="Limpar busca"
+                      aria-label={t('domainMcp.modal.clearSearchAria')}
                     >
                       <X size={13} />
                     </button>
@@ -475,14 +511,14 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 </div>
 
                 <div className="mcp-category-pills">
-                  {categories.map((cat) => (
+                  {categories.map((catKey) => (
                     <button
-                      key={cat}
+                      key={catKey}
                       type="button"
-                      className={`mcp-cat-pill ${promptCategoryFilter === cat ? 'active' : ''}`}
-                      onClick={() => setPromptCategoryFilter(cat)}
+                      className={`mcp-cat-pill ${promptCategoryFilter === catKey ? 'active' : ''}`}
+                      onClick={() => setPromptCategoryFilter(catKey)}
                     >
-                      {cat === 'todos' ? 'Todos' : cat}
+                      {catKey === 'todos' ? t('domainMcp.modal.filterAll') : t(catKey as TranslationKey)}
                     </button>
                   ))}
                 </div>
@@ -491,7 +527,7 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               {filteredPrompts.length === 0 ? (
                 <div className="mcp-empty-state">
                   <Search size={24} />
-                  <p>Nenhum prompt encontrado para os filtros selecionados.</p>
+                  <p>{t('domainMcp.modal.emptyPrompts')}</p>
                 </div>
               ) : (
                 <div className="mcp-prompts-grid">
@@ -502,8 +538,8 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                         <div className="mcp-prompt-card-header">
                           <span className="mcp-prompt-category">{item.category}</span>
                           <div className="mcp-prompt-tools">
-                            {item.toolsUsed.map((t) => (
-                              <code key={t}>{t}</code>
+                            {item.toolsUsed.map((tu) => (
+                              <code key={tu}>{tu}</code>
                             ))}
                           </div>
                         </div>
@@ -517,15 +553,15 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                             type="button"
                             className={`btn-secondary btn-sm mcp-copy-btn ${isCopied ? 'copied' : ''}`}
                             onClick={() => handleCopy(item.id, item.prompt)}
-                            title="Copiar prompt para o chat do assistente"
+                            title={t('domainMcp.modal.copyPromptTitle')}
                           >
                             {isCopied ? (
                               <>
-                                <Check size={13} /> Copiado!
+                                <Check size={13} /> {t('domainMcp.modal.copied')}
                               </>
                             ) : (
                               <>
-                                <Copy size={13} /> Copiar Prompt
+                                <Copy size={13} /> {t('domainMcp.modal.copyPrompt')}
                               </>
                             )}
                           </button>
@@ -543,12 +579,8 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-intro-callout">
                 <ListTree size={18} />
                 <div>
-                  <strong>O que o assistente pode fazer no MyFBox:</strong>
-                  <p>
-                    O servidor MCP expõe 20 ferramentas organizadas que cobrem todas as operações
-                    essenciais do cofre. Todas as ações gravam no cofre criptografado e emitem avisos
-                    visíveis no aplicativo.
-                  </p>
+                  <strong>{t('domainMcp.modal.capCalloutTitle')}</strong>
+                  <p>{t('domainMcp.modal.capCalloutBody')}</p>
                 </div>
               </div>
 
@@ -556,24 +588,24 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <table className="mcp-tools-table">
                   <thead>
                     <tr>
-                      <th>Ferramenta</th>
-                      <th>Categoria</th>
-                      <th>O que faz</th>
-                      <th>Parâmetros</th>
+                      <th>{t('domainMcp.modal.tableTool')}</th>
+                      <th>{t('domainMcp.modal.tableCategory')}</th>
+                      <th>{t('domainMcp.modal.tableWhat')}</th>
+                      <th>{t('domainMcp.modal.tableParams')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {MCP_TOOLS_DOCS.map((t) => (
-                      <tr key={t.name}>
+                    {mcpToolsDocs.map((td) => (
+                      <tr key={td.name}>
                         <td>
-                          <code className="mcp-tool-code">{t.name}</code>
+                          <code className="mcp-tool-code">{td.name}</code>
                         </td>
                         <td>
-                          <span className="mcp-cat-tag">{t.category}</span>
+                          <span className="mcp-cat-tag">{td.category}</span>
                         </td>
-                        <td className="mcp-tool-desc">{t.description}</td>
+                        <td className="mcp-tool-desc">{td.description}</td>
                         <td className="mcp-tool-args">
-                          <code>{t.args}</code>
+                          <code>{td.args}</code>
                         </td>
                       </tr>
                     ))}
@@ -582,28 +614,22 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               </div>
 
               <div className="mcp-skills-summary">
-                <h4 className="mcp-section-subtitle">Skills Especializadas Incluídas</h4>
+                <h4 className="mcp-section-subtitle">{t('domainMcp.modal.skillsSubtitle')}</h4>
                 <div className="mcp-skills-grid">
                   <div className="mcp-skill-box">
                     <div className="mcp-skill-header">
                       <Wallet size={16} />
-                      <strong>Skill: myfbox (.claude/skills/myfbox/SKILL.md)</strong>
+                      <strong>{t('domainMcp.modal.skillMyfboxTitle')}</strong>
                     </div>
-                    <p>
-                      Controla lançamentos, criação de contas e transferências multimoeda, parcelamentos em N vezes,
-                      sugestão de categorias por IA, metas mensais e gestão de cotações offline (16 moedas).
-                    </p>
+                    <p>{t('domainMcp.modal.skillMyfboxDesc')}</p>
                   </div>
 
                   <div className="mcp-skill-box">
                     <div className="mcp-skill-header">
                       <TrendingUp size={16} />
-                      <strong>Skill: myfbox-insights (.claude/skills/myfbox-insights/SKILL.md)</strong>
+                      <strong>{t('domainMcp.modal.skillInsightsTitle')}</strong>
                     </div>
-                    <p>
-                      Compara meses, detecta oscilações e redige insights analíticos e práticos
-                      gravados diretamente no cofre cifrado para a aba Comparativos (com suporte a leitura por voz local).
-                    </p>
+                    <p>{t('domainMcp.modal.skillInsightsDesc')}</p>
                   </div>
                 </div>
               </div>
@@ -615,38 +641,42 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-guide-step">
                 <div className="mcp-step-num">1</div>
                 <div className="mcp-step-content">
-                  <h4>Instalação Prática neste Ambiente</h4>
+                  <h4>{t('domainMcp.modal.installStep1Title')}</h4>
                   <p>
                     {mcpSetup.environment === 'desktop'
-                      ? 'No app Desktop (Linux, Windows e macOS), o servidor MCP já vem embutido no aplicativo. Basta ter Node.js instalado e colar a configuração abaixo:'
+                      ? t('domainMcp.modal.installStep1Desktop')
                       : mcpSetup.environment === 'web-remote'
-                        ? 'Na versão Web, o npx baixa e executa o servidor MCP automaticamente sem precisar clonar o repositório (exige Node.js e Git):'
-                        : 'Adicione à configuração de MCP do seu cliente apontando para o script mcp/server.mjs:'}
+                        ? t('domainMcp.modal.installStep1Web')
+                        : t('domainMcp.modal.installStep1Local')}
                   </p>
                   <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
                     <div className="mcp-code-header">
-                      <span>Configuração MCP (JSON — Claude Desktop, Cursor, Windsurf, Antigravity)</span>
+                      <span>{t('domainMcp.modal.installJsonHeader')}</span>
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
                         onClick={() => handleCopy('manual-mcp-code', mcpConfigJson)}
                       >
                         {copiedId === 'manual-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
-                        {copiedId === 'manual-mcp-code' ? 'Copiado!' : 'Copiar JSON'}
+                        {copiedId === 'manual-mcp-code'
+                          ? t('domainMcp.modal.copied')
+                          : t('domainMcp.modal.copyJson')}
                       </button>
                     </div>
                     <pre className="mono">{mcpConfigJson}</pre>
                   </div>
                   <div className="mcp-code-block-wrap">
                     <div className="mcp-code-header">
-                      <span>Atalho via terminal (Claude Code CLI)</span>
+                      <span>{t('domainMcp.modal.installCliHeader')}</span>
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
                         onClick={() => handleCopy('cli-mcp-code', mcpSetup.claudeCliCommand)}
                       >
                         {copiedId === 'cli-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
-                        {copiedId === 'cli-mcp-code' ? 'Copiado!' : 'Copiar CLI'}
+                        {copiedId === 'cli-mcp-code'
+                          ? t('domainMcp.modal.copied')
+                          : t('domainMcp.modal.copyCli')}
                       </button>
                     </div>
                     <pre className="mono">{mcpSetup.claudeCliCommand}</pre>
@@ -657,14 +687,14 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-guide-step">
                 <div className="mcp-step-num">2</div>
                 <div className="mcp-step-content">
-                  <h4>Uso Direto na Pasta do Repositório (.mcp.json)</h4>
+                  <h4>{t('domainMcp.modal.installStep2Title')}</h4>
                   <p>
-                    Se você abriu seu assistente de IA diretamente dentro da pasta clonada do MyFBox,
-                    o arquivo <code>.mcp.json</code> na raiz já registra o servidor automaticamente:
+                    {t('domainMcp.modal.installStep2DescBefore')} <code>.mcp.json</code>{' '}
+                    {t('domainMcp.modal.installStep2DescAfter')}
                   </p>
                   <div className="mcp-code-block-wrap">
                     <div className="mcp-code-header">
-                      <span>.mcp.json (na raiz do projeto)</span>
+                      <span>{t('domainMcp.modal.installStep2Header')}</span>
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
@@ -687,7 +717,9 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                         }
                       >
                         {copiedId === 'mcp-json-code' ? <Check size={12} /> : <Copy size={12} />}
-                        {copiedId === 'mcp-json-code' ? 'Copiado!' : 'Copiar'}
+                        {copiedId === 'mcp-json-code'
+                          ? t('domainMcp.modal.copied')
+                          : t('domainMcp.modal.copy')}
                       </button>
                     </div>
                     <pre className="mono">{`{
@@ -705,37 +737,36 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-guide-step">
                 <div className="mcp-step-num">3</div>
                 <div className="mcp-step-content">
-                  <h4>Como Parear com 1 Comando</h4>
-                  <p>No chat do assistente de IA, envie o prompt de pareamento:</p>
+                  <h4>{t('domainMcp.modal.installStep3Title')}</h4>
+                  <p>{t('domainMcp.modal.installStep3Desc')}</p>
                   <div className="mcp-prompt-box">
-                    <p className="mcp-prompt-text">
-                      “Conecte ao MyFBox pelo servidor MCP local e me mostre o status da conexão.”
-                    </p>
+                    <p className="mcp-prompt-text">“{t('domainMcp.modal.pairPrompt')}”</p>
                     <button
                       type="button"
                       className={`btn-secondary btn-sm mcp-copy-btn ${copiedId === 'pair-prompt' ? 'copied' : ''}`}
-                      onClick={() =>
-                        handleCopy(
-                          'pair-prompt',
-                          'Conecte ao MyFBox pelo servidor MCP local e me mostre o status da conexão.'
-                        )
-                      }
+                      onClick={() => handleCopy('pair-prompt', t('domainMcp.modal.pairPrompt'))}
                     >
                       {copiedId === 'pair-prompt' ? (
                         <>
-                          <Check size={13} /> Copiado!
+                          <Check size={13} /> {t('domainMcp.modal.copied')}
                         </>
                       ) : (
                         <>
-                          <Copy size={13} /> Copiar Prompt
+                          <Copy size={13} /> {t('domainMcp.modal.copyPrompt')}
                         </>
                       )}
                     </button>
                   </div>
                   <ol className="mcp-guide-ol">
-                    <li>O assistente chamará <code>connect_app</code> e retornará um link com código curto.</li>
-                    <li>Abra o link neste navegador com o cofre desbloqueado.</li>
-                    <li>Confira o código de conferência visual e clique em <strong>Autorizar</strong>.</li>
+                    <li>
+                      {t('domainMcp.modal.installStep3Li1Before')} <code>connect_app</code>{' '}
+                      {t('domainMcp.modal.installStep3Li1After')}
+                    </li>
+                    <li>{t('domainMcp.modal.installStep3Li2')}</li>
+                    <li>
+                      {t('domainMcp.modal.installStep3Li3Before')}{' '}
+                      <strong>{t('domainMcp.modal.installStep3Li3Strong')}</strong>.
+                    </li>
                   </ol>
                 </div>
               </div>
@@ -747,11 +778,8 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
               <div className="mcp-security-banner">
                 <ShieldCheck size={28} />
                 <div>
-                  <h3>Arquitetura Local-First Soberana</h3>
-                  <p>
-                    O MyFBox foi desenhado para que a inteligência artificial sirva você sem que você
-                    precise abrir mão da sua privacidade financeira.
-                  </p>
+                  <h3>{t('domainMcp.modal.securityBannerTitle')}</h3>
+                  <p>{t('domainMcp.modal.securityBannerDesc')}</p>
                 </div>
               </div>
 
@@ -759,10 +787,10 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <div className="mcp-sec-card">
                   <div className="mcp-sec-icon">🔒</div>
                   <div>
-                    <strong>Sua senha mestra nunca sai do navegador</strong>
+                    <strong>{t('domainMcp.modal.secCard1Title')}</strong>
                     <p>
-                      O processo MCP não conhece a sua senha nem a sua chave derivada AES-256-GCM. Ele apenas
-                      envia mensagens em formato JSON para o app aberto via WebSocket em loopback local (<code>127.0.0.1</code>).
+                      {t('domainMcp.modal.secCard1BodyBefore')} <code>127.0.0.1</code>
+                      {t('domainMcp.modal.secCard1BodyAfter')}
                     </p>
                   </div>
                 </div>
@@ -770,45 +798,36 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <div className="mcp-sec-card">
                   <div className="mcp-sec-icon">⚡</div>
                   <div>
-                    <strong>100% Offline Soberano</strong>
-                    <p>
-                      O aplicativo não realiza chamadas para APIs de terceiros. As cotações de moedas e
-                      todas as regras de categorização e comparativos são processadas estritamente de forma local.
-                    </p>
+                    <strong>{t('domainMcp.modal.secCard2Title')}</strong>
+                    <p>{t('domainMcp.modal.secCard2Body')}</p>
                   </div>
                 </div>
 
                 <div className="mcp-sec-card">
                   <div className="mcp-sec-icon">🛡️</div>
                   <div>
-                    <strong>Cofre Trancado = Acesso Bloqueado</strong>
-                    <p>
-                      Se você trancar o cofre ou se o tempo de auto-bloqueio por inatividade expirar, o
-                      servidor MCP imediatamente responde que o cofre está inacessível. Nenhuma ação de IA
-                      pode destravar o cofre sem a sua senha mestra digitada manualmente.
-                    </p>
+                    <strong>{t('domainMcp.modal.secCard3Title')}</strong>
+                    <p>{t('domainMcp.modal.secCard3Body')}</p>
                   </div>
                 </div>
 
                 <div className="mcp-sec-card">
                   <div className="mcp-sec-icon">👁️</div>
                   <div>
-                    <strong>Transparência Total & Notificações</strong>
-                    <p>
-                      Sempre que o MCP registra, edita ou exclui um lançamento, um aviso em tempo real aparece na
-                      interface informando exatamente o que foi executado.
-                    </p>
+                    <strong>{t('domainMcp.modal.secCard4Title')}</strong>
+                    <p>{t('domainMcp.modal.secCard4Body')}</p>
                   </div>
                 </div>
 
                 <div className="mcp-sec-card">
                   <div className="mcp-sec-icon">🚫</div>
                   <div>
-                    <strong>Operações Exclusivas do Usuário (Bloqueadas no MCP)</strong>
+                    <strong>{t('domainMcp.modal.secCard5Title')}</strong>
                     <p>
-                      O MCP <strong>não pode</strong> criar cofre, apagar/resetar o cofre, alterar a senha mestra
-                      nem fazer backup sem criptografia. A exportação de planilha CSV é exclusiva do usuário pela
-                      interface do aplicativo; via MCP, o único backup permitido é o envelope cifrado (<code>AES-256-GCM</code>).
+                      {t('domainMcp.modal.secCard5Body1')}{' '}
+                      <strong>{t('domainMcp.modal.secCard5BodyStrong')}</strong>{' '}
+                      {t('domainMcp.modal.secCard5Body2')} <code>AES-256-GCM</code>
+                      {t('domainMcp.modal.secCard5Body3')}
                     </p>
                   </div>
                 </div>
@@ -820,10 +839,13 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
         <footer className="modal-footer mcp-modal-footer">
           <div className="mcp-footer-tip">
             <HelpCircle size={14} />
-            <span>Dica: Experimente combinar prompts, como: <em>"Crie a categoria Pets com meta de 300 e registre 89,90 de ração nela"</em>.</span>
+            <span>
+              {t('domainMcp.modal.footerTipLabel')}{' '}
+              <em>{t('domainMcp.modal.footerTipExample')}</em>.
+            </span>
           </div>
           <button type="button" className="btn-primary" onClick={onClose}>
-            Entendi, fechar
+            {t('domainMcp.modal.footerClose')}
           </button>
         </footer>
       </div>

@@ -1,0 +1,1742 @@
+<!doctype html>
+<html lang="zh-CN" data-static-lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101010" />
+    <title>MyFBox — 你的财务由你掌控，数据留在本地设备</title>
+    <meta
+      name="description"
+      content="无需注册账号或上传账单到云端，轻松管理账户、日常收支、预算与多币种。支持浏览器直接使用，或下载 Windows、macOS 与 Linux 桌面版。"
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://thiegocarvalho.github.io/MyFBox/zh-cn/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://thiegocarvalho.github.io/MyFBox/" />
+    <link rel="alternate" hreflang="en-GB" href="https://thiegocarvalho.github.io/MyFBox/en-gb/" />
+    <link rel="alternate" hreflang="es" href="https://thiegocarvalho.github.io/MyFBox/es/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://thiegocarvalho.github.io/MyFBox/zh-cn/" />
+    <link rel="alternate" hreflang="x-default" href="https://thiegocarvalho.github.io/MyFBox/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="pt_BR" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:url" content="https://thiegocarvalho.github.io/MyFBox/zh-cn/" />
+    <meta property="og:title" content="MyFBox — 本地设备上的个人财务管理工具" />
+    <meta
+      property="og:description"
+      content="无需登录、无需强制上云、无订阅费。在浏览器或电脑上轻松管理个人财务。"
+    />
+    <meta property="og:image" content="https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MyFBox — My Financial Box" />
+    <meta
+      name="twitter:description"
+      content="快速、离线、由主密码加密保护的本地个人财务管理应用。"
+    />
+    <meta name="twitter:image" content="https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png" />
+    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
+    <link rel="preload" as="image" href="../assets/screen-dashboard.png" fetchpriority="high" />
+    <link rel="preload" href="../fonts/unbounded-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="../fonts/plus-jakarta-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "MyFBox",
+        "alternateName": "My Financial Box",
+        "url": "https://thiegocarvalho.github.io/MyFBox/zh-cn/",
+        "screenshot": "https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web, Windows, macOS, Linux",
+        "inLanguage": ["pt-BR", "en-GB", "es", "zh-CN"],
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "description": "直接在本地设备运行的个人财务管理工具，无需账号或服务器。",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "CNY"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "我的数据保存在哪里？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "在浏览器中，数据保存在浏览器的本地存储中；在桌面安装版中，数据以加密文件形式保存在你的用户目录下。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "如果忘记主密码怎么办？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "无法找回，因为除了你之外没有任何人持有密钥。请务必将密码保存在可靠的密码管理器中。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "支持多种货币吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "支持。你可以管理人民币、美元、欧元、英镑等多种货币账户与交易，汇率由你手动设定，不依赖网络。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "可以导出数据到电子表格吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "可以。除了受密码保护的完整备份文件外，你还可以随时将交易记录导出为 CSV 文件。"
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      @font-face {
+        font-family: "Unbounded";
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url("../fonts/unbounded-latin-800-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Space Grotesk";
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url("../fonts/space-grotesk-latin-500-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Space Grotesk";
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url("../fonts/space-grotesk-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("../fonts/plus-jakarta-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url("../fonts/plus-jakarta-sans-latin-600-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "JetBrains Mono";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("../fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+      }
+
+      :root {
+        --bg: #101010;
+        --surface: #151515;
+        --surface-2: #1c1c1c;
+        --border: #2e2e2e;
+        --border-strong: #ffffff;
+        --text: #ffffff;
+        --muted: #a3a3a3;
+        --accent: #c8ff00;
+        --accent-ink: #101010;
+        --coral: #ff4d3d;
+        --font-display: "Unbounded", "Space Grotesk", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", system-ui, sans-serif;
+        --font-heading: "Space Grotesk", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", system-ui, sans-serif;
+        --font-sans: "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-block-start: 84px;
+      }
+
+      html[lang="zh-CN"] body {
+        line-height: 1.65;
+      }
+      html[lang="zh-CN"] h1 {
+        line-height: 1.16;
+        letter-spacing: -0.01em;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-sans);
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+
+      .skip-link {
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        background: var(--accent);
+        color: var(--accent-ink);
+        padding: 0.65rem 1rem;
+        font-weight: 700;
+        z-index: 200;
+      }
+      .skip-link:focus {
+        left: 1rem;
+        top: 1rem;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(16, 16, 16, 0.94);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        height: 70px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.7rem;
+        text-decoration: none;
+        color: var(--text);
+      }
+
+      .brand-wordmark {
+        display: flex;
+        flex-direction: column;
+        line-height: 1;
+      }
+
+      .brand-name {
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: 1.02rem;
+        letter-spacing: 0.02em;
+        color: var(--text);
+      }
+
+      .brand-name .brand-f {
+        color: var(--accent);
+      }
+
+      .brand-sub {
+        margin-top: 2px;
+        font-family: var(--font-sans);
+        font-size: 0.68rem;
+        font-weight: 400;
+        color: var(--muted);
+        letter-spacing: 0.01em;
+      }
+
+      .brand img {
+        width: 34px;
+        height: 34px;
+        display: block;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+      }
+
+      .nav-links a.nav-item {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 0.94rem;
+        font-weight: 600;
+        transition: color 0.15s ease;
+      }
+      .nav-links a.nav-item:hover,
+      .nav-links a.nav-item:focus-visible {
+        color: var(--text);
+      }
+
+      .lang-select {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        font-family: var(--font-heading);
+        font-size: 0.84rem;
+        font-weight: 600;
+        padding: 0 0.65rem;
+        min-height: 44px;
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+      }
+      .lang-select:hover,
+      .lang-select:focus-visible {
+        border-color: var(--accent);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.85rem 1.4rem;
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-decoration: none;
+        border: 2px solid var(--border-strong);
+        cursor: pointer;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: var(--accent-ink);
+        border-color: var(--accent);
+        box-shadow: -5px 5px 0 var(--text);
+      }
+      .btn-primary:hover {
+        transform: translate(2px, -2px);
+        box-shadow: -7px 7px 0 var(--text);
+      }
+
+      .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border-color: var(--border-strong);
+      }
+      .btn-secondary:hover {
+        background: var(--surface-2);
+        transform: translate(2px, -2px);
+        box-shadow: -5px 5px 0 var(--accent);
+      }
+
+      .btn-sm {
+        padding: 0.55rem 1rem;
+        min-height: 44px;
+        font-size: 0.86rem;
+        box-shadow: none;
+      }
+      .btn-sm:hover {
+        box-shadow: -3px 3px 0 var(--text);
+      }
+
+      /* Ato 1: Abertura */
+      .hero {
+        padding: 3.5rem 0 4rem;
+        min-height: calc(100svh - 70px);
+        display: flex;
+        align-items: center;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+
+      .hero .container {
+        max-width: 1320px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.35fr);
+        gap: 2.5rem;
+        align-items: center;
+      }
+
+      .hero-copy {
+        max-width: 560px;
+      }
+
+      .hero-meta {
+        margin-top: 1.75rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--muted);
+      }
+
+      .hero-meta strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .tag-line {
+        display: inline-block;
+        padding: 0.3rem 0.7rem;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        letter-spacing: 0.06em;
+        margin-bottom: 1.4rem;
+      }
+
+      h1 {
+        margin: 0 0 1.2rem;
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: clamp(2.15rem, 5.2vw, 3.85rem);
+        line-height: 1.04;
+        letter-spacing: -0.03em;
+      }
+
+      .hero-lead {
+        margin: 0 0 2rem;
+        font-size: clamp(1.06rem, 1.8vw, 1.24rem);
+        color: var(--muted);
+        max-width: 54ch;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .stage-frame {
+        border: 2px solid var(--border-strong);
+        background: var(--surface);
+        box-shadow: -10px 10px 0 var(--accent);
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .stage-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: #0b0b0b;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .stage-dots {
+        display: inline-flex;
+        gap: 0.4rem;
+      }
+      .stage-dots span {
+        width: 9px;
+        height: 9px;
+        background: var(--border);
+        display: inline-block;
+      }
+      .stage-dots span:first-child {
+        background: var(--accent);
+      }
+
+      .stage-img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1360 / 840;
+        background: var(--bg);
+      }
+
+      /* Seções */
+      section {
+        padding: 4.5rem 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .section-kicker {
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--accent);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.6rem;
+        display: block;
+      }
+
+      h2 {
+        margin: 0 0 0.75rem;
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: clamp(1.65rem, 3.2vw, 2.35rem);
+        line-height: 1.12;
+        letter-spacing: -0.025em;
+      }
+
+      .section-lead {
+        margin: 0 0 2.5rem;
+        color: var(--muted);
+        max-width: 56ch;
+        font-size: 1.02rem;
+      }
+
+      /* Ato 2: Storyboard interativo das telas */
+      .storyboard {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 2rem;
+        align-items: start;
+      }
+
+      .scene-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .scene-btn {
+        text-align: left;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 1.1rem 1.15rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+      }
+
+      .scene-btn:hover {
+        border-color: var(--muted);
+      }
+
+      .scene-btn[aria-selected="true"] {
+        border: 2px solid var(--accent);
+        background: var(--surface-2);
+        box-shadow: -5px 5px 0 var(--accent);
+      }
+
+      .scene-num {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--accent);
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+
+      .scene-btn strong {
+        display: block;
+        font-family: var(--font-heading);
+        font-size: 1.02rem;
+        margin-bottom: 0.3rem;
+      }
+
+      .scene-btn span.scene-desc {
+        display: block;
+        font-size: 0.88rem;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .scene-stage {
+        border: 2px solid var(--border);
+        background: var(--surface);
+      }
+
+      .scene-caption {
+        padding: 0.85rem 1.1rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .scene-caption kbd {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        padding: 0.12rem 0.45rem;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--text);
+      }
+
+      /* Ato 3: Pilares humanos */
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+
+      .pillar {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 1.6rem;
+      }
+
+      .pillar-num {
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        color: var(--accent);
+        margin-bottom: 0.9rem;
+        display: block;
+      }
+
+      .pillar h3 {
+        margin: 0 0 0.55rem;
+        font-family: var(--font-heading);
+        font-size: 1.15rem;
+      }
+
+      .pillar p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      /* Ato 4: Onde usar */
+      .downloads-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .dl-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 1.5rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 1.4rem;
+      }
+
+      .dl-card.featured {
+        border: 2px solid var(--accent);
+        box-shadow: -6px 6px 0 var(--accent);
+      }
+
+      .dl-badge {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+
+      .dl-card h3 {
+        margin: 0 0 0.4rem;
+        font-family: var(--font-heading);
+        font-size: 1.12rem;
+      }
+
+      .dl-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      /* Ato 5: FAQ */
+      .faq-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+      }
+
+      .faq-item {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 1.35rem;
+      }
+
+      .faq-item h3 {
+        margin: 0 0 0.45rem;
+        font-family: var(--font-heading);
+        font-size: 1.02rem;
+      }
+
+      .faq-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.93rem;
+      }
+
+      .gh-callout {
+        margin-top: 2rem;
+        display: flex;
+        justify-content: flex-start;
+      }
+
+      .gh-icon-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.7rem 1.1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text);
+        text-decoration: none;
+        font-family: var(--font-heading);
+        font-size: 0.92rem;
+        font-weight: 600;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+
+      .gh-icon-link:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        transform: translate(2px, -2px);
+      }
+
+      /* Ato MCP: Chat de IA + App ao vivo */
+      .mcp-stage {
+        display: grid;
+        grid-template-columns: 1fr 1.05fr;
+        gap: 1.5rem;
+        align-items: stretch;
+      }
+
+      .mcp-pane {
+        border: 2px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .mcp-pane.gpt-window {
+        background: #212121;
+        border: 1px solid #303030;
+        border-radius: 16px;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+
+      .gpt-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1.1rem;
+        background: #171717;
+        border-bottom: 1px solid #2b2b2b;
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: #ececec;
+      }
+
+      .gpt-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #b4b4b4;
+        background: #262626;
+        padding: 0.22rem 0.6rem;
+        border-radius: 999px;
+      }
+
+      .gpt-status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10a37f;
+      }
+
+      .mcp-pane.live {
+        border-color: var(--accent);
+        box-shadow: -8px 8px 0 var(--accent);
+      }
+
+      .mcp-chat-body {
+        padding: 1.15rem 1.2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        min-height: 360px;
+      }
+
+      .chat-msg {
+        font-size: 0.91rem;
+        line-height: 1.5;
+        color: #ececec;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+
+      .chat-msg.is-on {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .chat-msg.user {
+        align-self: flex-end;
+        max-width: 80%;
+        background: #2f2f2f;
+        padding: 0.65rem 1rem;
+        border-radius: 18px;
+      }
+
+      .chat-msg.ai {
+        align-self: flex-start;
+        max-width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .gpt-avatar {
+        flex-shrink: 0;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #101010;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 800;
+        margin-top: 2px;
+      }
+
+      .gpt-tool-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.72rem;
+        color: #b4b4b4;
+        background: #2a2a2a;
+        border: 1px solid #383838;
+        padding: 0.14rem 0.55rem;
+        border-radius: 999px;
+        margin-bottom: 0.35rem;
+      }
+
+      .gpt-composer {
+        margin: auto 1rem 1rem;
+        padding: 0.5rem 0.55rem 0.5rem 1rem;
+        background: #2f2f2f;
+        border-radius: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+
+      .gpt-composer-hint {
+        font-size: 0.84rem;
+        color: #9b9b9b;
+      }
+
+      .gpt-composer-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .gpt-replay-btn {
+        background: #3d3d3d;
+        color: #ececec;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.5rem 0.95rem;
+        min-height: 38px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .gpt-replay-btn:hover {
+        background: #4b4b4b;
+      }
+
+      .gpt-send-dot {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #101010;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.85rem;
+      }
+
+      .live-app-body {
+        padding: 1.15rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .live-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.65rem;
+      }
+
+      .live-kpi {
+        border: 1px solid var(--border);
+        background: var(--bg);
+        padding: 0.75rem;
+        transition: border-color 0.25s ease;
+      }
+
+      .live-kpi.flash {
+        border-color: var(--accent);
+      }
+
+      .live-kpi span {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      .live-kpi strong {
+        font-family: var(--font-heading);
+        font-size: 1.05rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .live-meta {
+        border: 1px solid var(--border);
+        background: var(--bg);
+        padding: 0.85rem;
+      }
+
+      .live-meta-head {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        margin-bottom: 0.45rem;
+      }
+
+      .live-bar-track {
+        height: 8px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+
+      .live-bar-fill {
+        height: 100%;
+        width: 47%;
+        background: var(--accent);
+        transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .live-tx-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .live-tx {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 0.86rem;
+        transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+      }
+
+      .live-tx.pending-insert {
+        display: none;
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      .live-tx.is-added {
+        display: flex;
+        opacity: 1;
+        transform: translateY(0);
+        border-color: var(--accent);
+      }
+
+      .live-tx-tag {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        padding: 0.12rem 0.4rem;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        margin-left: 0.45rem;
+      }
+
+      .live-tx-tag.warn {
+        border-color: #ffb020;
+        color: #ffb020;
+      }
+
+      .live-tx-amt {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        color: var(--coral);
+        font-weight: 600;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .chat-msg,
+        .live-tx.pending-insert {
+          opacity: 1 !important;
+          transform: none !important;
+          display: flex !important;
+        }
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 2.5rem 0 3.5rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.25rem;
+      }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+      }
+
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+        transition: color 0.15s ease;
+      }
+
+      footer a:hover,
+      footer a:focus-visible {
+        color: var(--accent);
+      }
+
+      /* Animação discreta de entrada no scroll */
+      .reveal {
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .js-anim .reveal:not(.is-visible) {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .stage-frame,
+        .btn,
+        .reveal {
+          transition: none;
+          transform: none !important;
+          opacity: 1 !important;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .hero {
+          min-height: 0;
+          padding: 2.75rem 0 3rem;
+        }
+        .hero-grid {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+        }
+        .hero-copy {
+          max-width: 100%;
+        }
+        .storyboard,
+        .mcp-stage {
+          grid-template-columns: 1fr;
+        }
+        .scene-list {
+          flex-direction: row;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          padding-bottom: 0.5rem;
+          -webkit-overflow-scrolling: touch;
+        }
+        .scene-btn {
+          flex: 0 0 76%;
+          min-width: 240px;
+          scroll-snap-align: start;
+        }
+        .scene-btn[aria-selected="true"] {
+          box-shadow: -4px 4px 0 var(--accent);
+        }
+        .pillars {
+          grid-template-columns: 1fr;
+        }
+        .downloads-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .faq-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          padding: 0 1rem;
+        }
+        .hero {
+          padding: 2.75rem 0 2.5rem;
+        }
+        section {
+          padding: 3rem 0;
+        }
+        .nav-links {
+          gap: 0.6rem;
+        }
+        .nav-links a.nav-item {
+          display: none;
+        }
+        .lang-select {
+          font-size: 0.78rem;
+          padding: 0 0.45rem;
+          max-width: 128px;
+        }
+        .hero-actions .btn-primary {
+          width: 100%;
+        }
+        .hero-actions .btn-secondary {
+          flex: 1 1 calc(50% - 0.5rem);
+        }
+        .downloads-grid {
+          grid-template-columns: 1fr;
+        }
+        .live-kpis {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        #kpi-previsto {
+          grid-column: 1 / -1;
+        }
+        .mcp-chat-body {
+          min-height: 0;
+        }
+        .stage-frame,
+        .mcp-pane.live,
+        .dl-card.featured {
+          box-shadow: -5px 5px 0 var(--accent);
+        }
+        .footer-links a,
+        .brand {
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo" data-i18n="skipLink">跳到正文</a>
+
+    <header>
+      <div class="container nav">
+        <a class="brand" href="./">
+          <img src="../assets/logo.svg" alt="MyFBox" width="34" height="34" />
+          <span class="brand-wordmark">
+            <span class="brand-name">MY<span class="brand-f">F</span>BOX</span>
+            <span class="brand-sub">My Financial Box</span>
+          </span>
+        </a>
+        <nav class="nav-links" aria-label="主导航" data-i18n-attrs="aria-label:nav.ariaLabel">
+          <a class="nav-item" href="#telas" data-i18n="nav.screens">界面预览</a>
+          <a class="nav-item" href="#mcp" data-i18n="nav.assistant">AI 助手</a>
+          <a class="nav-item" href="#privacidade" data-i18n="nav.privacy">隐私安全</a>
+          <a class="nav-item" href="#baixar" data-i18n="nav.download">下载</a>
+          <a class="nav-item" href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer" data-i18n="nav.github">GitHub</a>
+          <select id="lang-select" class="lang-select" aria-label="选择语言" data-i18n-attrs="aria-label:nav.langLabel">
+            <option value="pt-BR">Português (BR)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="es">Español</option>
+            <option value="zh-CN" selected>中文 (简体)</option>
+          </select>
+          <a class="btn btn-primary btn-sm" href="../app/?lang=zh-CN" data-app-link="../app/" data-i18n="nav.openApp">打开应用</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="hero" style="border-top: 0">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="tag-line" data-i18n="hero.tagline">100% 免费 · 开源软件 · 纯本地运行</span>
+            <h1 data-i18n="hero.title">你的财务，由你掌控。</h1>
+            <p class="hero-lead" data-i18n="hero.lead">无需注册账号、无需付费订阅、无需向任何服务器上传账单，随时记录账户、月度支出与预算目标。</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#baixar" data-i18n="hero.ctaDesktop">下载桌面版应用</a>
+              <a class="btn btn-secondary" href="../app/?lang=zh-CN" data-app-link="../app/" data-i18n="hero.ctaWeb">在浏览器中打开</a>
+            </div>
+            <div class="hero-meta">
+              <span><strong data-i18n="hero.metaFree">完全免费，无任何付费墙</strong></span>
+              <span data-i18n="hero.metaPlatforms">Win · Mac · Linux · Web</span>
+              <span data-i18n="hero.metaLicense">开源协议 (AGPL-3.0)</span>
+            </div>
+          </div>
+
+          <div class="stage-frame" id="hero-stage">
+            <div class="stage-bar">
+              <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span data-i18n="hero.stageLabel">MYFBOX // 本月概览</span>
+            </div>
+            <img
+              class="stage-img"
+              src="../assets/screen-dashboard.png"
+              alt="MyFBox 主界面，显示当前余额、收入、支出、本月预测及分类开销"
+              data-i18n-attrs="alt:hero.stageAlt"
+              width="1360"
+              height="840"
+              fetchpriority="high"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section id="telas" class="reveal">
+        <div class="container">
+          <span class="section-kicker" data-i18n="screens.kicker">应用内部</span>
+          <h2 data-i18n="screens.title">为每天几秒钟记账而设计</h2>
+          <p class="section-lead" data-i18n="screens.lead">点击下方标签，查看 MyFBox 的实际使用界面。</p>
+
+          <div class="storyboard">
+            <div class="scene-list" role="tablist" aria-label="MyFBox 界面列表" data-i18n-attrs="aria-label:screens.tablistLabel">
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="true"
+                data-img="../assets/screen-dashboard.png"
+                data-alt="月度概览界面，展示当前余额、月底预测与年度趋势图"
+                data-label="MYFBOX // 本月概览"
+                data-caption="区分已入账/已支出金额与待到期账单。"
+                data-i18n-attrs="data-alt:screens.s1.alt,data-label:screens.s1.label,data-caption:screens.s1.caption"
+              >
+                <span class="scene-num" data-i18n="screens.s1.num">01 / 本月概览</span>
+                <strong data-i18n="screens.s1.title">清楚月底还剩多少</strong>
+                <span class="scene-desc" data-i18n="screens.s1.desc">将今日可用余额与月底前待支付账单清晰区分。</span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="../assets/screen-transactions.png"
+                data-alt="交易记录列表，包含筛选器、分类及已付或待付状态"
+                data-label="MYFBOX // 交易记录"
+                data-caption="在任意界面按 N 键即可快速记一笔，无需离开键盘。"
+                data-i18n-attrs="data-alt:screens.s2.alt,data-label:screens.s2.label,data-caption:screens.s2.caption"
+              >
+                <span class="scene-num" data-i18n="screens.s2.num">02 / 交易记录</span>
+                <strong data-i18n="screens.s2.title">快速记账不费时间</strong>
+                <span class="scene-desc" data-i18n="screens.s2.desc">支持分期、定期账单、快捷筛选与智能分类推荐。</span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="../assets/screen-budgets.png"
+                data-alt="按分类设置的月度预算目标及进度条界面"
+                data-label="MYFBOX // 预算目标"
+                data-caption="按分类设置预算上限，避免月底超支。"
+                data-i18n-attrs="data-alt:screens.s3.alt,data-label:screens.s3.label,data-caption:screens.s3.caption"
+              >
+                <span class="scene-num" data-i18n="screens.s3.num">03 / 预算目标</span>
+                <strong data-i18n="screens.s3.title">超支前及时提醒</strong>
+                <span class="scene-desc" data-i18n="screens.s3.desc">为餐饮、娱乐或交通设置月度上限，实时查看已使用比例。</span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="../assets/screen-lock.png"
+                data-alt="MyFBox 主密码解锁保险库界面"
+                data-label="MYFBOX // 保险库已锁定"
+                data-caption="闲置后自动锁定，只有你的主密码才能再次解锁。"
+                data-i18n-attrs="data-alt:screens.s4.alt,data-label:screens.s4.label,data-caption:screens.s4.caption"
+              >
+                <span class="scene-num" data-i18n="screens.s4.num">04 / 隐私保护</span>
+                <strong data-i18n="screens.s4.title">只有你能打开保险库</strong>
+                <span class="scene-desc" data-i18n="screens.s4.desc">即使他人使用你的设备，数据也始终受主密码加密保护。</span>
+              </button>
+            </div>
+
+            <div class="scene-stage">
+              <div class="stage-bar">
+                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span id="scene-label">MYFBOX // 本月概览</span>
+              </div>
+              <img
+                id="scene-img"
+                class="stage-img"
+                src="../assets/screen-dashboard.png"
+                alt="月度概览界面，展示当前余额、月底预测与年度趋势图"
+                width="1360"
+                height="840"
+                loading="lazy"
+                decoding="async"
+              />
+              <div class="scene-caption">
+                <span id="scene-caption">区分已入账/已支出金额与待到期账单。</span>
+                <span><span data-i18n="screens.shortcutPrefix">快捷键：</span> <kbd>N</kbd></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="mcp" class="reveal">
+        <div class="container">
+          <span class="section-kicker" data-i18n="mcp.kicker">AI 助手模式</span>
+          <h2 data-i18n="mcp.title">用自然语言管账，绝不交出密码</h2>
+          <p class="section-lead" data-i18n="mcp.lead">需要时可通过 MCP 连接你的本地 AI 助手。用日常对话记账或查账，已解锁的保险库实时更新；一旦锁定应用，访问权限立即切断。</p>
+
+          <div class="mcp-stage" id="mcp-demo">
+            <div class="mcp-pane gpt-window">
+              <div class="gpt-bar">
+                <span data-i18n="mcp.windowTitle">你的 AI 助手</span>
+                <span class="gpt-status">
+                  <span class="gpt-status-dot" aria-hidden="true"></span>
+                  <span data-i18n="mcp.status">MyFBox MCP 已连接</span>
+                </span>
+              </div>
+              <div class="mcp-chat-body" id="mcp-chat-body">
+                <div class="chat-msg user" data-step="1" data-i18n="mcp.u1">今天在超市用银行卡花了 ¥84.50</div>
+                <div class="chat-msg ai" data-step="2">
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">AI</span>
+                  <div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a1Tool">已调用 MyFBox MCP · 记录交易</span>
+                    <div data-i18n="mcp.a1Text">已记录至「餐饮食品」分类。今日余额已同步更新。</div>
+                  </div>
+                </div>
+                <div class="chat-msg user" data-step="3" data-i18n="mcp.u2">这个月超市一共花了多少？</div>
+                <div class="chat-msg ai" data-step="4">
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">AI</span>
+                  <div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a2Tool">已调用 MyFBox MCP · 查询本月</span>
+                    <div data-i18n="mcp.a2Text">本月共消费 2 笔，合计 ¥505.30 — 占 ¥900.00 预算的 56%。</div>
+                  </div>
+                </div>
+                <div class="chat-msg user" data-step="5" data-i18n="mcp.u3">提醒我 25 号要交 ¥149.90 的宽带费</div>
+                <div class="chat-msg ai" data-step="6">
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">AI</span>
+                  <div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a3Tool">已调用 MyFBox MCP · 添加待付账单</span>
+                    <div data-i18n="mcp.a3Text">已安排在 11/25 作为待付账单。本月预测余额已更新。</div>
+                  </div>
+                </div>
+              </div>
+              <div class="gpt-composer">
+                <span class="gpt-composer-hint" data-i18n="mcp.composerHint">询问你的收支情况...</span>
+                <span class="gpt-composer-actions">
+                  <button type="button" class="gpt-replay-btn" id="mcp-replay-btn" data-i18n="mcp.replay">重播演示</button>
+                  <span class="gpt-send-dot" aria-hidden="true">↑</span>
+                </span>
+              </div>
+            </div>
+
+            <div class="mcp-pane live">
+              <div class="stage-bar">
+                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span data-i18n="mcp.liveBar">MYFBOX // 实时已解锁保险库</span>
+              </div>
+              <div class="live-app-body">
+                <div class="live-kpis">
+                  <div class="live-kpi" id="kpi-saldo">
+                    <span data-i18n="mcp.kpiBalance">今日余额</span>
+                    <strong id="val-saldo">¥4,850.00</strong>
+                  </div>
+                  <div class="live-kpi" id="kpi-saidas">
+                    <span data-i18n="mcp.kpiExpenses">本月支出</span>
+                    <strong id="val-saidas">¥420.80</strong>
+                  </div>
+                  <div class="live-kpi" id="kpi-previsto">
+                    <span data-i18n="mcp.kpiProjected">预计结余</span>
+                    <strong id="val-previsto">¥4,850.00</strong>
+                  </div>
+                </div>
+
+                <div class="live-meta">
+                  <div class="live-meta-head">
+                    <span data-i18n="mcp.goalLabel">预算：餐饮食品</span>
+                    <strong id="val-meta">¥420.80 / ¥900.00</strong>
+                  </div>
+                  <div class="live-bar-track">
+                    <div class="live-bar-fill" id="val-meta-bar"></div>
+                  </div>
+                </div>
+
+                <div class="live-tx-list">
+                  <div class="live-tx pending-insert" id="tx-internet">
+                    <div>
+                      <strong data-i18n="mcp.txInternetTitle">光纤宽带</strong>
+                      <span class="live-tx-tag warn" data-i18n="mcp.txInternetTag">待付 · 25/11</span>
+                    </div>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txInternetAmt">-¥149.90</span>
+                  </div>
+                  <div class="live-tx pending-insert" id="tx-mercado-new">
+                    <div>
+                      <strong data-i18n="mcp.txMarketTitle">超市采购</strong>
+                      <span class="live-tx-tag" data-i18n="mcp.txMarketTag">餐饮食品 · 已付</span>
+                    </div>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txMarketNewAmt">-¥84.50</span>
+                  </div>
+                  <div class="live-tx">
+                    <div>
+                      <strong data-i18n="mcp.txMarketTitle">超市采购</strong>
+                      <span class="live-tx-tag" data-i18n="mcp.txMarketTag">餐饮食品 · 已付</span>
+                    </div>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txMarketOldAmt">-¥420.80</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacidade" class="reveal">
+        <div class="container">
+          <span class="section-kicker" data-i18n="privacy.kicker">你的资金，你的规则</span>
+          <h2 data-i18n="privacy.title">为什么我们连你的邮箱都不问</h2>
+          <p class="section-lead" data-i18n="privacy.lead">大多数记账软件靠分析你的消费习惯盈利。MyFBox 选择相反的道路：一切完全运行在你自己的设备上。</p>
+
+          <div class="pillars">
+            <article class="pillar">
+              <span class="pillar-num">01</span>
+              <h3 data-i18n="privacy.p1Title">没有中间服务器</h3>
+              <p data-i18n="privacy.p1Desc">无需注册账号，没有邮箱找回密码流程，也没有任何外部数据库接收你的账单记录。</p>
+            </article>
+            <article class="pillar">
+              <span class="pillar-num">02</span>
+              <h3 data-i18n="privacy.p2Title">完全离线可用</h3>
+              <p data-i18n="privacy.p2Desc">在飞机上、地铁里或办公室都能随时使用。应用不请求任何银行 API 或外部服务。</p>
+            </article>
+            <article class="pillar">
+              <span class="pillar-num">03</span>
+              <h3 data-i18n="privacy.p3Title">随时随地迁移</h3>
+              <p data-i18n="privacy.p3Desc">更换电脑或手机？只需导出一份受密码保护的加密备份文件，在新设备上恢复即可。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="baixar" class="reveal">
+        <div class="container">
+          <span class="section-kicker" data-i18n="download.kicker">免费且开源</span>
+          <h2 data-i18n="download.title">下载桌面版或直接在浏览器中使用</h2>
+          <p class="section-lead">
+            <span data-i18n="download.leadPrefix">所有版本均 </span>
+            <strong data-i18n="download.leadStrong">100% 免费且开源</strong>
+            <span data-i18n="download.leadSuffix"> — 无订阅费、无记账条数限制、无付费版。日常使用推荐安装桌面原生应用。</span>
+          </p>
+
+          <div class="downloads-grid">
+            <div class="dl-card featured">
+              <div>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">推荐</span>
+                <h3 data-i18n="download.winTitle">Windows</h3>
+                <p data-i18n="download.winDesc">提供标准安装包与便携版。在你的电脑上 100% 离线运行。</p>
+              </div>
+              <a
+                class="btn btn-primary"
+                href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
+                rel="noopener noreferrer"
+                data-i18n="download.winBtn"
+                >下载 Windows 版</div>
+
+            <div class="dl-card featured">
+              <div>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">推荐</span>
+                <h3 data-i18n="download.macTitle">macOS</h3>
+                <p data-i18n="download.macDesc">原生支持 Apple Silicon (M1/M2/M3/M4) 与 Intel Mac。数据本地存储。</p>
+              </div>
+              <a
+                class="btn btn-primary"
+                href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
+                rel="noopener noreferrer"
+                data-i18n="download.macBtn"
+                >下载 macOS 版</div>
+
+            <div class="dl-card featured">
+              <div>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">推荐</span>
+                <h3 data-i18n="download.linTitle">Linux</h3>
+                <p data-i18n="download.linDesc">提供 AppImage 与 .deb 安装包 (Ubuntu/Debian)。零网络依赖。</p>
+              </div>
+              <a
+                class="btn btn-primary"
+                href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
+                rel="noopener noreferrer"
+                data-i18n="download.linBtn"
+                >下载 Linux 版</div>
+
+            <div class="dl-card">
+              <div>
+                <span class="dl-badge" data-i18n="download.badgePractical">便捷</span>
+                <h3 data-i18n="download.webTitle">浏览器 (Web)</h3>
+                <p data-i18n="download.webDesc">无需安装即刻体验。之后可随时将备份导入桌面版继续使用。</p>
+              </div>
+              <a class="btn btn-secondary" href="../app/?lang=zh-CN" data-app-link="../app/" data-i18n="download.webBtn">在浏览器中打开</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="duvidas" class="reveal">
+        <div class="container">
+          <span class="section-kicker" data-i18n="faq.kicker">常见问题</span>
+          <h2 data-i18n="faq.title">直接解答</h2>
+          <div class="faq-grid">
+            <article class="faq-item">
+              <h3 data-i18n="faq.q1">我的数据保存在哪里？</h3>
+              <p data-i18n="faq.a1">在浏览器中，数据保存在浏览器的本地存储中；在桌面安装版中，数据以加密文件形式保存在你的用户目录下。</p>
+            </article>
+            <article class="faq-item">
+              <h3 data-i18n="faq.q2">如果忘记主密码怎么办？</h3>
+              <p data-i18n="faq.a2">无法找回，因为除了你之外没有任何人持有密钥。请务必将密码保存在可靠的密码管理器中。</p>
+            </article>
+            <article class="faq-item">
+              <h3 data-i18n="faq.q3">支持多种货币吗？</h3>
+              <p data-i18n="faq.a3">支持。你可以管理人民币、美元、欧元、英镑等多种货币账户与交易，汇率由你手动设定，不依赖网络。</p>
+            </article>
+            <article class="faq-item">
+              <h3 data-i18n="faq.q4">可以导出数据到电子表格吗？</h3>
+              <p data-i18n="faq.a4">可以。除了受密码保护的完整备份文件外，你还可以随时将交易记录导出为 CSV 文件。</p>
+            </article>
+          </div>
+
+          <div class="gh-callout">
+            <a
+              class="gh-icon-link"
+              href="https://github.com/thiegocarvalho/MyFBox"
+              rel="noopener noreferrer"
+              aria-label="在 GitHub 上查看源代码（AGPL-3.0 协议）"
+              title="在 GitHub 上查看源代码"
+              data-i18n-attrs="aria-label:faq.ghAriaLabel,title:faq.ghTitle"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
+                />
+              </svg>
+              <span data-i18n="faq.ghText">GitHub 开源仓库</span>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-inner">
+        <a class="brand" href="./">
+          <img src="../assets/logo.svg" alt="MyFBox" width="28" height="28" />
+          <span class="brand-wordmark">
+            <span class="brand-name">MY<span class="brand-f">F</span>BOX</span>
+            <span class="brand-sub">My Financial Box</span>
+          </span>
+        </a>
+        <div class="footer-links">
+          <a href="../app/?lang=zh-CN" data-app-link="../app/" data-i18n="footer.openWeb">打开网页版</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer" data-i18n="footer.github">GitHub</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security"
+            >安全说明</div>
+      </div>
+    </footer>
+
+    <script src="../i18n.js"></script>
+
+    <script>
+      (function () {
+        document.documentElement.classList.add('js-anim');
+        var buttons = document.querySelectorAll('.scene-btn');
+        var img = document.getElementById('scene-img');
+        var label = document.getElementById('scene-label');
+        var caption = document.getElementById('scene-caption');
+
+        buttons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            buttons.forEach(function (b) {
+              b.setAttribute('aria-selected', 'false');
+            });
+            btn.setAttribute('aria-selected', 'true');
+            if (img) {
+              img.src = btn.getAttribute('data-img') || '';
+              img.alt = btn.getAttribute('data-alt') || '';
+            }
+            if (label) label.textContent = btn.getAttribute('data-label') || '';
+            if (caption) caption.textContent = btn.getAttribute('data-caption') || '';
+          });
+        });
+
+        var reveals = document.querySelectorAll('.reveal');
+        if ('IntersectionObserver' in window) {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add('is-visible');
+                  io.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.12 }
+          );
+          reveals.forEach(function (el) {
+            io.observe(el);
+          });
+        } else {
+          reveals.forEach(function (el) {
+            el.classList.add('is-visible');
+          });
+        }
+
+        // Animação sincronizada Chat MCP <-> Interface do App
+        var mcpDemo = document.getElementById('mcp-demo');
+        var msgs = document.querySelectorAll('#mcp-chat-body .chat-msg');
+        var valSaldo = document.getElementById('val-saldo');
+        var valSaidas = document.getElementById('val-saidas');
+        var valPrevisto = document.getElementById('val-previsto');
+        var valMeta = document.getElementById('val-meta');
+        var valMetaBar = document.getElementById('val-meta-bar');
+        var txMercado = document.getElementById('tx-mercado-new');
+        var txInternet = document.getElementById('tx-internet');
+        var kpiSaldo = document.getElementById('kpi-saldo');
+        var kpiSaidas = document.getElementById('kpi-saidas');
+        var kpiPrevisto = document.getElementById('kpi-previsto');
+        var replayBtn = document.getElementById('mcp-replay-btn');
+        var timers = [];
+
+        function flashKpi(el) {
+          if (!el) return;
+          el.classList.add('flash');
+          setTimeout(function () {
+            el.classList.remove('flash');
+          }, 900);
+        }
+
+        function getMcpValues() {
+          return (
+            window.__myfboxMcpValues || {
+              initSaldo: 'R$ 4.850,00',
+              initSaidas: 'R$ 420,80',
+              initPrevisto: 'R$ 4.850,00',
+              initMeta: 'R$ 420,80 / R$ 900,00',
+              after1Saldo: 'R$ 4.765,50',
+              after1Saidas: 'R$ 505,30',
+              after1Previsto: 'R$ 4.765,50',
+              after1Meta: 'R$ 505,30 / R$ 900,00',
+              after2Previsto: 'R$ 4.615,60'
+            }
+          );
+        }
+
+        function resetMcpScene() {
+          var v = getMcpValues();
+          timers.forEach(clearTimeout);
+          timers = [];
+          msgs.forEach(function (m) {
+            m.classList.remove('is-on');
+          });
+          if (valSaldo) valSaldo.textContent = v.initSaldo;
+          if (valSaidas) valSaidas.textContent = v.initSaidas;
+          if (valPrevisto) valPrevisto.textContent = v.initPrevisto;
+          if (valMeta) valMeta.textContent = v.initMeta;
+          if (valMetaBar) valMetaBar.style.width = '47%';
+          if (txMercado) txMercado.classList.remove('is-added');
+          if (txInternet) txInternet.classList.remove('is-added');
+        }
+
+        window.__myfboxResetMcpScene = resetMcpScene;
+
+        function playMcpScene() {
+          resetMcpScene();
+          var v = getMcpValues();
+          var delays = [250, 1100, 2300, 3200, 4400, 5300];
+          msgs.forEach(function (m, idx) {
+            timers.push(
+              setTimeout(function () {
+                m.classList.add('is-on');
+                if (idx === 1) {
+                  if (valSaldo) valSaldo.textContent = v.after1Saldo;
+                  if (valSaidas) valSaidas.textContent = v.after1Saidas;
+                  if (valPrevisto) valPrevisto.textContent = v.after1Previsto;
+                  if (valMeta) valMeta.textContent = v.after1Meta;
+                  if (valMetaBar) valMetaBar.style.width = '56%';
+                  if (txMercado) txMercado.classList.add('is-added');
+                  flashKpi(kpiSaldo);
+                  flashKpi(kpiSaidas);
+                }
+                if (idx === 5) {
+                  if (valPrevisto) valPrevisto.textContent = v.after2Previsto;
+                  if (txInternet) txInternet.classList.add('is-added');
+                  flashKpi(kpiPrevisto);
+                }
+              }, delays[idx] || idx * 900)
+            );
+          });
+        }
+
+        if (replayBtn) {
+          replayBtn.addEventListener('click', playMcpScene);
+        }
+
+        if (mcpDemo && 'IntersectionObserver' in window) {
+          var mcpIo = new IntersectionObserver(
+            function (entries) {
+              if (entries[0].isIntersecting) {
+                playMcpScene();
+                mcpIo.disconnect();
+              }
+            },
+            { threshold: 0.25 }
+          );
+          mcpIo.observe(mcpDemo);
+        } else {
+          playMcpScene();
+        }
+      })();
+    </script>
+  </body>
+</html>

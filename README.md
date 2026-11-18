@@ -1,3 +1,5 @@
+🇧🇷 [Português (Brasil)](README.md) · 🇬🇧 [English (UK)](README.en-GB.md) · 🇪🇸 [Español](README.es.md) · 🇨🇳 [简体中文](README.zh-CN.md)
+
 # MyFBox
 
 **Suas finanças pessoais sob o seu controle — 100% gratuito, código aberto e cifrado no seu dispositivo.**

@@ -32,6 +32,7 @@ import {
   resolveExchangeRates,
   type ExchangeRateSource,
 } from '../services/currencyService';
+import { useI18n } from '../i18n/useI18n';
 
 interface BudgetsViewProps {
   selectedYearMonth: string;
@@ -70,6 +71,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
   onAddCategory,
   onDeleteCategory,
 }) => {
+  const { t } = useI18n();
   const effectiveRates = rateSource ?? usdToBrlRate;
   const baseCurrency: Currency = 'BRL';
 
@@ -93,7 +95,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
     const symbol = getCurrencySymbol(code);
     const name = info?.name || code;
     if (code === baseCurrency) {
-      return `${flag}${code} (${symbol}) — ${name} (Padrão)`;
+      return t('budgets.currency.defaultLabel', { flag, code, symbol, name });
     }
     return `${flag}${code} (${symbol}) — ${name}`;
   };
@@ -335,23 +337,22 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
       <section className="kpi-grid-4">
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">TETO MENSAL TOTAL</span>
+            <span className="kpi-label">{t('budgets.kpi.totalLimitLabel')}</span>
             <Target size={17} className="kpi-icon teal" />
           </div>
           <div className="kpi-value mono">{formatBRL(totals.totalBudget, hideValues)}</div>
           <div className="kpi-sub">
             <span>
-              {totals.withGoalCount}{' '}
               {totals.withGoalCount === 1
-                ? 'categoria com meta ativa'
-                : 'categorias com meta ativa'}
+                ? t('budgets.kpi.activeGoalSingular', { count: totals.withGoalCount })
+                : t('budgets.kpi.activeGoalPlural', { count: totals.withGoalCount })}
             </span>
           </div>
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">TOTAL COMPROMETIDO</span>
+            <span className="kpi-label">{t('budgets.kpi.totalCommittedLabel')}</span>
             <TrendingDown
               size={17}
               className={`kpi-icon ${
@@ -363,15 +364,15 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           <div className="kpi-sub">
             <span>
               {totals.totalBudget > 0
-                ? `${totals.pct.toFixed(0)}% do orçamento estipulado`
-                : 'Sem teto definido'}
+                ? t('budgets.kpi.pctOfBudget', { pct: totals.pct.toFixed(0) })
+                : t('budgets.kpi.noLimitDefined')}
             </span>
           </div>
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">MARGEM RESTANTE</span>
+            <span className="kpi-label">{t('budgets.kpi.remainingMarginLabel')}</span>
             <ShieldCheck
               size={17}
               className={`kpi-icon ${totals.remaining >= 0 ? 'green' : 'coral'}`}
@@ -387,17 +388,19 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           <div className="kpi-sub">
             <span>
               {totals.totalBudget === 0
-                ? 'Defina tetos nas categorias abaixo'
+                ? t('budgets.kpi.defineLimitsHint')
                 : totals.remaining >= 0
-                  ? 'Saldo disponível dentro do teto'
-                  : `Excedido em ${formatBRL(Math.abs(totals.remaining), hideValues)}`}
+                  ? t('budgets.kpi.withinLimit')
+                  : t('budgets.kpi.exceededBy', {
+                      amount: formatBRL(Math.abs(totals.remaining), hideValues),
+                    })}
             </span>
           </div>
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SAÚDE DAS METAS</span>
+            <span className="kpi-label">{t('budgets.kpi.goalsHealthLabel')}</span>
             <AlertTriangle
               size={17}
               className={`kpi-icon ${
@@ -407,14 +410,19 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           </div>
           <div className="kpi-value mono">
             {totals.overCount > 0
-              ? `${totals.overCount} ESTOURADA${totals.overCount > 1 ? 'S' : ''}`
+              ? totals.overCount === 1
+                ? t('budgets.kpi.overCountSingular', { count: totals.overCount })
+                : t('budgets.kpi.overCountPlural', { count: totals.overCount })
               : totals.warnCount > 0
-                ? `${totals.warnCount} EM ALERTA`
-                : '100% NO TETO'}
+                ? t('budgets.kpi.warnCount', { count: totals.warnCount })
+                : t('budgets.kpi.allWithinLimit')}
           </div>
           <div className="kpi-sub">
             <span>
-              {totals.okCount} no teto · {totals.withoutGoalCount} sem meta definida
+              {t('budgets.kpi.healthSummary', {
+                okCount: totals.okCount,
+                withoutGoalCount: totals.withoutGoalCount,
+              })}
             </span>
           </div>
         </article>
@@ -425,27 +433,31 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           <header className="budget-execution-header">
             <div>
               <span className="eyebrow">
-                EXECUÇÃO ORÇAMENTÁRIA • {formatMonthYearLabel(selectedYearMonth).toUpperCase()}
+                {t('budgets.execution.eyebrow', {
+                  monthYear: formatMonthYearLabel(selectedYearMonth).toUpperCase(),
+                })}
               </span>
-              <h3>Consumo Global do Teto de Gastos</h3>
+              <h3>{t('budgets.execution.title')}</h3>
             </div>
 
             <div>
               {totals.pct > 100 ? (
                 <span className="budget-badge danger">
                   <AlertTriangle size={13} />
-                  EXCEDIDO EM {formatBRL(Math.abs(totals.remaining), hideValues)} (
-                  {totals.pct.toFixed(0)}%)
+                  {t('budgets.execution.badgeOver', {
+                    amount: formatBRL(Math.abs(totals.remaining), hideValues),
+                    pct: totals.pct.toFixed(0),
+                  })}
                 </span>
               ) : totals.pct >= 80 ? (
                 <span className="budget-badge warn">
                   <AlertTriangle size={13} />
-                  ATENÇÃO: {totals.pct.toFixed(0)}% DO TETO ATINGIDO
+                  {t('budgets.execution.badgeWarn', { pct: totals.pct.toFixed(0) })}
                 </span>
               ) : (
                 <span className="budget-badge ok">
                   <CheckCircle2 size={13} />
-                  NO TETO: {totals.pct.toFixed(0)}% CONSUMIDO
+                  {t('budgets.execution.badgeOk', { pct: totals.pct.toFixed(0) })}
                 </span>
               )}
             </div>
@@ -459,8 +471,14 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 }`}
                 style={{ width: `${Math.min(100, Math.max(0, totals.pct))}%` }}
               />
-              <span className="budget-track-marker marker-80" data-label="80% ALERTA" />
-              <span className="budget-track-marker marker-100" data-label="100% LIMITE" />
+              <span
+                className="budget-track-marker marker-80"
+                data-label={t('budgets.execution.marker80')}
+              />
+              <span
+                className="budget-track-marker marker-100"
+                data-label={t('budgets.execution.marker100')}
+              />
             </div>
           </div>
         </section>
@@ -474,7 +492,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             onClick={() => setStatusFilter('all')}
           >
             <Filter size={12} />
-            <span>Todas</span>
+            <span>{t('budgets.filter.all')}</span>
             <span className="budget-filter-count">({expenseCategoriesWithStats.length})</span>
           </button>
 
@@ -483,7 +501,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             className={`budget-filter-tab ${statusFilter === 'ok' ? 'active' : ''}`}
             onClick={() => setStatusFilter('ok')}
           >
-            <span>No Teto</span>
+            <span>{t('budgets.filter.ok')}</span>
             <span className="budget-filter-count">({totals.okCount})</span>
           </button>
 
@@ -492,7 +510,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             className={`budget-filter-tab ${statusFilter === 'warn' ? 'active' : ''}`}
             onClick={() => setStatusFilter('warn')}
           >
-            <span>Atenção 80%+</span>
+            <span>{t('budgets.filter.warn')}</span>
             <span className="budget-filter-count">({totals.warnCount})</span>
           </button>
 
@@ -501,7 +519,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             className={`budget-filter-tab ${statusFilter === 'over' ? 'active' : ''}`}
             onClick={() => setStatusFilter('over')}
           >
-            <span>Excedidas</span>
+            <span>{t('budgets.filter.over')}</span>
             <span className="budget-filter-count">({totals.overCount})</span>
           </button>
 
@@ -510,7 +528,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             className={`budget-filter-tab ${statusFilter === 'no-goal' ? 'active' : ''}`}
             onClick={() => setStatusFilter('no-goal')}
           >
-            <span>Sem Meta</span>
+            <span>{t('budgets.filter.noGoal')}</span>
             <span className="budget-filter-count">({totals.withoutGoalCount})</span>
           </button>
         </div>
@@ -520,7 +538,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             <Search size={14} />
             <input
               type="text"
-              placeholder="Buscar categoria..."
+              placeholder={t('budgets.search.placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -529,7 +547,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 type="button"
                 className="icon-btn-xs"
                 onClick={() => setSearchQuery('')}
-                title="Limpar busca"
+                title={t('budgets.search.clearTitle')}
               >
                 <X size={12} />
               </button>
@@ -543,10 +561,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortField)}
             >
-              <option value="pct">% Consumido</option>
-              <option value="spent">Maior Gasto</option>
-              <option value="limit">Maior Teto</option>
-              <option value="name">Ordem Alfabética</option>
+              <option value="pct">{t('budgets.sort.pct')}</option>
+              <option value="spent">{t('budgets.sort.spent')}</option>
+              <option value="limit">{t('budgets.sort.limit')}</option>
+              <option value="name">{t('budgets.sort.name')}</option>
             </select>
           </div>
 
@@ -555,7 +573,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             className="btn-primary budget-new-cat-btn"
             onClick={() => openCreateModal('expense')}
           >
-            <Plus size={14} /> Nova Categoria
+            <Plus size={14} /> {t('budgets.actions.newCategory')}
           </button>
         </div>
       </section>
@@ -564,11 +582,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
         <section className="panel-card budgets-empty-panel">
           <Target size={28} style={{ color: 'var(--color-accent)' }} />
           <div>
-            <h4>Nenhuma categoria encontrada</h4>
+            <h4>{t('budgets.empty.title')}</h4>
             <p>
               {searchQuery || statusFilter !== 'all'
-                ? 'Nenhuma categoria corresponde aos filtros aplicados. Redefina a busca ou selecione "Todas".'
-                : 'Crie sua primeira categoria de despesa e estipule um teto mensal.'}
+                ? t('budgets.empty.filteredDesc')
+                : t('budgets.empty.initialDesc')}
             </p>
             {searchQuery || statusFilter !== 'all' ? (
               <button
@@ -580,7 +598,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   setSearchQuery('');
                 }}
               >
-                Limpar Filtros
+                {t('budgets.actions.clearFilters')}
               </button>
             ) : (
               <button
@@ -589,7 +607,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                 style={{ marginTop: 10 }}
                 onClick={() => openCreateModal('expense')}
               >
-                <Plus size={14} /> Nova Categoria
+                <Plus size={14} /> {t('budgets.actions.newCategory')}
               </button>
             )}
           </div>
@@ -620,7 +638,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     {isProtected && (
                       <span
                         className="budget-status-chip system-badge"
-                        title="Categoria permanente do sistema (não pode ser excluída)"
+                        title={t('budgets.card.systemCategoryTitle')}
                         style={{
                           fontSize: '9px',
                           padding: '1px 5px',
@@ -628,7 +646,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           letterSpacing: '0.05em',
                         }}
                       >
-                        SISTEMA
+                        {t('budgets.card.systemBadge')}
                       </span>
                     )}
                   </div>
@@ -655,7 +673,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           type="button"
                           className="icon-btn-sm"
                           onClick={() => startEditing(item.cat)}
-                          title="Ajustar teto mensal ou dados"
+                          title={t('budgets.card.editTitle')}
                         >
                           <Edit3 size={13} />
                         </button>
@@ -665,7 +683,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             type="button"
                             className="icon-btn-sm"
                             onClick={() => removeGoal(item.cat)}
-                            title="Remover meta mensal (mantém os lançamentos)"
+                            title={t('budgets.card.removeGoalTitle')}
                           >
                             <X size={13} />
                           </button>
@@ -676,7 +694,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             type="button"
                             className="icon-btn-sm danger"
                             onClick={() => setCategoryToDelete(item.cat)}
-                            title="Excluir categoria"
+                            title={t('budgets.card.deleteTitle')}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -690,7 +708,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
-                            title="Categoria do sistema permanente (não pode ser excluída)"
+                            title={t('budgets.card.systemCategoryTitle')}
                           >
                             <ShieldCheck size={13} />
                           </span>
@@ -704,20 +722,18 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   <div className="budget-card-edit-box">
                     <div className="budget-edit-field">
                       <label>
-                        Nome da Categoria{' '}
-                        {isProtected && <span style={{ opacity: 0.6 }}>(Fixo)</span>}
+                        {t('budgets.form.categoryNameLabel')}{' '}
+                        {isProtected && (
+                          <span style={{ opacity: 0.6 }}>{t('budgets.form.fixedTag')}</span>
+                        )}
                       </label>
                       <input
                         type="text"
                         value={isProtected ? item.cat.name : nameDraft}
                         onChange={(e) => setNameDraft(e.target.value)}
-                        placeholder="Nome da categoria"
+                        placeholder={t('budgets.form.categoryNamePlaceholder')}
                         disabled={isProtected}
-                        title={
-                          isProtected
-                            ? 'O nome da categoria do sistema é fixo ("Outros")'
-                            : undefined
-                        }
+                        title={isProtected ? t('budgets.form.systemNameFixedTitle') : undefined}
                         style={isProtected ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                         autoFocus={!isProtected}
                       />
@@ -725,7 +741,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
                     <div className="budget-edit-goal-row">
                       <div className="budget-edit-field">
-                        <label>Moeda da Meta</label>
+                        <label>{t('budgets.form.goalCurrencyLabel')}</label>
                         <select
                           value={budgetCurrencyDraft}
                           onChange={(e) => setBudgetCurrencyDraft(e.target.value as Currency)}
@@ -739,7 +755,11 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       </div>
 
                       <div className="budget-edit-field">
-                        <label>Teto Mensal ({getCurrencySymbol(budgetCurrencyDraft)})</label>
+                        <label>
+                          {t('budgets.form.monthlyLimitLabel', {
+                            symbol: getCurrencySymbol(budgetCurrencyDraft),
+                          })}
+                        </label>
                         <input
                           type="number"
                           step="0.01"
@@ -747,7 +767,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           className="mono"
                           value={budgetDraft}
                           onChange={(e) => setBudgetDraft(e.target.value)}
-                          placeholder="Ex: 800"
+                          placeholder={t('budgets.form.monthlyLimitPlaceholder')}
                         />
                       </div>
                     </div>
@@ -764,14 +784,19 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                       return (
                         <div className="budget-currency-preview mono">
                           {converted !== null
-                            ? `≈ ${formatBRL(converted, hideValues)} na cotação atual`
-                            : `Sem cotação ${budgetCurrencyDraft}/${baseCurrency} cadastrada`}
+                            ? t('budgets.form.convertedPreview', {
+                                amount: formatBRL(converted, hideValues),
+                              })
+                            : t('budgets.form.noRateWarning', {
+                                from: budgetCurrencyDraft,
+                                to: baseCurrency,
+                              })}
                         </div>
                       );
                     })()}
 
                     <div className="budget-edit-field">
-                      <label>Cor Identificadora</label>
+                      <label>{t('budgets.form.colorLabel')}</label>
                       <div className="color-swatches-grid">
                         {PRESET_COLORS.map((c) => (
                           <button
@@ -793,7 +818,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           style={{ padding: '6px 14px', fontSize: '11px' }}
                           onClick={() => saveEditing(item.cat)}
                         >
-                          <Check size={13} /> Salvar
+                          <Check size={13} /> {t('budgets.actions.save')}
                         </button>
                         <button
                           type="button"
@@ -801,7 +826,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           style={{ padding: '6px 12px', fontSize: '11px' }}
                           onClick={cancelEditing}
                         >
-                          Cancelar
+                          {t('budgets.actions.cancel')}
                         </button>
                       </div>
 
@@ -817,9 +842,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                                 color: 'var(--text-secondary)',
                               }}
                               onClick={() => removeGoal(item.cat)}
-                              title="Remover apenas o teto mensal"
+                              title={t('budgets.actions.removeGoalOnlyTitle')}
                             >
-                              Remover Meta
+                              {t('budgets.actions.removeGoal')}
                             </button>
                           )}
                           {!isProtected && (
@@ -832,9 +857,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                                 color: 'var(--color-coral)',
                               }}
                               onClick={() => setCategoryToDelete(item.cat)}
-                              title="Excluir categoria"
+                              title={t('budgets.card.deleteTitle')}
                             >
-                              <Trash2 size={12} /> Excluir
+                              <Trash2 size={12} /> {t('budgets.actions.delete')}
                             </button>
                           )}
                         </div>
@@ -845,14 +870,14 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   <div className="budget-cat-body">
                     <div className="budget-cat-spend-hero">
                       <div className="budget-spend-top-row">
-                        <span className="budget-spend-label">Gasto no Mês</span>
+                        <span className="budget-spend-label">{t('budgets.card.spentInMonth')}</span>
                         {hasLimit && (
                           <div
                             className="budget-cat-limit-tag clickable"
                             onClick={() => startEditing(item.cat)}
-                            title="Clique para ajustar o teto desta categoria"
+                            title={t('budgets.card.limitClickTitle')}
                           >
-                            <span className="sub-tag">TETO:</span>
+                            <span className="sub-tag">{t('budgets.card.limitTag')}</span>
                             <strong className="mono">
                               {formatMoney(item.rawLimit, item.budgetCurrency, hideValues)}
                             </strong>
@@ -873,15 +898,21 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     {hasLimit && (
                       <div className="budget-margin-block">
                         <div className="budget-margin-header">
-                          <span className="budget-margin-label">Margem</span>
+                          <span className="budget-margin-label">{t('budgets.card.marginLabel')}</span>
                           <strong
                             className={`budget-margin-val mono ${
                               item.remaining < 0 ? 'neg' : 'pos'
                             }`}
                           >
                             {item.remaining < 0
-                              ? `-${formatBRL(Math.abs(item.remaining), hideValues)} (${item.pct.toFixed(0)}% do teto)`
-                              : `+${formatBRL(item.remaining, hideValues)} livres (${(100 - item.pct).toFixed(0)}% livre)`}
+                              ? t('budgets.card.marginOver', {
+                                  amount: formatBRL(Math.abs(item.remaining), hideValues),
+                                  pct: item.pct.toFixed(0),
+                                })
+                              : t('budgets.card.marginFree', {
+                                  amount: formatBRL(item.remaining, hideValues),
+                                  pct: (100 - item.pct).toFixed(0),
+                                })}
                           </strong>
                         </div>
 
@@ -901,17 +932,23 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         {isOver ? (
                           <span className="status-note danger">
                             <AlertTriangle size={12} />
-                            Teto estourado em {formatBRL(Math.abs(item.remaining), hideValues)}
+                            {t('budgets.card.footerOver', {
+                              amount: formatBRL(Math.abs(item.remaining), hideValues),
+                            })}
                           </span>
                         ) : isWarn ? (
                           <span className="status-note warn">
                             <AlertTriangle size={12} />
-                            Atenção: restam {formatBRL(item.remaining, hideValues)}
+                            {t('budgets.card.footerWarn', {
+                              amount: formatBRL(item.remaining, hideValues),
+                            })}
                           </span>
                         ) : (
                           <span className="status-note ok">
                             <CheckCircle2 size={12} />
-                            Disponível: {formatBRL(item.remaining, hideValues)}
+                            {t('budgets.card.footerOk', {
+                              amount: formatBRL(item.remaining, hideValues),
+                            })}
                           </span>
                         )}
                       </footer>
@@ -927,8 +964,8 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
       <section className="panel-card">
         <header className="panel-header">
           <div>
-            <span className="eyebrow">FONTES DE ENTRADA</span>
-            <h3>Categorias de Receita ({incomeCategoriesWithStats.length})</h3>
+            <span className="eyebrow">{t('budgets.income.eyebrow')}</span>
+            <h3>{t('budgets.income.title', { count: incomeCategoriesWithStats.length })}</h3>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button
@@ -936,7 +973,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               className="btn-secondary budget-new-cat-btn"
               onClick={() => openCreateModal('income')}
             >
-              <Plus size={14} /> Nova Receita
+              <Plus size={14} /> {t('budgets.income.newButton')}
             </button>
             <TrendingDown
               size={18}
@@ -963,13 +1000,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         type="text"
                         value={isProtected ? item.cat.name : incomeNameDraft}
                         onChange={(e) => setIncomeNameDraft(e.target.value)}
-                        placeholder="Nome da categoria"
+                        placeholder={t('budgets.form.categoryNamePlaceholder')}
                         disabled={isProtected}
-                        title={
-                          isProtected
-                            ? 'O nome da categoria do sistema é fixo ("Outros")'
-                            : undefined
-                        }
+                        title={isProtected ? t('budgets.form.systemNameFixedTitle') : undefined}
                         style={{
                           padding: '4px 8px',
                           fontSize: '13px',
@@ -997,7 +1030,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         {isProtected && (
                           <span
                             className="budget-status-chip system-badge"
-                            title="Categoria permanente do sistema (não pode ser excluída)"
+                            title={t('budgets.card.systemCategoryTitle')}
                             style={{
                               fontSize: '9px',
                               padding: '1px 5px',
@@ -1005,14 +1038,18 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                               letterSpacing: '0.05em',
                             }}
                           >
-                            SISTEMA
+                            {t('budgets.card.systemBadge')}
                           </span>
                         )}
                       </div>
                       <span className="sub-label mono" style={{ fontSize: '11px' }}>
-                        Recebido: {formatBRL(item.paid, hideValues)}
+                        {t('budgets.income.received', {
+                          amount: formatBRL(item.paid, hideValues),
+                        })}
                         {item.pending > 0 &&
-                          ` · A receber: ${formatBRL(item.pending, hideValues)}`}
+                          ` · ${t('budgets.income.toReceive', {
+                            amount: formatBRL(item.pending, hideValues),
+                          })}`}
                       </span>
                     </div>
                   )}
@@ -1044,7 +1081,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         type="button"
                         className="icon-btn-sm"
                         onClick={() => startEditingIncome(item.cat)}
-                        title="Editar categoria de receita"
+                        title={t('budgets.income.editTitle')}
                       >
                         <Edit3 size={13} />
                       </button>
@@ -1053,7 +1090,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           type="button"
                           className="icon-btn-sm danger"
                           onClick={() => setCategoryToDelete(item.cat)}
-                          title="Excluir categoria de receita"
+                          title={t('budgets.income.deleteTitle')}
                         >
                           <Trash2 size={13} />
                         </button>
@@ -1067,7 +1104,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
-                          title="Categoria do sistema permanente (não pode ser excluída)"
+                          title={t('budgets.card.systemCategoryTitle')}
                         >
                           <ShieldCheck size={13} />
                         </span>
@@ -1094,13 +1131,13 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
             <header className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Target size={18} style={{ color: 'var(--color-accent)' }} />
-                <h2 id="new-cat-modal-title">Nova Categoria & Meta</h2>
+                <h2 id="new-cat-modal-title">{t('budgets.createModal.title')}</h2>
               </div>
               <button
                 type="button"
                 className="icon-action-btn"
                 onClick={() => setIsCreateModalOpen(false)}
-                title="Fechar (Esc)"
+                title={t('budgets.modal.closeEsc')}
               >
                 <X size={16} />
               </button>
@@ -1122,27 +1159,27 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     className={`form-type-tab ${newCatType === 'expense' ? 'active' : ''}`}
                     onClick={() => setNewCatType('expense')}
                   >
-                    Despesa
+                    {t('budgets.createModal.typeExpense')}
                   </button>
                   <button
                     type="button"
                     className={`form-type-tab ${newCatType === 'income' ? 'active' : ''}`}
                     onClick={() => setNewCatType('income')}
                   >
-                    Receita / Entrada
+                    {t('budgets.createModal.typeIncome')}
                   </button>
                 </div>
 
                 <div className="form-field">
-                  <label>Nome da Categoria</label>
+                  <label>{t('budgets.form.categoryNameLabel')}</label>
                   <input
                     type="text"
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
                     placeholder={
                       newCatType === 'expense'
-                        ? 'Ex: Transporte, Pets, Moradia, Assinaturas...'
-                        : 'Ex: Salário, Dividendos, Freelance...'
+                        ? t('budgets.createModal.expensePlaceholder')
+                        : t('budgets.createModal.incomePlaceholder')
                     }
                     required
                     autoFocus
@@ -1153,7 +1190,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   <>
                     <div className="budget-modal-goal-row">
                       <div className="form-field">
-                        <label>Moeda da Meta</label>
+                        <label>{t('budgets.form.goalCurrencyLabel')}</label>
                         <select
                           value={newCatCurrency}
                           onChange={(e) => setNewCatCurrency(e.target.value as Currency)}
@@ -1168,8 +1205,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
 
                       <div className="form-field">
                         <label>
-                          Meta Mensal ({getCurrencySymbol(newCatCurrency)}){' '}
-                          <span className="label-optional">opcional</span>
+                          {t('budgets.createModal.monthlyGoalLabel', {
+                            symbol: getCurrencySymbol(newCatCurrency),
+                          })}{' '}
+                          <span className="label-optional">{t('budgets.createModal.optional')}</span>
                         </label>
                         <input
                           type="number"
@@ -1178,7 +1217,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                           className="mono"
                           value={newCatBudget}
                           onChange={(e) => setNewCatBudget(e.target.value)}
-                          placeholder="Sem meta (opcional)"
+                          placeholder={t('budgets.createModal.noGoalPlaceholder')}
                         />
                       </div>
                     </div>
@@ -1195,16 +1234,20 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                         return (
                           <div className="budget-currency-preview mono">
                             {converted !== null
-                              ? `≈ ${formatBRL(converted, hideValues)} na cotação atual`
-                              : `Sem cotação ${newCatCurrency}/${baseCurrency} cadastrada`}
+                              ? t('budgets.form.convertedPreview', {
+                                  amount: formatBRL(converted, hideValues),
+                                })
+                              : t('budgets.form.noRateWarning', {
+                                  from: newCatCurrency,
+                                  to: baseCurrency,
+                                })}
                           </div>
                         );
                       }
                       if (availableCurrencies.length === 1) {
                         return (
                           <span className="sub-label" style={{ fontSize: 11 }}>
-                            Cadastre outras moedas em Configurações › Câmbio para definir metas em
-                            moeda estrangeira.
+                            {t('budgets.createModal.addCurrencyHint')}
                           </span>
                         );
                       }
@@ -1213,18 +1256,18 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   </>
                 ) : (
                   <div className="form-field">
-                    <label>Finalidade</label>
+                    <label>{t('budgets.createModal.purposeLabel')}</label>
                     <input
                       type="text"
                       disabled
-                      value="Entradas & Salários (sem teto de gastos)"
+                      value={t('budgets.createModal.purposeValue')}
                       style={{ opacity: 0.6 }}
                     />
                   </div>
                 )}
 
                 <div className="form-field">
-                  <label>Cor Identificadora</label>
+                  <label>{t('budgets.form.colorLabel')}</label>
                   <div className="color-swatches-grid">
                     {PRESET_COLORS.map((color) => (
                       <button
@@ -1253,10 +1296,10 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setIsCreateModalOpen(false)}
                 >
-                  Cancelar
+                  {t('budgets.actions.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  <Plus size={16} /> Criar Categoria
+                  <Plus size={16} /> {t('budgets.createModal.submit')}
                 </button>
               </footer>
             </form>
@@ -1269,6 +1312,9 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
           (t) => t.categoryId === categoryToDelete.id
         ).length;
         const isExpense = categoryToDelete.type === 'expense';
+        const kindLabel = isExpense
+          ? t('budgets.deleteModal.kindExpense')
+          : t('budgets.deleteModal.kindIncome');
 
         return (
           <div className="modal-backdrop" onClick={() => setCategoryToDelete(null)}>
@@ -1282,13 +1328,13 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
               <header className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <AlertTriangle size={18} style={{ color: 'var(--color-coral)' }} />
-                  <h2 id="delete-cat-title">Excluir Categoria</h2>
+                  <h2 id="delete-cat-title">{t('budgets.deleteModal.title')}</h2>
                 </div>
                 <button
                   type="button"
                   className="icon-action-btn"
                   onClick={() => setCategoryToDelete(null)}
-                  title="Fechar (Esc)"
+                  title={t('budgets.modal.closeEsc')}
                 >
                   <X size={16} />
                 </button>
@@ -1303,34 +1349,28 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                     />
                     <strong>{categoryToDelete.name}</strong>
                     <span className="eyebrow" style={{ marginLeft: 'auto' }}>
-                      {isExpense ? 'DESPESA' : 'RECEITA'}
+                      {isExpense
+                        ? t('budgets.deleteModal.typeExpense')
+                        : t('budgets.deleteModal.typeIncome')}
                     </span>
                   </div>
 
                   <p className="delete-confirm-desc">
-                    Tem certeza de que deseja excluir a categoria{' '}
-                    <strong>{categoryToDelete.name}</strong>?
+                    {t('budgets.deleteModal.confirmQuestion', { name: categoryToDelete.name })}
                   </p>
 
                   <div className="delete-confirm-impact">
                     {linkedCount > 0 ? (
                       <p>
-                        ⚠️ Esta categoria possui{' '}
-                        <strong>
-                          {linkedCount}{' '}
-                          {linkedCount === 1
-                            ? 'lançamento associado'
-                            : 'lançamentos associados'}
-                        </strong>
-                        . Seus dados não serão apagados: os lançamentos serão transferidos{' '}
-                        <strong>obrigatoriamente para a categoria "Outros"</strong> (
-                        {isExpense ? 'despesas' : 'receitas'}).
+                        {linkedCount === 1
+                          ? t('budgets.deleteModal.impactLinkedSingular', { kind: kindLabel })
+                          : t('budgets.deleteModal.impactLinkedPlural', {
+                              count: linkedCount,
+                              kind: kindLabel,
+                            })}
                       </p>
                     ) : (
-                      <p>
-                        ✓ Nenhum lançamento está vinculado a esta categoria. Ela será removida com
-                        segurança.
-                      </p>
+                      <p>{t('budgets.deleteModal.impactEmpty')}</p>
                     )}
                   </div>
                 </div>
@@ -1342,7 +1382,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setCategoryToDelete(null)}
                 >
-                  Cancelar
+                  {t('budgets.actions.cancel')}
                 </button>
                 <button
                   type="button"
@@ -1355,7 +1395,7 @@ export const BudgetsView: React.FC<BudgetsViewProps> = ({
                   }}
                   autoFocus
                 >
-                  <Trash2 size={14} /> Confirmar Exclusão
+                  <Trash2 size={14} /> {t('budgets.actions.confirmDelete')}
                 </button>
               </footer>
             </div>

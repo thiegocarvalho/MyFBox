@@ -1,13 +1,39 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, ipcMain, session } from 'electron'
-import { configureNativeMenu } from './menu'
+import {
+  DEFAULT_ELECTRON_LANGUAGE,
+  normalizeElectronLanguage,
+  type ElectronLanguage,
+} from './i18n'
+import {
+  configureNativeMenu,
+  showAboutDialog,
+  showOpenVaultDialog,
+  showSaveVaultDialog,
+  type NativeMenuHandlers,
+} from './menu'
 import { NativeVaultStore } from './vaultStore'
 
 const DEV_SERVER_URL = 'http://127.0.0.1:41730'
 const isDev = process.argv.includes('--dev')
 
 let mainWindow: BrowserWindow | null = null
+let activeLanguage: ElectronLanguage = DEFAULT_ELECTRON_LANGUAGE
+
+function getMenuHandlers(): NativeMenuHandlers {
+  return {
+    onOpenVault: () => {
+      void showOpenVaultDialog(mainWindow, activeLanguage)
+    },
+    onSaveVault: () => {
+      void showSaveVaultDialog(mainWindow, activeLanguage)
+    },
+    onAbout: () => {
+      void showAboutDialog(mainWindow, activeLanguage)
+    },
+  }
+}
 
 function getMcpServerPath(): string {
   if (app.isPackaged) {
@@ -29,6 +55,14 @@ function registerIpcHandlers(vaultStore: NativeVaultStore): void {
   ipcMain.handle('vault:load', () => vaultStore.load())
   ipcMain.handle('vault:save', (_event, envelope: unknown) => vaultStore.save(envelope))
   ipcMain.handle('vault:delete', () => vaultStore.delete())
+
+  ipcMain.handle('myfbox:set-language', (_event, rawLang: unknown): void => {
+    const nextLanguage = normalizeElectronLanguage(typeof rawLang === 'string' ? rawLang : undefined)
+    if (nextLanguage !== activeLanguage) {
+      activeLanguage = nextLanguage
+      configureNativeMenu(activeLanguage, getMenuHandlers())
+    }
+  })
 }
 
 function isAllowedNavigation(targetUrl: string, prodIndexUrl: string): boolean {
@@ -115,7 +149,8 @@ if (!gotSingleInstanceLock) {
       callback(false)
     })
 
-    configureNativeMenu()
+    activeLanguage = normalizeElectronLanguage(app.getLocale())
+    configureNativeMenu(activeLanguage, getMenuHandlers())
     const vaultStore = new NativeVaultStore(app.getPath('userData'))
     registerIpcHandlers(vaultStore)
     mainWindow = createMainWindow()

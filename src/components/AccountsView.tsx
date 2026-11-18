@@ -35,6 +35,7 @@ import {
   getCurrencyFlag,
   type ExchangeRateSource,
 } from '../services/currencyService';
+import { useI18n } from '../i18n/useI18n';
 
 interface AccountsViewProps {
   accounts: Account[];
@@ -54,15 +55,6 @@ interface AccountsViewProps {
     description: string
   ) => void;
 }
-
-const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
-  reserve: 'Reserva',
-  investment: 'Investimento',
-  checking: 'Conta Corrente',
-  credit: 'Cartão',
-  wallet: 'Carteira',
-  savings: 'Poupança',
-};
 
 const ACCOUNT_TYPE_ICONS: Record<
   AccountType,
@@ -90,7 +82,27 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   onDeleteAccount,
   onTransferBetweenAccounts,
 }) => {
+  const { t } = useI18n();
   const effectiveRates = rateSource ?? usdToBrlRate;
+
+  const getAccountTypeLabel = (accType: AccountType) => {
+    switch (accType) {
+      case 'reserve':
+        return t('accounts.type.reserve');
+      case 'investment':
+        return t('accounts.type.investment');
+      case 'checking':
+        return t('accounts.type.checking');
+      case 'credit':
+        return t('accounts.type.credit');
+      case 'wallet':
+        return t('accounts.type.wallet');
+      case 'savings':
+        return t('accounts.type.savings');
+      default:
+        return accType;
+    }
+  };
 
   const [accountToEdit, setAccountToEdit] = useState<Account | null>(null);
   const [editName, setEditName] = useState('');
@@ -125,7 +137,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   const [toAcc, setToAcc] = useState(accounts[1]?.id || accounts[0]?.id || '');
   const [transferAmount, setTransferAmount] = useState('');
   const [transferDate, setTransferDate] = useState(() => localTodayStr());
-  const [transferNote, setTransferNote] = useState('Transferência entre contas');
+  const [transferNote, setTransferNote] = useState(() => t('accounts.transfer.defaultNote'));
 
   const handleOpenTransferModal = (preferredFromAccId?: string) => {
     if (accounts.length >= 2) {
@@ -196,8 +208,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
     <div className="accounts-view-stack">
       <section className="accounts-header-banner">
         <div>
-          <span className="eyebrow">ESTRUTURA PATRIMONIAL</span>
-          <h2>Contas & Carteiras ({accounts.length})</h2>
+          <span className="eyebrow">{t('accounts.eyebrow')}</span>
+          <h2>{t('accounts.title', { count: accounts.length })}</h2>
         </div>
 
         <div className="accounts-top-actions">
@@ -205,10 +217,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             type="button"
             className="btn-secondary"
             onClick={() => handleOpenTransferModal()}
-            title="Transferir valor entre contas"
+            title={t('accounts.actions.transferTitle')}
           >
             <ArrowLeftRight size={15} />
-            Transferir Saldo
+            {t('accounts.actions.transfer')}
           </button>
 
           <button
@@ -217,7 +229,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             onClick={() => setIsAddModalOpen(true)}
           >
             <Plus size={16} />
-            Nova Conta
+            {t('accounts.actions.new')}
           </button>
         </div>
       </section>
@@ -249,7 +261,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       border: `1px solid ${item.acc.color}45`,
                       color: item.acc.color,
                     }}
-                    title={`Tipo: ${ACCOUNT_TYPE_LABELS[item.acc.type] || item.acc.type}`}
+                    title={t('accounts.card.typeTitle', { type: getAccountTypeLabel(item.acc.type) })}
                   >
                     <IconComp size={18} />
                   </div>
@@ -259,14 +271,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
                     <div className="account-badge-row">
                       <span className="acc-type-pill">
-                        {ACCOUNT_TYPE_LABELS[item.acc.type] || item.acc.type}
+                        {getAccountTypeLabel(item.acc.type)}
                       </span>
                       <span className="acc-curr-pill">
                         {flag ? `${flag} ` : ''}
                         {curr}
                       </span>
-                      <span className="acc-count-pill" title="Lançamentos vinculados a esta conta">
-                        {item.txCount} {item.txCount === 1 ? 'mov.' : 'movs.'}
+                      <span className="acc-count-pill" title={t('accounts.card.txCountTitle')}>
+                        {item.txCount === 1
+                          ? t('accounts.card.txCountSingular', { count: item.txCount })
+                          : t('accounts.card.txCountPlural', { count: item.txCount })}
                       </span>
                     </div>
                   </div>
@@ -277,7 +291,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     type="button"
                     className="icon-btn-sm"
                     onClick={() => handleOpenTransferModal(item.acc.id)}
-                    title={`Transferir a partir de ${item.acc.name}`}
+                    title={t('accounts.card.transferFromTitle', { name: item.acc.name })}
                   >
                     <ArrowLeftRight size={14} />
                   </button>
@@ -285,7 +299,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     type="button"
                     className="icon-btn-sm"
                     onClick={() => handleOpenEdit(item.acc)}
-                    title="Editar conta"
+                    title={t('accounts.card.editTitle')}
                   >
                     <Edit3 size={14} />
                   </button>
@@ -294,7 +308,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       type="button"
                       className="icon-btn-sm danger"
                       onClick={() => setAccountToDelete(item.acc)}
-                      title="Remover conta"
+                      title={t('accounts.card.deleteTitle')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -312,10 +326,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                         boxShadow: `0 0 6px ${item.acc.color}`,
                       }}
                     />
-                    SALDO ATUAL
+                    {t('accounts.card.currentBalance')}
                   </span>
                   {item.acc.institution && (
-                    <span className="account-inst-badge" title="Instituição">
+                    <span className="account-inst-badge" title={t('accounts.card.institutionTitle')}>
                       {item.acc.institution}
                     </span>
                   )}
@@ -334,28 +348,33 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     netFlow > 0 ? (
                       <span
                         className="account-delta-badge positive"
-                        title="Entradas superaram saídas no mês"
+                        title={t('accounts.card.netPositiveTitle')}
                       >
-                        <ArrowUpRight size={13} />+{formatMoney(netFlow, curr, hideValues)} no mês
+                        <ArrowUpRight size={13} />
+                        {t('accounts.card.netPositive', {
+                          amount: formatMoney(netFlow, curr, hideValues),
+                        })}
                       </span>
                     ) : netFlow < 0 ? (
                       <span
                         className="account-delta-badge negative"
-                        title="Saídas superaram entradas no mês"
+                        title={t('accounts.card.netNegativeTitle')}
                       >
-                        <ArrowDownLeft size={13} />-{formatMoney(Math.abs(netFlow), curr, hideValues)}{' '}
-                        no mês
+                        <ArrowDownLeft size={13} />
+                        {t('accounts.card.netNegative', {
+                          amount: formatMoney(Math.abs(netFlow), curr, hideValues),
+                        })}
                       </span>
                     ) : (
                       <span className="account-delta-badge neutral">
                         <Activity size={12} />
-                        Saldo estável no mês
+                        {t('accounts.card.netStable')}
                       </span>
                     )
                   ) : (
                     <span className="account-delta-badge neutral">
                       <Activity size={12} />
-                      Sem movimentações no mês
+                      {t('accounts.card.noActivity')}
                     </span>
                   )}
 
@@ -379,17 +398,19 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
               <div className="account-flow-meter">
                 <div className="account-flow-labels mono">
-                  <span>FLUXO DO MÊS</span>
+                  <span>{t('accounts.card.monthFlow')}</span>
                   {totalFlow > 0 ? (
                     <span className="account-flow-ratio">
-                      <span style={{ color: '#10b981' }}>{inflowPct.toFixed(0)}% ent.</span>
+                      <span style={{ color: '#10b981' }}>
+                        {t('accounts.card.inflowPct', { pct: inflowPct.toFixed(0) })}
+                      </span>
                       <span style={{ opacity: 0.35 }}>•</span>
                       <span style={{ color: 'var(--color-coral)' }}>
-                        {outflowPct.toFixed(0)}% saí.
+                        {t('accounts.card.outflowPct', { pct: outflowPct.toFixed(0) })}
                       </span>
                     </span>
                   ) : (
-                    <span style={{ opacity: 0.6 }}>0 movimentações no mês</span>
+                    <span style={{ opacity: 0.6 }}>{t('accounts.card.zeroActivity')}</span>
                   )}
                 </div>
 
@@ -399,12 +420,16 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       <div
                         className="account-flow-bar-inflow"
                         style={{ width: `${inflowPct}%` }}
-                        title={`Entradas pagas no mês: ${inflowPct.toFixed(1)}%`}
+                        title={t('accounts.card.paidInflowsPctTitle', {
+                          pct: inflowPct.toFixed(1),
+                        })}
                       />
                       <div
                         className="account-flow-bar-outflow"
                         style={{ width: `${outflowPct}%` }}
-                        title={`Saídas pagas no mês: ${outflowPct.toFixed(1)}%`}
+                        title={t('accounts.card.paidOutflowsPctTitle', {
+                          pct: outflowPct.toFixed(1),
+                        })}
                       />
                     </>
                   ) : (
@@ -417,40 +442,40 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 <div className="acc-stat-tile">
                   <div className="acc-stat-tile-header">
                     <Coins size={12} style={{ color: 'var(--text-muted)' }} />
-                    <span>Saldo Inicial</span>
+                    <span>{t('accounts.card.initialBalance')}</span>
                   </div>
                   <div className="acc-stat-tile-val">
                     {formatMoney(item.acc.initialBalance, curr, hideValues)}
                   </div>
-                  <span className="acc-stat-tile-sub">Base inicial</span>
+                  <span className="acc-stat-tile-sub">{t('accounts.card.initialBase')}</span>
                 </div>
 
                 <div className="acc-stat-tile">
                   <div className="acc-stat-tile-header">
                     <ArrowDownLeft size={12} style={{ color: '#10b981' }} />
-                    <span>Entradas</span>
+                    <span>{t('accounts.card.inflows')}</span>
                   </div>
                   <div className="acc-stat-tile-val inflow">
                     +{formatMoney(item.monthPaidInflows, curr, hideValues)}
                   </div>
-                  <span className="acc-stat-tile-sub">Pagas no mês</span>
+                  <span className="acc-stat-tile-sub">{t('accounts.card.paidInMonth')}</span>
                 </div>
 
                 <div className="acc-stat-tile">
                   <div className="acc-stat-tile-header">
                     <ArrowUpRight size={12} style={{ color: 'var(--color-coral)' }} />
-                    <span>Saídas</span>
+                    <span>{t('accounts.card.outflows')}</span>
                   </div>
                   <div className="acc-stat-tile-val outflow">
                     -{formatMoney(item.monthPaidOutflows, curr, hideValues)}
                   </div>
-                  <span className="acc-stat-tile-sub">Pagas no mês</span>
+                  <span className="acc-stat-tile-sub">{t('accounts.card.paidInMonth')}</span>
                 </div>
 
                 <div className="acc-stat-tile">
                   <div className="acc-stat-tile-header">
                     <Clock size={12} style={{ color: '#38bdf8' }} />
-                    <span>Previsão Fim Mês</span>
+                    <span>{t('accounts.card.monthEndForecast')}</span>
                   </div>
                   <div className="acc-stat-tile-val">
                     {formatMoney(item.projectedBalance, curr, hideValues)}
@@ -458,14 +483,18 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   <span className="acc-stat-tile-sub">
                     {pendingDelta > 0 ? (
                       <span style={{ color: '#10b981' }}>
-                        +{formatMoney(pendingDelta, curr, hideValues)} a entrar
+                        {t('accounts.card.pendingIn', {
+                          amount: formatMoney(pendingDelta, curr, hideValues),
+                        })}
                       </span>
                     ) : pendingDelta < 0 ? (
                       <span style={{ color: 'var(--color-coral)' }}>
-                        -{formatMoney(Math.abs(pendingDelta), curr, hideValues)} a sair
+                        {t('accounts.card.pendingOut', {
+                          amount: formatMoney(Math.abs(pendingDelta), curr, hideValues),
+                        })}
                       </span>
                     ) : (
-                      <span>Liquidado</span>
+                      <span>{t('accounts.card.settled')}</span>
                     )}
                   </span>
                 </div>
@@ -488,13 +517,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             <header className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Wallet size={18} style={{ color: 'var(--color-accent)' }} />
-                <h2 id="new-acc-modal-title">Adicionar Nova Conta</h2>
+                <h2 id="new-acc-modal-title">{t('accounts.addModal.title')}</h2>
               </div>
               <button
                 type="button"
                 className="icon-action-btn"
                 onClick={() => setIsAddModalOpen(false)}
-                title="Fechar (Esc)"
+                title={t('accounts.modal.closeEsc')}
               >
                 <X size={16} />
               </button>
@@ -511,12 +540,12 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 }}
               >
                 <div className="form-field">
-                  <label>Nome da Conta</label>
+                  <label>{t('accounts.form.nameLabel')}</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ex: Reserva de Emergência, Carteira Principal..."
+                    placeholder={t('accounts.form.namePlaceholder')}
                     required
                     autoFocus
                   />
@@ -524,22 +553,22 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
                 <div className="form-grid-3">
                   <div className="form-field">
-                    <label>Tipo</label>
+                    <label>{t('accounts.form.typeLabel')}</label>
                     <select
                       value={type}
                       onChange={(e) => setType(e.target.value as AccountType)}
                     >
-                      <option value="reserve">Reserva</option>
-                      <option value="investment">Investimento</option>
-                      <option value="checking">Conta Corrente</option>
-                      <option value="savings">Poupança</option>
-                      <option value="credit">Cartão</option>
-                      <option value="wallet">Carteira</option>
+                      <option value="reserve">{t('accounts.type.reserve')}</option>
+                      <option value="investment">{t('accounts.type.investment')}</option>
+                      <option value="checking">{t('accounts.type.checking')}</option>
+                      <option value="savings">{t('accounts.type.savings')}</option>
+                      <option value="credit">{t('accounts.type.credit')}</option>
+                      <option value="wallet">{t('accounts.type.wallet')}</option>
                     </select>
                   </div>
 
                   <div className="form-field">
-                    <label>Moeda Principal</label>
+                    <label>{t('accounts.form.currencyLabel')}</label>
                     <select
                       value={currency}
                       onChange={(e) => setCurrency(e.target.value as Currency)}
@@ -553,7 +582,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   </div>
 
                   <div className="form-field">
-                    <label>Saldo Inicial ({getCurrencySymbol(currency)})</label>
+                    <label>
+                      {t('accounts.form.initialBalanceLabel', {
+                        symbol: getCurrencySymbol(currency),
+                      })}
+                    </label>
                     <input
                       type="number"
                       step="0.01"
@@ -565,7 +598,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 </div>
 
                 <div className="form-field">
-                  <label>Cor Identificadora</label>
+                  <label>{t('accounts.form.colorLabel')}</label>
                   <div className="color-swatches-row">
                     {COLORS.map((c) => (
                       <button
@@ -594,10 +627,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setIsAddModalOpen(false)}
                 >
-                  Cancelar
+                  {t('accounts.actions.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  <Plus size={16} /> Adicionar Conta
+                  <Plus size={16} /> {t('accounts.addModal.submit')}
                 </button>
               </footer>
             </form>
@@ -618,13 +651,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             <header className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <ArrowLeftRight size={18} style={{ color: '#38BDF8' }} />
-                <h2 id="transfer-modal-title">Transferir Saldo entre Contas</h2>
+                <h2 id="transfer-modal-title">{t('accounts.transferModal.title')}</h2>
               </div>
               <button
                 type="button"
                 className="icon-action-btn"
                 onClick={() => setIsTransferModalOpen(false)}
-                title="Fechar (Esc)"
+                title={t('accounts.modal.closeEsc')}
               >
                 <X size={16} />
               </button>
@@ -649,7 +682,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     <ArrowLeftRight size={24} />
                   </div>
                   <h3 style={{ fontSize: 16, marginBottom: 8, color: 'var(--text-main)' }}>
-                    Pelo menos 2 contas necessárias
+                    {t('accounts.transferModal.needTwoTitle')}
                   </h3>
                   <p
                     style={{
@@ -660,9 +693,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       lineHeight: 1.5,
                     }}
                   >
-                    Para transferir saldo entre contas, você precisa de uma conta de origem e outra de
-                    destino. Atualmente você possui apenas{' '}
-                    {accounts.length === 1 ? '1 conta cadastrada' : 'nenhuma conta'}.
+                    {accounts.length === 1
+                      ? t('accounts.transferModal.needTwoDescOne')
+                      : t('accounts.transferModal.needTwoDescZero')}
                   </p>
                   <button
                     type="button"
@@ -673,7 +706,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       setIsAddModalOpen(true);
                     }}
                   >
-                    <Plus size={16} /> Cadastrar Nova Conta
+                    <Plus size={16} /> {t('accounts.transferModal.registerNew')}
                   </button>
                 </div>
                 <footer
@@ -685,7 +718,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     className="btn-secondary"
                     onClick={() => setIsTransferModalOpen(false)}
                   >
-                    Fechar
+                    {t('accounts.actions.close')}
                   </button>
                 </footer>
               </div>
@@ -702,7 +735,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 >
                   <div className="form-grid-2">
                     <div className="form-field">
-                      <label>Conta de Origem (Saída)</label>
+                      <label>{t('accounts.transferModal.fromLabel')}</label>
                       <select
                         value={fromAcc}
                         onChange={(e) => {
@@ -723,7 +756,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     </div>
 
                     <div className="form-field">
-                      <label>Conta de Destino (Entrada)</label>
+                      <label>{t('accounts.transferModal.toLabel')}</label>
                       <select
                         value={toAcc}
                         onChange={(e) => {
@@ -747,11 +780,11 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   <div className="form-grid-2">
                     <div className="form-field">
                       <label>
-                        Valor (
-                        {getCurrencySymbol(
-                          accountCurrency(accounts.find((a) => a.id === fromAcc) ?? {})
-                        )}
-                        {' na origem'})
+                        {t('accounts.transferModal.amountLabel', {
+                          symbol: getCurrencySymbol(
+                            accountCurrency(accounts.find((a) => a.id === fromAcc) ?? {})
+                          ),
+                        })}
                       </label>
                       <input
                         type="number"
@@ -760,14 +793,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                         className="mono"
                         value={transferAmount}
                         onChange={(e) => setTransferAmount(e.target.value)}
-                        placeholder="0,00"
+                        placeholder={t('accounts.transferModal.amountPlaceholder')}
                         required
                         autoFocus
                       />
                     </div>
 
                     <div className="form-field">
-                      <label>Data</label>
+                      <label>{t('accounts.transferModal.dateLabel')}</label>
                       <input
                         type="date"
                         className="mono"
@@ -779,7 +812,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   </div>
 
                   <div className="form-field">
-                    <label>Descrição</label>
+                    <label>{t('accounts.transferModal.noteLabel')}</label>
                     <input
                       type="text"
                       value={transferNote}
@@ -802,14 +835,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                     className="btn-secondary"
                     onClick={() => setIsTransferModalOpen(false)}
                   >
-                    Cancelar
+                    {t('accounts.actions.cancel')}
                   </button>
                   <button
                     type="submit"
                     className="btn-primary"
                     disabled={fromAcc === toAcc || !transferAmount}
                   >
-                    <ArrowLeftRight size={15} /> Executar Transferência
+                    <ArrowLeftRight size={15} /> {t('accounts.transferModal.submit')}
                   </button>
                 </footer>
               </form>
@@ -831,13 +864,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             <header className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <Edit3 size={18} style={{ color: 'var(--color-accent)' }} />
-                <h2 id="edit-acc-modal-title">Editar Conta</h2>
+                <h2 id="edit-acc-modal-title">{t('accounts.editModal.title')}</h2>
               </div>
               <button
                 type="button"
                 className="icon-action-btn"
                 onClick={() => setAccountToEdit(null)}
-                title="Fechar (Esc)"
+                title={t('accounts.modal.closeEsc')}
               >
                 <X size={16} />
               </button>
@@ -855,15 +888,15 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               >
                 <div className="edit-acc-readonly-info mono">
                   <div>
-                    <span className="sub-label">TIPO</span>
-                    <strong>{ACCOUNT_TYPE_LABELS[accountToEdit.type] || accountToEdit.type}</strong>
+                    <span className="sub-label">{t('accounts.editModal.typeLabel')}</span>
+                    <strong>{getAccountTypeLabel(accountToEdit.type)}</strong>
                   </div>
                   <div>
-                    <span className="sub-label">MOEDA</span>
+                    <span className="sub-label">{t('accounts.editModal.currencyLabel')}</span>
                     <strong>{accountToEdit.currency || 'BRL'}</strong>
                   </div>
                   <div>
-                    <span className="sub-label">SALDO INICIAL</span>
+                    <span className="sub-label">{t('accounts.editModal.initialBalanceLabel')}</span>
                     <strong>
                       {formatMoney(accountToEdit.initialBalance, accountToEdit.currency || 'BRL')}
                     </strong>
@@ -871,19 +904,19 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 </div>
 
                 <div className="form-field">
-                  <label>Nome da Conta</label>
+                  <label>{t('accounts.form.nameLabel')}</label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Ex: Reserva de Emergência, Carteira Principal..."
+                    placeholder={t('accounts.form.namePlaceholder')}
                     required
                     autoFocus
                   />
                 </div>
 
                 <div className="form-field">
-                  <label>Cor Identificadora</label>
+                  <label>{t('accounts.form.colorLabel')}</label>
                   <div className="color-swatches-row">
                     {COLORS.map((c) => (
                       <button
@@ -912,10 +945,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setAccountToEdit(null)}
                 >
-                  Cancelar
+                  {t('accounts.actions.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  <Check size={16} /> Salvar Alterações
+                  <Check size={16} /> {t('accounts.editModal.submit')}
                 </button>
               </footer>
             </form>
@@ -938,13 +971,13 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               <header className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <AlertTriangle size={18} style={{ color: 'var(--color-coral)' }} />
-                  <h2 id="delete-acc-title">Excluir Conta</h2>
+                  <h2 id="delete-acc-title">{t('accounts.deleteModal.title')}</h2>
                 </div>
                 <button
                   type="button"
                   className="icon-action-btn"
                   onClick={() => setAccountToDelete(null)}
-                  title="Fechar (Esc)"
+                  title={t('accounts.modal.closeEsc')}
                 >
                   <X size={16} />
                 </button>
@@ -964,26 +997,18 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   </div>
 
                   <p className="delete-confirm-desc">
-                    Tem certeza de que deseja excluir a conta{' '}
-                    <strong>{accountToDelete.name}</strong>?
+                    {t('accounts.deleteModal.confirmQuestion', { name: accountToDelete.name })}
                   </p>
 
                   <div className="delete-confirm-impact">
                     {linkedCount > 0 ? (
                       <p>
-                        ⚠️ Esta conta possui{' '}
-                        <strong>
-                          {linkedCount}{' '}
-                          {linkedCount === 1 ? 'lançamento vinculado' : 'lançamentos vinculados'}
-                        </strong>
-                        . Seus dados não serão perdidos: os lançamentos serão automaticamente
-                        transferidos para outra conta de mesma moeda.
+                        {linkedCount === 1
+                          ? t('accounts.deleteModal.impactLinkedSingular')
+                          : t('accounts.deleteModal.impactLinkedPlural', { count: linkedCount })}
                       </p>
                     ) : (
-                      <p>
-                        ✓ Nenhum lançamento está vinculado a esta conta. Ela será removida com
-                        segurança.
-                      </p>
+                      <p>{t('accounts.deleteModal.impactEmpty')}</p>
                     )}
                   </div>
                 </div>
@@ -995,7 +1020,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setAccountToDelete(null)}
                 >
-                  Cancelar
+                  {t('accounts.actions.cancel')}
                 </button>
                 <button
                   type="button"
@@ -1006,7 +1031,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   }}
                   autoFocus
                 >
-                  <Trash2 size={14} /> Confirmar Exclusão
+                  <Trash2 size={14} /> {t('accounts.actions.confirmDelete')}
                 </button>
               </footer>
             </div>

@@ -1,3 +1,4 @@
+import type { AppLanguage } from '../i18n/types'
 import type { EncryptedVaultEnvelope } from './finance'
 
 export interface DesktopVaultInfo {
@@ -14,6 +15,10 @@ export interface DesktopMcpInfo {
 export interface MyFBoxDesktopBridge {
   readonly isDesktop: true
   readonly platform: string
+  readonly setLanguage?: (lang: AppLanguage) => Promise<void> | void
+  readonly i18n?: {
+    setLanguage: (lang: AppLanguage) => Promise<void> | void
+  }
   readonly vault?: {
     load: () => Promise<EncryptedVaultEnvelope | null>
     save: (envelope: EncryptedVaultEnvelope) => Promise<void>

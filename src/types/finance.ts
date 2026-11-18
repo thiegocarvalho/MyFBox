@@ -1,3 +1,6 @@
+import type { AppLanguage } from '../i18n/types';
+
+export type { AppLanguage };
 export type Currency = string;
 export type TransactionType = 'income' | 'expense';
 export type TransactionStatus = 'paid' | 'pending';
@@ -80,6 +83,7 @@ export interface VaultSettings {
   mcpEnabled?: boolean;
   mcpToken?: string;
   mcpPort?: number;
+  language?: AppLanguage;
 }
 
 export interface MonthInsight {

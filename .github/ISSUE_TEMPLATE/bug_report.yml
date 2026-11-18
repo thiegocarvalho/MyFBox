@@ -1,5 +1,5 @@
-name: Relato de Bug
-description: Reportar um erro ou comportamento inesperado no MyFBox (Web ou Desktop).
+name: Relato de Bug / Bug Report
+description: Reportar um erro ou comportamento inesperado no MyFBox (Web ou Desktop). / Report a bug or unexpected behaviour in MyFBox (Web or Desktop).
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -7,12 +7,13 @@ body:
     attributes:
       value: |
         Se encontrou uma **vulnerabilidade de segurança**, não abra uma issue pública — use a aba **Security › Report a vulnerability**.
+        If you found a **security vulnerability**, do not open a public issue — use the **Security › Report a vulnerability** tab instead.
   - type: dropdown
     id: platform
     attributes:
-      label: Ambiente
+      label: Ambiente / Environment
       options:
-        - Web (GitHub Pages / Navegador)
+        - Web (GitHub Pages / Navegador / Browser)
         - Desktop Electron (Linux)
         - Desktop Electron (Windows)
         - Desktop Electron (macOS)
@@ -21,17 +22,17 @@ body:
   - type: textarea
     id: description
     attributes:
-      label: O que aconteceu?
-      description: Descreva o comportamento observado e o comportamento esperado.
+      label: O que aconteceu? / What happened?
+      description: Descreva o comportamento observado e o comportamento esperado. / Describe the observed behaviour and the expected behaviour.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Passos para reproduzir
+      label: Passos para reproduzir / Steps to reproduce
       placeholder: |
-        1. Abra o app...
-        2. Clique em...
-        3. Erro observado...
+        1. Abra o app / Open the app...
+        2. Clique em / Click on...
+        3. Erro observado / Observed error...
     validations:
       required: true

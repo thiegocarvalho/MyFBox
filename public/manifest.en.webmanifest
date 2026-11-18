@@ -2,7 +2,7 @@
   "name": "MyFBox — My Financial Box",
   "short_name": "MyFBox",
   "description": "Local-first personal finance vault with client-side AES-256 encryption on your device.",
-  "lang": "en",
+  "lang": "en-GB",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",

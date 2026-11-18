@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { useI18n } from '../i18n/useI18n';
 
 export interface NavItem<T extends string> {
   id: T;
@@ -24,6 +25,7 @@ export function MobileMenu<T extends string>({
   onSelect,
   onClose,
 }: MobileMenuProps<T>) {
+  const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,14 +72,19 @@ export function MobileMenu<T extends string>({
     >
       <header className="mmenu-header">
         <span id="mmenu-title" className="mmenu-title">
-          Menu
+          {t('menu.title')}
         </span>
-        <button type="button" className="mmenu-close" onClick={onClose} aria-label="Fechar menu">
+        <button
+          type="button"
+          className="mmenu-close"
+          onClick={onClose}
+          aria-label={t('menu.closeAria')}
+        >
           <X size={26} strokeWidth={2.5} />
         </button>
       </header>
 
-      <nav aria-label="Seções do app">
+      <nav aria-label={t('menu.sectionsAria')}>
         <ul className="mmenu-list">
           {items.map((item, idx) => {
             const Icon = item.icon;
@@ -110,17 +117,20 @@ export function MobileMenu<T extends string>({
 export const MobileMenuButton = React.forwardRef<
   HTMLButtonElement,
   { onClick: () => void; currentLabel: string; expanded: boolean }
->(({ onClick, currentLabel, expanded }, ref) => (
-  <button
-    ref={ref}
-    type="button"
-    className="mmenu-trigger"
-    onClick={onClick}
-    aria-haspopup="dialog"
-    aria-expanded={expanded}
-    aria-label={`Menu — seção atual: ${currentLabel}`}
-  >
-    Menu
-  </button>
-));
+>(({ onClick, currentLabel, expanded }, ref) => {
+  const { t } = useI18n();
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="mmenu-trigger"
+      onClick={onClick}
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      aria-label={t('menu.buttonAria', { section: currentLabel })}
+    >
+      {t('menu.title')}
+    </button>
+  );
+});
 MobileMenuButton.displayName = 'MobileMenuButton';

@@ -1,4 +1,5 @@
 import { assertValidEnvelope, sanitizeVaultPayload } from '../domain/validation';
+import { tDomainMcp } from '../i18n/modules/domainMcp';
 import type { CryptoSession, EncryptedVaultEnvelope, VaultPayload } from '../types/finance';
 
 export {
@@ -141,7 +142,7 @@ export async function unlockEnvelopeWithPassword(
 
   const salt = base64ToBytes(envelope.kdf.saltBase64);
   if (salt.byteLength < SALT_BYTE_LENGTH) {
-    throw new Error('Sal criptográfico inválido no envelope.');
+    throw new Error(tDomainMcp('domainMcp.cryptoVault.invalidSalt'));
   }
 
   const iterations = envelope.kdf.iterations;
@@ -151,7 +152,7 @@ export async function unlockEnvelopeWithPassword(
   try {
     const verifierIv = base64ToBytes(envelope.verifier.ivBase64);
     if (verifierIv.byteLength !== GCM_IV_BYTE_LENGTH) {
-      throw new Error('IV do verificador inválido.');
+      throw new Error(tDomainMcp('domainMcp.cryptoVault.invalidVerifierIv'));
     }
     const verifierCipher = base64ToBytes(envelope.verifier.ciphertextBase64);
     const verifierPlainBuffer = await crypto.subtle.decrypt(
@@ -161,16 +162,16 @@ export async function unlockEnvelopeWithPassword(
     );
     const verifierText = decoder.decode(verifierPlainBuffer);
     if (verifierText !== VERIFIER_PLAINTEXT) {
-      throw new Error('Verificador de chave inválido.');
+      throw new Error(tDomainMcp('domainMcp.cryptoVault.invalidVerifier'));
     }
   } catch {
-    throw new Error('Senha mestra incorreta ou dados de autenticação inválidos.');
+    throw new Error(tDomainMcp('domainMcp.cryptoVault.invalidMasterPassword'));
   }
 
   try {
     const cipherIv = base64ToBytes(envelope.cipher.ivBase64);
     if (cipherIv.byteLength !== GCM_IV_BYTE_LENGTH) {
-      throw new Error('IV do bloco de dados inválido.');
+      throw new Error(tDomainMcp('domainMcp.cryptoVault.invalidCipherIv'));
     }
     const ciphertext = base64ToBytes(envelope.cipher.ciphertextBase64);
     const plainBuffer = await crypto.subtle.decrypt(
@@ -195,7 +196,7 @@ export async function unlockEnvelopeWithPassword(
       },
     };
   } catch {
-    throw new Error('Falha ao descriptografar o cofre financeiro (AES-256-GCM tag mismatch).');
+    throw new Error(tDomainMcp('domainMcp.cryptoVault.decryptFailed'));
   }
 }
 

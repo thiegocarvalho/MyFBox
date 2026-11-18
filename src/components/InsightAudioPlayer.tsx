@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Play,
   Pause,
@@ -6,6 +6,7 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react';
+import { useI18n } from '../i18n/useI18n';
 
 export interface InsightAudioPlayerProps {
   title: string;
@@ -75,28 +76,28 @@ const LANG_FLAG_MAP: Record<string, string> = {
   ar: '🇸🇦',
 };
 
-const LANG_NAME_MAP: Record<string, string> = {
-  pt: 'Português',
-  en: 'Inglês',
-  es: 'Espanhol',
-  fr: 'Francês',
-  de: 'Alemão',
-  it: 'Italiano',
-  ja: 'Japonês',
-  zh: 'Chinês',
-  ru: 'Russo',
-  ko: 'Coreano',
-  nl: 'Holandês',
-  sv: 'Sueco',
-  da: 'Dinamarquês',
-  no: 'Norueguês',
-  fi: 'Finlandês',
-  pl: 'Polonês',
-  tr: 'Turco',
-  el: 'Grego',
-  hi: 'Hindi',
-  ar: 'Árabe',
-};
+const LANG_KEY_MAP = {
+  pt: 'audio.lang.pt',
+  en: 'audio.lang.en',
+  es: 'audio.lang.es',
+  fr: 'audio.lang.fr',
+  de: 'audio.lang.de',
+  it: 'audio.lang.it',
+  ja: 'audio.lang.ja',
+  zh: 'audio.lang.zh',
+  ru: 'audio.lang.ru',
+  ko: 'audio.lang.ko',
+  nl: 'audio.lang.nl',
+  sv: 'audio.lang.sv',
+  da: 'audio.lang.da',
+  no: 'audio.lang.no',
+  fi: 'audio.lang.fi',
+  pl: 'audio.lang.pl',
+  tr: 'audio.lang.tr',
+  el: 'audio.lang.el',
+  hi: 'audio.lang.hi',
+  ar: 'audio.lang.ar',
+} as const;
 
 function getLanguageFlag(lang: string): string {
   if (!lang) return '🌐';
@@ -120,30 +121,9 @@ function getLanguageFlag(lang: string): string {
   return '🌐';
 }
 
-const LANG_DISPLAY_NAMES =
-  typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
-    ? new Intl.DisplayNames(['pt-BR'], { type: 'language' })
-    : null;
-
-function getLanguageLabel(lang: string): string {
-  const base = lang.replace('_', '-').split('-')[0].toLowerCase();
-  if (LANG_NAME_MAP[base]) {
-    return LANG_NAME_MAP[base];
-  }
-  try {
-    const name = LANG_DISPLAY_NAMES?.of(base);
-    if (name) {
-      return name.charAt(0).toUpperCase() + name.slice(1);
-    }
-  } catch {
-    return lang.toUpperCase();
-  }
-  return lang.toUpperCase();
-}
-
-function getBrowserLanguage(): string {
-  if (typeof navigator === 'undefined') return 'pt-BR';
-  return navigator.language || (navigator.languages && navigator.languages[0]) || 'pt-BR';
+function getBrowserLanguage(fallbackLanguage: string): string {
+  if (typeof navigator === 'undefined') return fallbackLanguage;
+  return navigator.language || (navigator.languages && navigator.languages[0]) || fallbackLanguage;
 }
 
 export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
@@ -153,6 +133,34 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
   monthLabel,
   onReadingIndexChange,
 }) => {
+  const { language, t } = useI18n();
+
+  const langDisplayNames = useMemo(
+    () =>
+      typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function'
+        ? new Intl.DisplayNames([language], { type: 'language' })
+        : null,
+    [language]
+  );
+
+  const getLanguageLabel = useCallback(
+    (lang: string): string => {
+      const base = lang.replace('_', '-').split('-')[0].toLowerCase();
+      if (base in LANG_KEY_MAP) {
+        return t(LANG_KEY_MAP[base as keyof typeof LANG_KEY_MAP]);
+      }
+      try {
+        const name = langDisplayNames?.of(base);
+        if (name) {
+          return name.charAt(0).toUpperCase() + name.slice(1);
+        }
+      } catch {
+        return lang.toUpperCase();
+      }
+      return lang.toUpperCase();
+    },
+    [langDisplayNames, t]
+  );
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
   const [rate, setRate] = useState<PlaybackRate>(1.25);
@@ -181,8 +189,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     const list: SegmentItem[] = [
       {
         id: 0,
-        label: 'Introdução & Título',
-        text: `Análise financeira de ${monthLabel}. ${title}.`,
+        label: t('audio.segmentIntroLabel'),
+        text: t('audio.segmentIntroText', { month: monthLabel, title }),
       },
     ];
 
@@ -191,7 +199,7 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       if (!clean) return;
       list.push({
         id: list.length,
-        label: `Parágrafo ${idx + 1}`,
+        label: t('audio.segmentParagraphLabel', { index: idx + 1 }),
         text: clean,
       });
     });
@@ -199,13 +207,13 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
     if (highlights && highlights.length > 0) {
       list.push({
         id: list.length,
-        label: 'Destaques',
-        text: `Pontos de destaque: ${highlights.join('. ')}.`,
+        label: t('audio.segmentHighlightsLabel'),
+        text: t('audio.segmentHighlightsText', { highlights: highlights.join('. ') }),
       });
     }
 
     return list;
-  }, [monthLabel, title, paragraphs, highlights]);
+  }, [monthLabel, title, paragraphs, highlights, t]);
 
   useEffect(() => {
     if (playbackState === 'playing') {
@@ -234,13 +242,14 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           setVoices(localVoices);
           setIsAvailable(true);
 
-          const browserLang = getBrowserLanguage().toLowerCase();
+          const browserLang = getBrowserLanguage(language).toLowerCase();
           const browserPrefix = browserLang.split('-')[0];
+          const appPrefix = language.split('-')[0].toLowerCase();
 
           const preferred =
             localVoices.find((v) => v.lang.toLowerCase() === browserLang) ||
             localVoices.find((v) => v.lang.toLowerCase().startsWith(browserPrefix)) ||
-            localVoices.find((v) => v.lang.toLowerCase().startsWith('pt')) ||
+            localVoices.find((v) => v.lang.toLowerCase().startsWith(appPrefix)) ||
             localVoices.find((v) => v.default) ||
             localVoices[0] ||
             null;
@@ -281,12 +290,12 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
         window.speechSynthesis.cancel();
       }
     };
-  }, []);
+  }, [language]);
 
   const uniqueLanguageVoices = useMemo<LanguageVoiceOption[]>(() => {
     if (voices.length === 0) return [];
 
-    const browserLang = getBrowserLanguage().toLowerCase();
+    const browserLang = getBrowserLanguage(language).toLowerCase();
     const browserBase = browserLang.split('-')[0];
 
     const groups = new Map<string, SpeechSynthesisVoice[]>();
@@ -324,9 +333,9 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
       const bIsBrowser = b.langCode === browserBase;
       if (aIsBrowser && !bIsBrowser) return -1;
       if (!aIsBrowser && bIsBrowser) return 1;
-      return a.label.localeCompare(b.label);
+      return a.label.localeCompare(b.label, language);
     });
-  }, [voices]);
+  }, [voices, language, getLanguageLabel]);
 
   if (!isAvailable || uniqueLanguageVoices.length === 0) {
     return null;
@@ -348,7 +357,7 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
 
     const utterance = new SpeechSynthesisUtterance(segments[idx].text);
     utterance.rate = rateRef.current;
-    utterance.lang = (voice.lang || getBrowserLanguage()).replace('_', '-');
+    utterance.lang = (voice.lang || getBrowserLanguage(language)).replace('_', '-');
     utterance.voice = voice;
 
     utterance.onend = () => {
@@ -428,7 +437,7 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
   const isLocalVoice = selectedVoice?.localService;
   const currentLangBase = selectedVoice
     ? selectedVoice.lang.replace('_', '-').split('-')[0].toLowerCase()
-    : getBrowserLanguage().split('-')[0].toLowerCase();
+    : getBrowserLanguage(language).split('-')[0].toLowerCase();
 
   return (
     <div className="cmp-audio-player compact">
@@ -438,8 +447,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           className="cmp-audio-nav-btn"
           onClick={handlePrev}
           disabled={currentSegment === 0}
-          title="Retroceder trecho anterior"
-          aria-label="Trecho anterior"
+          title={t('audio.prevTitle')}
+          aria-label={t('audio.prevAria')}
         >
           <SkipBack size={13} />
         </button>
@@ -448,15 +457,15 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           type="button"
           className={`btn-primary cmp-audio-play-btn ${playbackState === 'playing' ? 'is-playing' : ''}`}
           onClick={handleTogglePlay}
-          title={playbackState === 'playing' ? 'Pausar leitura' : 'Ouvir insight em áudio'}
+          title={playbackState === 'playing' ? t('audio.pauseTitle') : t('audio.playTitle')}
         >
           {playbackState === 'playing' ? <Pause size={13} /> : <Play size={13} />}
           <span>
             {playbackState === 'playing'
-              ? 'Pausar'
+              ? t('audio.pause')
               : playbackState === 'paused'
-              ? 'Continuar'
-              : 'Ouvir'}
+              ? t('audio.resume')
+              : t('audio.play')}
           </span>
         </button>
 
@@ -465,8 +474,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           className="cmp-audio-nav-btn"
           onClick={handleNext}
           disabled={currentSegment >= segments.length - 1}
-          title="Avançar próximo trecho"
-          aria-label="Próximo trecho"
+          title={t('audio.nextTitle')}
+          aria-label={t('audio.nextAria')}
         >
           <SkipForward size={13} />
         </button>
@@ -476,8 +485,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
             type="button"
             className="btn-secondary cmp-audio-icon-btn"
             onClick={handleStop}
-            title="Reiniciar leitura"
-            aria-label="Reiniciar áudio"
+            title={t('audio.restartTitle')}
+            aria-label={t('audio.restartAria')}
           >
             <RotateCcw size={12} />
           </button>
@@ -495,7 +504,11 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
         )}
         <span
           className="cmp-audio-segment-tag mono"
-          title={`Trecho ${currentSegment + 1} de ${segments.length}: ${segments[currentSegment]?.label || ''}`}
+          title={t('audio.segmentTitle', {
+            current: currentSegment + 1,
+            total: segments.length,
+            label: segments[currentSegment]?.label || '',
+          })}
         >
           {currentSegment + 1}/{segments.length}
         </span>
@@ -506,8 +519,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
           className="cmp-audio-select mono"
           value={rate}
           onChange={(e) => handleRateChange(Number(e.target.value) as PlaybackRate)}
-          title="Velocidade de leitura"
-          aria-label="Velocidade de leitura"
+          title={t('audio.rateTitle')}
+          aria-label={t('audio.rateAria')}
         >
           {RATES.map((r) => (
             <option key={r} value={r}>
@@ -529,8 +542,12 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
               }
             }
           }}
-          aria-label="Idioma de leitura"
-          title={`Idioma: ${selectedVoice ? getLanguageLabel(selectedVoice.lang) : 'Padrão'}`}
+          aria-label={t('audio.voiceAria')}
+          title={t('audio.voiceTitle', {
+            language: selectedVoice
+              ? getLanguageLabel(selectedVoice.lang)
+              : t('audio.voiceDefault'),
+          })}
         >
           {uniqueLanguageVoices.map((item) => (
             <option key={item.langCode} value={item.langCode}>
@@ -540,8 +557,8 @@ export const InsightAudioPlayer: React.FC<InsightAudioPlayerProps> = ({
         </select>
 
         {isLocalVoice && (
-          <span className="cmp-offline-badge" title="Processado localmente no dispositivo">
-            Offline
+          <span className="cmp-offline-badge" title={t('audio.offlineTitle')}>
+            {t('audio.offlineBadge')}
           </span>
         )}
       </div>

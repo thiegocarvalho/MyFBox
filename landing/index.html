@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-static-lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,8 +11,16 @@
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://thiegocarvalho.github.io/MyFBox/" />
+    <link rel="alternate" hreflang="pt-BR" href="https://thiegocarvalho.github.io/MyFBox/" />
+    <link rel="alternate" hreflang="en-GB" href="https://thiegocarvalho.github.io/MyFBox/en-gb/" />
+    <link rel="alternate" hreflang="es" href="https://thiegocarvalho.github.io/MyFBox/es/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://thiegocarvalho.github.io/MyFBox/zh-cn/" />
+    <link rel="alternate" hreflang="x-default" href="https://thiegocarvalho.github.io/MyFBox/" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta property="og:locale:alternate" content="es_ES" />
+    <meta property="og:locale:alternate" content="zh_CN" />
     <meta property="og:url" content="https://thiegocarvalho.github.io/MyFBox/" />
     <meta property="og:title" content="MyFBox — Controle financeiro pessoal no seu aparelho" />
     <meta
@@ -41,6 +49,7 @@
         "screenshot": "https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png",
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "Web, Windows, macOS, Linux",
+        "inLanguage": ["pt-BR", "en-GB", "es", "zh-CN"],
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
         "description": "Controle financeiro pessoal direto no seu aparelho, sem conta ou servidor.",
         "offers": {
@@ -145,9 +154,9 @@
         --accent: #c8ff00;
         --accent-ink: #101010;
         --coral: #ff4d3d;
-        --font-display: "Unbounded", "Space Grotesk", system-ui, sans-serif;
-        --font-heading: "Space Grotesk", system-ui, sans-serif;
-        --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-display: "Unbounded", "Space Grotesk", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", system-ui, sans-serif;
+        --font-heading: "Space Grotesk", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", system-ui, sans-serif;
+        --font-sans: "Plus Jakarta Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "WenQuanYi Micro Hei", -apple-system, BlinkMacSystemFont, sans-serif;
         --font-mono: "JetBrains Mono", ui-monospace, monospace;
       }
 
@@ -160,6 +169,14 @@
       html {
         scroll-behavior: smooth;
         scroll-padding-block-start: 84px;
+      }
+
+      html[lang="zh-CN"] body {
+        line-height: 1.65;
+      }
+      html[lang="zh-CN"] h1 {
+        line-height: 1.16;
+        letter-spacing: -0.01em;
       }
 
       :focus-visible {
@@ -274,6 +291,23 @@
       .nav-links a.nav-item:hover,
       .nav-links a.nav-item:focus-visible {
         color: var(--text);
+      }
+
+      .lang-select {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        font-family: var(--font-heading);
+        font-size: 0.84rem;
+        font-weight: 600;
+        padding: 0 0.65rem;
+        min-height: 44px;
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+      }
+      .lang-select:hover,
+      .lang-select:focus-visible {
+        border-color: var(--accent);
       }
 
       .btn {
@@ -700,7 +734,7 @@
         border: 1px solid #303030;
         border-radius: 16px;
         overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
       }
 
       .gpt-bar {
@@ -1087,8 +1121,16 @@
         section {
           padding: 3rem 0;
         }
+        .nav-links {
+          gap: 0.6rem;
+        }
         .nav-links a.nav-item {
           display: none;
+        }
+        .lang-select {
+          font-size: 0.78rem;
+          padding: 0 0.45rem;
+          max-width: 128px;
         }
         .hero-actions .btn-primary {
           width: 100%;
@@ -1123,7 +1165,7 @@
     </style>
   </head>
   <body>
-    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+    <a class="skip-link" href="#conteudo" data-i18n="skipLink">Pular para o conteúdo</a>
 
     <header>
       <div class="container nav">
@@ -1134,13 +1176,19 @@
             <span class="brand-sub">My Financial Box</span>
           </span>
         </a>
-        <nav class="nav-links" aria-label="Navegação principal">
-          <a class="nav-item" href="#telas">Telas</a>
-          <a class="nav-item" href="#mcp">Assistente IA</a>
-          <a class="nav-item" href="#privacidade">Privacidade</a>
-          <a class="nav-item" href="#baixar">Baixar</a>
-          <a class="nav-item" href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer">GitHub</a>
-          <a class="btn btn-primary btn-sm" href="./app/">Abrir app</a>
+        <nav class="nav-links" aria-label="Navegação principal" data-i18n-attrs="aria-label:nav.ariaLabel">
+          <a class="nav-item" href="#telas" data-i18n="nav.screens">Telas</a>
+          <a class="nav-item" href="#mcp" data-i18n="nav.assistant">Assistente IA</a>
+          <a class="nav-item" href="#privacidade" data-i18n="nav.privacy">Privacidade</a>
+          <a class="nav-item" href="#baixar" data-i18n="nav.download">Baixar</a>
+          <a class="nav-item" href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer" data-i18n="nav.github">GitHub</a>
+          <select id="lang-select" class="lang-select" aria-label="Selecionar idioma" data-i18n-attrs="aria-label:nav.langLabel">
+            <option value="pt-BR">Português (BR)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="es">Español</option>
+            <option value="zh-CN">中文 (简体)</option>
+          </select>
+          <a class="btn btn-primary btn-sm" href="./app/" data-app-link="./app/" data-i18n="nav.openApp">Abrir app</a>
         </nav>
       </div>
     </header>
@@ -1149,32 +1197,33 @@
       <section class="hero" style="border-top: 0">
         <div class="container hero-grid">
           <div class="hero-copy">
-            <span class="tag-line">100% GRATUITO · CÓDIGO ABERTO · NO SEU APARELHO</span>
-            <h1>Seu dinheiro no seu controle.</h1>
-            <p class="hero-lead">
+            <span class="tag-line" data-i18n="hero.tagline">100% GRATUITO · CÓDIGO ABERTO · NO SEU APARELHO</span>
+            <h1 data-i18n="hero.title">Seu dinheiro no seu controle.</h1>
+            <p class="hero-lead" data-i18n="hero.lead">
               Acompanhe contas, gastos do mês e metas sem criar conta, sem pagar mensalidade e sem
               entregar seus extratos para ninguém.
             </p>
             <div class="hero-actions">
-              <a class="btn btn-primary" href="#baixar">Baixar app no computador</a>
-              <a class="btn btn-secondary" href="./app/">Abrir no Navegador</a>
+              <a class="btn btn-primary" href="#baixar" data-i18n="hero.ctaDesktop">Baixar app no computador</a>
+              <a class="btn btn-secondary" href="./app/" data-app-link="./app/" data-i18n="hero.ctaWeb">Abrir no Navegador</a>
             </div>
             <div class="hero-meta">
-              <span><strong>100% grátis, sem planos pagos</strong></span>
-              <span>Win · Mac · Linux · Web</span>
-              <span>Código aberto (AGPL-3.0)</span>
+              <span><strong data-i18n="hero.metaFree">100% grátis, sem planos pagos</strong></span>
+              <span data-i18n="hero.metaPlatforms">Win · Mac · Linux · Web</span>
+              <span data-i18n="hero.metaLicense">Código aberto (AGPL-3.0)</span>
             </div>
           </div>
 
           <div class="stage-frame" id="hero-stage">
             <div class="stage-bar">
               <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
-              <span>MYFBOX // VISÃO DO MÊS</span>
+              <span data-i18n="hero.stageLabel">MYFBOX // VISÃO DO MÊS</span>
             </div>
             <img
               class="stage-img"
               src="./assets/screen-dashboard.png"
               alt="Tela principal do MyFBox mostrando saldo atual, entradas, saídas, previsão do mês e despesas por categoria"
+              data-i18n-attrs="alt:hero.stageAlt"
               width="1360"
               height="840"
               fetchpriority="high"
@@ -1185,14 +1234,14 @@
 
       <section id="telas" class="reveal">
         <div class="container">
-          <span class="section-kicker">POR DENTRO DO APP</span>
-          <h2>Feito para usar todo dia em poucos segundos</h2>
-          <p class="section-lead">
+          <span class="section-kicker" data-i18n="screens.kicker">POR DENTRO DO APP</span>
+          <h2 data-i18n="screens.title">Feito para usar todo dia em poucos segundos</h2>
+          <p class="section-lead" data-i18n="screens.lead">
             Escolha uma tela abaixo para ver como o MyFBox funciona na prática.
           </p>
 
           <div class="storyboard">
-            <div class="scene-list" role="tablist" aria-label="Telas do MyFBox">
+            <div class="scene-list" role="tablist" aria-label="Telas do MyFBox" data-i18n-attrs="aria-label:screens.tablistLabel">
               <button
                 type="button"
                 class="scene-btn"
@@ -1202,10 +1251,11 @@
                 data-alt="Visão geral do mês com saldo atual, previsão até o fim do mês e gráfico anual"
                 data-label="MYFBOX // VISÃO GERAL"
                 data-caption="Separa o dinheiro que já entrou ou saiu do que ainda vai vencer."
+                data-i18n-attrs="data-alt:screens.s1.alt,data-label:screens.s1.label,data-caption:screens.s1.caption"
               >
-                <span class="scene-num">01 / VISÃO DO MÊS</span>
-                <strong>Saiba quanto vai sobrar</strong>
-                <span class="scene-desc">
+                <span class="scene-num" data-i18n="screens.s1.num">01 / VISÃO DO MÊS</span>
+                <strong data-i18n="screens.s1.title">Saiba quanto vai sobrar</strong>
+                <span class="scene-desc" data-i18n="screens.s1.desc">
                   Veja o saldo de hoje separado das contas pendentes até o fim do mês.
                 </span>
               </button>
@@ -1219,10 +1269,11 @@
                 data-alt="Lista de lançamentos com filtros, categorias e valores pagos ou pendentes"
                 data-label="MYFBOX // LANÇAMENTOS"
                 data-caption="Aperte N em qualquer tela para anotar um gasto sem tirar a mão do teclado."
+                data-i18n-attrs="data-alt:screens.s2.alt,data-label:screens.s2.label,data-caption:screens.s2.caption"
               >
-                <span class="scene-num">02 / LANÇAMENTOS</span>
-                <strong>Anote sem perder tempo</strong>
-                <span class="scene-desc">
+                <span class="scene-num" data-i18n="screens.s2.num">02 / LANÇAMENTOS</span>
+                <strong data-i18n="screens.s2.title">Anote sem perder tempo</strong>
+                <span class="scene-desc" data-i18n="screens.s2.desc">
                   Parcelamentos, recorrências, filtros rápidos e sugestão automática de categoria.
                 </span>
               </button>
@@ -1236,10 +1287,11 @@
                 data-alt="Tela de metas mensais por categoria com barra de progresso do orçamento"
                 data-label="MYFBOX // METAS"
                 data-caption="Defina limites por categoria e acompanhe antes de estourar o mês."
+                data-i18n-attrs="data-alt:screens.s3.alt,data-label:screens.s3.label,data-caption:screens.s3.caption"
               >
-                <span class="scene-num">03 / METAS</span>
-                <strong>Limites que avisam antes</strong>
-                <span class="scene-desc">
+                <span class="scene-num" data-i18n="screens.s3.num">03 / METAS</span>
+                <strong data-i18n="screens.s3.title">Limites que avisam antes</strong>
+                <span class="scene-desc" data-i18n="screens.s3.desc">
                   Coloque um teto mensal para mercado, lazer ou transporte e veja o quanto já usou.
                 </span>
               </button>
@@ -1253,10 +1305,11 @@
                 data-alt="Tela de desbloqueio por senha mestra do cofre MyFBox"
                 data-label="MYFBOX // COFRE TRANCADO"
                 data-caption="Tranca sozinho por inatividade. Só a sua senha abre de novo."
+                data-i18n-attrs="data-alt:screens.s4.alt,data-label:screens.s4.label,data-caption:screens.s4.caption"
               >
-                <span class="scene-num">04 / PRIVACIDADE</span>
-                <strong>Só você abre o cofre</strong>
-                <span class="scene-desc">
+                <span class="scene-num" data-i18n="screens.s4.num">04 / PRIVACIDADE</span>
+                <strong data-i18n="screens.s4.title">Só você abre o cofre</strong>
+                <span class="scene-desc" data-i18n="screens.s4.desc">
                   Seus dados ficam protegidos pela sua senha mestra, mesmo se alguém abrir o aparelho.
                 </span>
               </button>
@@ -1279,7 +1332,7 @@
               />
               <div class="scene-caption">
                 <span id="scene-caption">Separa o dinheiro que já entrou ou saiu do que ainda vai vencer.</span>
-                <span>Atalho rápido: <kbd>N</kbd></span>
+                <span><span data-i18n="screens.shortcutPrefix">Atalho rápido:</span> <kbd>N</kbd></span>
               </div>
             </div>
           </div>
@@ -1288,9 +1341,9 @@
 
       <section id="mcp" class="reveal">
         <div class="container">
-          <span class="section-kicker">MODO ASSISTENTE</span>
-          <h2>Converse com suas finanças sem entregar sua senha</h2>
-          <p class="section-lead">
+          <span class="section-kicker" data-i18n="mcp.kicker">MODO ASSISTENTE</span>
+          <h2 data-i18n="mcp.title">Converse com suas finanças sem entregar sua senha</h2>
+          <p class="section-lead" data-i18n="mcp.lead">
             Quando quiser, conecte seu assistente de IA local via MCP. Você pede em linguagem
             natural e o cofre aberto atualiza na hora — ao trancar o app, o acesso corta na hora.
           </p>
@@ -1298,48 +1351,48 @@
           <div class="mcp-stage" id="mcp-demo">
             <div class="mcp-pane gpt-window">
               <div class="gpt-bar">
-                <span>Seu Assistente de IA</span>
+                <span data-i18n="mcp.windowTitle">Seu Assistente de IA</span>
                 <span class="gpt-status">
                   <span class="gpt-status-dot" aria-hidden="true"></span>
-                  MyFBox MCP conectado
+                  <span data-i18n="mcp.status">MyFBox MCP conectado</span>
                 </span>
               </div>
               <div class="mcp-chat-body" id="mcp-chat-body">
-                <div class="chat-msg user" data-step="1">
+                <div class="chat-msg user" data-step="1" data-i18n="mcp.u1">
                   Paguei R$ 84,50 no mercado hoje no Nubank
                 </div>
                 <div class="chat-msg ai" data-step="2">
-                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">IA</span>
                   <div>
-                    <span class="gpt-tool-pill">Usou MyFBox MCP · registrar lançamento</span>
-                    <div>Registrado em Alimentação (Nubank). Seu saldo de hoje foi atualizado.</div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a1Tool">Usou MyFBox MCP · registrar lançamento</span>
+                    <div data-i18n="mcp.a1Text">Registrado em Alimentação (Nubank). Seu saldo de hoje foi atualizado.</div>
                   </div>
                 </div>
-                <div class="chat-msg user" data-step="3">
+                <div class="chat-msg user" data-step="3" data-i18n="mcp.u2">
                   Quanto já gastei em mercado este mês?
                 </div>
                 <div class="chat-msg ai" data-step="4">
-                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">IA</span>
                   <div>
-                    <span class="gpt-tool-pill">Usou MyFBox MCP · consultar mês</span>
-                    <div>Você gastou R$ 505,30 em 2 compras — 56% da sua meta de R$ 900,00.</div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a2Tool">Usou MyFBox MCP · consultar mês</span>
+                    <div data-i18n="mcp.a2Text">Você gastou R$ 505,30 em 2 compras — 56% da sua meta de R$ 900,00.</div>
                   </div>
                 </div>
-                <div class="chat-msg user" data-step="5">
+                <div class="chat-msg user" data-step="5" data-i18n="mcp.u3">
                   Lembra que dia 25 vence a internet de R$ 149,90
                 </div>
                 <div class="chat-msg ai" data-step="6">
-                  <span class="gpt-avatar" aria-hidden="true">IA</span>
+                  <span class="gpt-avatar" aria-hidden="true" data-i18n="mcp.avatar">IA</span>
                   <div>
-                    <span class="gpt-tool-pill">Usou MyFBox MCP · agendar pendente</span>
-                    <div>Agendado para 25/11 como pendente. A previsão do mês já foi atualizada.</div>
+                    <span class="gpt-tool-pill" data-i18n="mcp.a3Tool">Usou MyFBox MCP · agendar pendente</span>
+                    <div data-i18n="mcp.a3Text">Agendado para 25/11 como pendente. A previsão do mês já foi atualizada.</div>
                   </div>
                 </div>
               </div>
               <div class="gpt-composer">
-                <span class="gpt-composer-hint">Pergunte sobre seus gastos...</span>
+                <span class="gpt-composer-hint" data-i18n="mcp.composerHint">Pergunte sobre seus gastos...</span>
                 <span class="gpt-composer-actions">
-                  <button type="button" class="gpt-replay-btn" id="mcp-replay-btn">Repetir</button>
+                  <button type="button" class="gpt-replay-btn" id="mcp-replay-btn" data-i18n="mcp.replay">Repetir</button>
                   <span class="gpt-send-dot" aria-hidden="true">↑</span>
                 </span>
               </div>
@@ -1348,27 +1401,27 @@
             <div class="mcp-pane live">
               <div class="stage-bar">
                 <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
-                <span>MYFBOX // COFRE ABERTO AO VIVO</span>
+                <span data-i18n="mcp.liveBar">MYFBOX // COFRE ABERTO AO VIVO</span>
               </div>
               <div class="live-app-body">
                 <div class="live-kpis">
                   <div class="live-kpi" id="kpi-saldo">
-                    <span>SALDO HOJE</span>
+                    <span data-i18n="mcp.kpiBalance">SALDO HOJE</span>
                     <strong id="val-saldo">R$ 4.850,00</strong>
                   </div>
                   <div class="live-kpi" id="kpi-saidas">
-                    <span>SAÍDAS DO MÊS</span>
+                    <span data-i18n="mcp.kpiExpenses">SAÍDAS DO MÊS</span>
                     <strong id="val-saidas">R$ 420,80</strong>
                   </div>
                   <div class="live-kpi" id="kpi-previsto">
-                    <span>SALDO PREVISTO</span>
+                    <span data-i18n="mcp.kpiProjected">SALDO PREVISTO</span>
                     <strong id="val-previsto">R$ 4.850,00</strong>
                   </div>
                 </div>
 
                 <div class="live-meta">
                   <div class="live-meta-head">
-                    <span>Meta: Alimentação</span>
+                    <span data-i18n="mcp.goalLabel">Meta: Alimentação</span>
                     <strong id="val-meta">R$ 420,80 / R$ 900,00</strong>
                   </div>
                   <div class="live-bar-track">
@@ -1379,24 +1432,24 @@
                 <div class="live-tx-list">
                   <div class="live-tx pending-insert" id="tx-internet">
                     <div>
-                      <strong>Internet Fibra</strong>
-                      <span class="live-tx-tag warn">Pendente · 25/11</span>
+                      <strong data-i18n="mcp.txInternetTitle">Internet Fibra</strong>
+                      <span class="live-tx-tag warn" data-i18n="mcp.txInternetTag">Pendente · 25/11</span>
                     </div>
-                    <span class="live-tx-amt">-R$ 149,90</span>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txInternetAmt">-R$ 149,90</span>
                   </div>
                   <div class="live-tx pending-insert" id="tx-mercado-new">
                     <div>
-                      <strong>Supermercado</strong>
-                      <span class="live-tx-tag">Alimentação · Pago</span>
+                      <strong data-i18n="mcp.txMarketTitle">Supermercado</strong>
+                      <span class="live-tx-tag" data-i18n="mcp.txMarketTag">Alimentação · Pago</span>
                     </div>
-                    <span class="live-tx-amt">-R$ 84,50</span>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txMarketNewAmt">-R$ 84,50</span>
                   </div>
                   <div class="live-tx">
                     <div>
-                      <strong>Supermercado</strong>
-                      <span class="live-tx-tag">Alimentação · Pago</span>
+                      <strong data-i18n="mcp.txMarketTitle">Supermercado</strong>
+                      <span class="live-tx-tag" data-i18n="mcp.txMarketTag">Alimentação · Pago</span>
                     </div>
-                    <span class="live-tx-amt">-R$ 420,80</span>
+                    <span class="live-tx-amt" data-i18n="mcp.values.txMarketOldAmt">-R$ 420,80</span>
                   </div>
                 </div>
               </div>
@@ -1407,9 +1460,9 @@
 
       <section id="privacidade" class="reveal">
         <div class="container">
-          <span class="section-kicker">SEU DINHEIRO, SUAS REGRAS</span>
-          <h2>Por que não pedimos nem seu e-mail</h2>
-          <p class="section-lead">
+          <span class="section-kicker" data-i18n="privacy.kicker">SEU DINHEIRO, SUAS REGRAS</span>
+          <h2 data-i18n="privacy.title">Por que não pedimos nem seu e-mail</h2>
+          <p class="section-lead" data-i18n="privacy.lead">
             A maioria dos aplicativos financeiros ganha dinheiro olhando o que você compra. O MyFBox
             faz o caminho oposto: tudo roda no seu próprio aparelho.
           </p>
@@ -1417,24 +1470,24 @@
           <div class="pillars">
             <article class="pillar">
               <span class="pillar-num">01</span>
-              <h3>Sem servidor no meio</h3>
-              <p>
+              <h3 data-i18n="privacy.p1Title">Sem servidor no meio</h3>
+              <p data-i18n="privacy.p1Desc">
                 Não existe conta para criar, senha para recuperar por e-mail nem banco de dados
                 externo recebendo seus lançamentos.
               </p>
             </article>
             <article class="pillar">
               <span class="pillar-num">02</span>
-              <h3>Funciona sem internet</h3>
-              <p>
+              <h3 data-i18n="privacy.p2Title">Funciona sem internet</h3>
+              <p data-i18n="privacy.p2Desc">
                 Use no avião, no metrô ou no escritório. O app não consulta APIs de bancos nem
                 serviços externos.
               </p>
             </article>
             <article class="pillar">
               <span class="pillar-num">03</span>
-              <h3>Leve para onde quiser</h3>
-              <p>
+              <h3 data-i18n="privacy.p3Title">Leve para onde quiser</h3>
+              <p data-i18n="privacy.p3Desc">
                 Quer trocar de computador ou celular? Baixe um único arquivo protegido por senha e
                 restaure no outro aparelho.
               </p>
@@ -1445,64 +1498,67 @@
 
       <section id="baixar" class="reveal">
         <div class="container">
-          <span class="section-kicker">GRATUITO E CÓDIGO ABERTO</span>
-          <h2>Baixe no computador ou abra no navegador</h2>
+          <span class="section-kicker" data-i18n="download.kicker">GRATUITO E CÓDIGO ABERTO</span>
+          <h2 data-i18n="download.title">Baixe no computador ou abra no navegador</h2>
           <p class="section-lead">
-            Todas as versões são <strong>100% gratuitas e de código aberto</strong> — sem assinatura,
-            sem limite de lançamentos e sem versão paga. Para uso diário, recomendamos o app nativo
-            instalado.
+            <span data-i18n="download.leadPrefix">Todas as versões são </span>
+            <strong data-i18n="download.leadStrong">100% gratuitas e de código aberto</strong>
+            <span data-i18n="download.leadSuffix"> — sem assinatura, sem limite de lançamentos e sem versão paga. Para uso diário, recomendamos o app nativo instalado.</span>
           </p>
 
           <div class="downloads-grid">
             <div class="dl-card featured">
               <div>
-                <span class="dl-badge">RECOMENDADO</span>
-                <h3>Windows</h3>
-                <p>Instalador tradicional ou versão portátil. Roda 100% offline no seu PC.</p>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">RECOMENDADO</span>
+                <h3 data-i18n="download.winTitle">Windows</h3>
+                <p data-i18n="download.winDesc">Instalador tradicional ou versão portátil. Roda 100% offline no seu PC.</p>
               </div>
               <a
                 class="btn btn-primary"
                 href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
                 rel="noopener noreferrer"
+                data-i18n="download.winBtn"
                 >Baixar para Windows</a
               >
             </div>
 
             <div class="dl-card featured">
               <div>
-                <span class="dl-badge">RECOMENDADO</span>
-                <h3>macOS</h3>
-                <p>Compatível com Mac Apple Silicon (M1/M2/M3/M4) e Intel. Arquivo local.</p>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">RECOMENDADO</span>
+                <h3 data-i18n="download.macTitle">macOS</h3>
+                <p data-i18n="download.macDesc">Compatível com Mac Apple Silicon (M1/M2/M3/M4) e Intel. Arquivo local.</p>
               </div>
               <a
                 class="btn btn-primary"
                 href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
                 rel="noopener noreferrer"
+                data-i18n="download.macBtn"
                 >Baixar para macOS</a
               >
             </div>
 
             <div class="dl-card featured">
               <div>
-                <span class="dl-badge">RECOMENDADO</span>
-                <h3>Linux</h3>
-                <p>Pacotes prontos em AppImage e .deb (Ubuntu/Debian). Zero dependência de rede.</p>
+                <span class="dl-badge" data-i18n="download.badgeRecommended">RECOMENDADO</span>
+                <h3 data-i18n="download.linTitle">Linux</h3>
+                <p data-i18n="download.linDesc">Pacotes prontos em AppImage e .deb (Ubuntu/Debian). Zero dependência de rede.</p>
               </div>
               <a
                 class="btn btn-primary"
                 href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
                 rel="noopener noreferrer"
+                data-i18n="download.linBtn"
                 >Baixar para Linux</a
               >
             </div>
 
             <div class="dl-card">
               <div>
-                <span class="dl-badge">PRÁTICO</span>
-                <h3>Navegador (Web)</h3>
-                <p>Experimente na hora sem instalar nada. Depois leve seu backup para o app desktop.</p>
+                <span class="dl-badge" data-i18n="download.badgePractical">PRÁTICO</span>
+                <h3 data-i18n="download.webTitle">Navegador (Web)</h3>
+                <p data-i18n="download.webDesc">Experimente na hora sem instalar nada. Depois leve seu backup para o app desktop.</p>
               </div>
-              <a class="btn btn-secondary" href="./app/">Abrir no Navegador</a>
+              <a class="btn btn-secondary" href="./app/" data-app-link="./app/" data-i18n="download.webBtn">Abrir no Navegador</a>
             </div>
           </div>
         </div>
@@ -1510,33 +1566,33 @@
 
       <section id="duvidas" class="reveal">
         <div class="container">
-          <span class="section-kicker">DÚVIDAS COMUNS</span>
-          <h2>Perguntas diretas</h2>
+          <span class="section-kicker" data-i18n="faq.kicker">DÚVIDAS COMUNS</span>
+          <h2 data-i18n="faq.title">Perguntas diretas</h2>
           <div class="faq-grid">
             <article class="faq-item">
-              <h3>Onde meus dados ficam guardados?</h3>
-              <p>
+              <h3 data-i18n="faq.q1">Onde meus dados ficam guardados?</h3>
+              <p data-i18n="faq.a1">
                 No navegador, eles ficam salvos no armazenamento local do próprio navegador. No app
                 instalado no computador, ficam em um arquivo protegido na sua pasta de usuário.
               </p>
             </article>
             <article class="faq-item">
-              <h3>E se eu esquecer minha senha mestra?</h3>
-              <p>
+              <h3 data-i18n="faq.q2">E se eu esquecer minha senha mestra?</h3>
+              <p data-i18n="faq.a2">
                 Não é possível recuperar, porque ninguém além de você tem a chave. Guarde sua senha
                 em um gerenciador de senhas confiável.
               </p>
             </article>
             <article class="faq-item">
-              <h3>Funciona com mais de uma moeda?</h3>
-              <p>
+              <h3 data-i18n="faq.q3">Funciona com mais de uma moeda?</h3>
+              <p data-i18n="faq.a3">
                 Sim. Você pode ter contas e lançamentos em Real, Dólar, Euro e outras moedas, com
                 cotações informadas por você sem depender de internet.
               </p>
             </article>
             <article class="faq-item">
-              <h3>Posso exportar meus dados para planilha?</h3>
-              <p>
+              <h3 data-i18n="faq.q4">Posso exportar meus dados para planilha?</h3>
+              <p data-i18n="faq.a4">
                 Sim. Além do arquivo de backup protegido por senha, você pode baixar seus
                 lançamentos em CSV a qualquer momento.
               </p>
@@ -1550,13 +1606,14 @@
               rel="noopener noreferrer"
               aria-label="Ver código-fonte no GitHub (licença AGPL-3.0)"
               title="Ver código-fonte no GitHub"
+              data-i18n-attrs="aria-label:faq.ghAriaLabel,title:faq.ghTitle"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path
                   d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.69-3.88-1.54-3.88-1.54-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.8 1.19 1.83 1.19 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14 0 1.55-.01 2.8-.01 3.18 0 .31.21.68.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"
                 />
               </svg>
-              <span>Código aberto no GitHub</span>
+              <span data-i18n="faq.ghText">Código aberto no GitHub</span>
             </a>
           </div>
         </div>
@@ -1573,17 +1630,19 @@
           </span>
         </a>
         <div class="footer-links">
-          <a href="./app/">Abrir App Web</a>
-          <a href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer">GitHub</a>
-          <a href="https://github.com/thiegocarvalho/MyFBox/blob/main/SECURITY.md" rel="noopener noreferrer"
+          <a href="./app/" data-app-link="./app/" data-i18n="footer.openWeb">Abrir App Web</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer" data-i18n="footer.github">GitHub</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox/blob/main/SECURITY.md" rel="noopener noreferrer" data-i18n="footer.security"
             >Segurança</a
           >
-          <a href="https://github.com/thiegocarvalho/MyFBox/releases" rel="noopener noreferrer"
+          <a href="https://github.com/thiegocarvalho/MyFBox/releases" rel="noopener noreferrer" data-i18n="footer.downloads"
             >Downloads</a
           >
         </div>
       </div>
     </footer>
+
+    <script src="./i18n.js"></script>
 
     <script>
       (function () {
@@ -1654,40 +1713,60 @@
           }, 900);
         }
 
+        function getMcpValues() {
+          return (
+            window.__myfboxMcpValues || {
+              initSaldo: 'R$ 4.850,00',
+              initSaidas: 'R$ 420,80',
+              initPrevisto: 'R$ 4.850,00',
+              initMeta: 'R$ 420,80 / R$ 900,00',
+              after1Saldo: 'R$ 4.765,50',
+              after1Saidas: 'R$ 505,30',
+              after1Previsto: 'R$ 4.765,50',
+              after1Meta: 'R$ 505,30 / R$ 900,00',
+              after2Previsto: 'R$ 4.615,60'
+            }
+          );
+        }
+
         function resetMcpScene() {
+          var v = getMcpValues();
           timers.forEach(clearTimeout);
           timers = [];
           msgs.forEach(function (m) {
             m.classList.remove('is-on');
           });
-          if (valSaldo) valSaldo.textContent = 'R$ 4.850,00';
-          if (valSaidas) valSaidas.textContent = 'R$ 420,80';
-          if (valPrevisto) valPrevisto.textContent = 'R$ 4.850,00';
-          if (valMeta) valMeta.textContent = 'R$ 420,80 / R$ 900,00';
+          if (valSaldo) valSaldo.textContent = v.initSaldo;
+          if (valSaidas) valSaidas.textContent = v.initSaidas;
+          if (valPrevisto) valPrevisto.textContent = v.initPrevisto;
+          if (valMeta) valMeta.textContent = v.initMeta;
           if (valMetaBar) valMetaBar.style.width = '47%';
           if (txMercado) txMercado.classList.remove('is-added');
           if (txInternet) txInternet.classList.remove('is-added');
         }
 
+        window.__myfboxResetMcpScene = resetMcpScene;
+
         function playMcpScene() {
           resetMcpScene();
+          var v = getMcpValues();
           var delays = [250, 1100, 2300, 3200, 4400, 5300];
           msgs.forEach(function (m, idx) {
             timers.push(
               setTimeout(function () {
                 m.classList.add('is-on');
                 if (idx === 1) {
-                  if (valSaldo) valSaldo.textContent = 'R$ 4.765,50';
-                  if (valSaidas) valSaidas.textContent = 'R$ 505,30';
-                  if (valPrevisto) valPrevisto.textContent = 'R$ 4.765,50';
-                  if (valMeta) valMeta.textContent = 'R$ 505,30 / R$ 900,00';
+                  if (valSaldo) valSaldo.textContent = v.after1Saldo;
+                  if (valSaidas) valSaidas.textContent = v.after1Saidas;
+                  if (valPrevisto) valPrevisto.textContent = v.after1Previsto;
+                  if (valMeta) valMeta.textContent = v.after1Meta;
                   if (valMetaBar) valMetaBar.style.width = '56%';
                   if (txMercado) txMercado.classList.add('is-added');
                   flashKpi(kpiSaldo);
                   flashKpi(kpiSaidas);
                 }
                 if (idx === 5) {
-                  if (valPrevisto) valPrevisto.textContent = 'R$ 4.615,60';
+                  if (valPrevisto) valPrevisto.textContent = v.after2Previsto;
                   if (txInternet) txInternet.classList.add('is-added');
                   flashKpi(kpiPrevisto);
                 }

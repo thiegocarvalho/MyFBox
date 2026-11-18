@@ -1,4 +1,7 @@
+import { tDomainMcp } from '../i18n/modules/domainMcp';
 import type { Category, TransactionType } from '../types/finance';
+
+const OTHER_CATEGORY_NAMES = new Set(['outros', 'other', 'otros', '其他']);
 
 export function isProtectedCategory(cat: {
   id?: string;
@@ -7,7 +10,7 @@ export function isProtectedCategory(cat: {
 }): boolean {
   if (cat.isSystem) return true;
   if (cat.id === 'cat_other_expense' || cat.id === 'cat_other_income') return true;
-  return (cat.name || '').trim().toLowerCase() === 'outros';
+  return OTHER_CATEGORY_NAMES.has((cat.name || '').trim().toLowerCase());
 }
 
 export function findOrCreateOutrosCategory(
@@ -17,7 +20,7 @@ export function findOrCreateOutrosCategory(
   let found =
     categories.find((c) => c.type === type && c.isSystem) ??
     categories.find((c) => c.type === type && c.id === `cat_other_${type}`) ??
-    categories.find((c) => c.type === type && c.name.trim().toLowerCase() === 'outros');
+    categories.find((c) => c.type === type && OTHER_CATEGORY_NAMES.has(c.name.trim().toLowerCase()));
 
   if (found) {
     if (!found.isSystem) {
@@ -30,7 +33,7 @@ export function findOrCreateOutrosCategory(
 
   const newOutros: Category = {
     id: `cat_other_${type}`,
-    name: 'Outros',
+    name: tDomainMcp('domainMcp.categories.other'),
     type,
     color: '#737373',
     icon: 'Tag',

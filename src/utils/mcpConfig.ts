@@ -1,3 +1,5 @@
+import { tDomainMcp } from '../i18n/modules/domainMcp';
+
 export type McpEnvironment = 'desktop' | 'web-remote' | 'local';
 
 export interface McpSetupInfo {
@@ -82,8 +84,17 @@ export function buildMcpSetupInfo(ctx: McpSetupContext): McpSetupInfo {
 
   const agentPrompt =
     environment === 'web-remote'
-      ? `Configure o servidor MCP "myfbox" na sua configuração de MCP usando command="npx", args=["-y", "${GITHUB_NPX_PACKAGE}"]${appUrl ? ` e env MYFBOX_APP_URL="${appUrl}"` : ''}. Depois, conecte ao meu cofre chamando connect_app.`
-      : `Configure o servidor MCP "myfbox" na sua configuração de MCP usando command="node" e args=["${serverPath}"]. Depois, conecte ao meu cofre chamando connect_app.`;
+      ? appUrl
+        ? tDomainMcp('domainMcp.mcpConfig.agentPromptWebWithUrl', {
+            package: GITHUB_NPX_PACKAGE,
+            appUrl,
+          })
+        : tDomainMcp('domainMcp.mcpConfig.agentPromptWeb', {
+            package: GITHUB_NPX_PACKAGE,
+          })
+      : tDomainMcp('domainMcp.mcpConfig.agentPromptLocal', {
+          serverPath,
+        });
 
   return {
     environment,

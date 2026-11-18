@@ -1,4 +1,6 @@
 import { getVaultExchangeRates, normalizeCurrency } from './currency';
+import { normalizeLanguage } from '../i18n';
+import { tDomainMcp } from '../i18n/modules/domainMcp';
 import type {
   Account,
   AccountType,
@@ -32,7 +34,7 @@ export function assertValidEnvelope(
   candidate: unknown
 ): asserts candidate is EncryptedVaultEnvelope {
   if (!isRecord(candidate) || candidate.app !== 'MyFBox') {
-    throw new Error('Formato de cofre inválido ou corrompido.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidEnvelope'));
   }
 
   const kdf = candidate.kdf;
@@ -45,7 +47,7 @@ export function assertValidEnvelope(
     typeof kdf.saltBase64 !== 'string' ||
     !kdf.saltBase64
   ) {
-    throw new Error('Cabeçalho KDF do cofre inválido.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidKdfHeader'));
   }
 
   const iterations = Number(kdf.iterations);
@@ -54,7 +56,7 @@ export function assertValidEnvelope(
     iterations < MIN_PBKDF2_ITERATIONS ||
     iterations > MAX_PBKDF2_ITERATIONS
   ) {
-    throw new Error('Parâmetro de iterações PBKDF2 fora dos limites de segurança.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidPbkdf2Iterations'));
   }
 
   if (
@@ -65,7 +67,7 @@ export function assertValidEnvelope(
     !cipher.ivBase64 ||
     !cipher.ciphertextBase64
   ) {
-    throw new Error('Bloco criptográfico do cofre inválido.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidCipherBlock'));
   }
 
   if (
@@ -75,7 +77,7 @@ export function assertValidEnvelope(
     !verifier.ivBase64 ||
     !verifier.ciphertextBase64
   ) {
-    throw new Error('Bloco verificador do cofre inválido.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidVerifierBlock'));
   }
 }
 
@@ -84,7 +86,7 @@ export function sanitizeVaultPayload(raw: unknown): {
   changed: boolean;
 } {
   if (!isRecord(raw)) {
-    throw new Error('Estrutura interna do cofre inválida.');
+    throw new Error(tDomainMcp('domainMcp.validation.invalidPayloadStructure'));
   }
 
   if (
@@ -92,7 +94,7 @@ export function sanitizeVaultPayload(raw: unknown): {
     !Array.isArray(raw.categories) ||
     !Array.isArray(raw.transactions)
   ) {
-    throw new Error('Coleções de dados do cofre ausentes ou corrompidas.');
+    throw new Error(tDomainMcp('domainMcp.validation.missingPayloadCollections'));
   }
 
   let changed = false;
@@ -117,7 +119,10 @@ export function sanitizeVaultPayload(raw: unknown): {
 
     validAccounts.push({
       id: item.id,
-      name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Conta',
+      name:
+        typeof item.name === 'string' && item.name.trim()
+          ? item.name.trim()
+          : tDomainMcp('domainMcp.validation.accountFallback'),
       type,
       initialBalance,
       color: typeof item.color === 'string' && item.color ? item.color : '#C8FF00',
@@ -129,7 +134,7 @@ export function sanitizeVaultPayload(raw: unknown): {
   if (validAccounts.length === 0) {
     validAccounts.push({
       id: 'acc_main',
-      name: 'Conta Principal',
+      name: tDomainMcp('domainMcp.validation.mainAccount'),
       type: 'checking',
       initialBalance: 0,
       color: '#C8FF00',
@@ -161,7 +166,10 @@ export function sanitizeVaultPayload(raw: unknown): {
 
     rawCategories.push({
       id: item.id,
-      name: typeof item.name === 'string' && item.name.trim() ? item.name.trim() : 'Categoria',
+      name:
+        typeof item.name === 'string' && item.name.trim()
+          ? item.name.trim()
+          : tDomainMcp('domainMcp.validation.categoryFallback'),
       type,
       color: typeof item.color === 'string' && item.color ? item.color : '#737373',
       icon: typeof item.icon === 'string' && item.icon ? item.icon : 'Tag',
@@ -221,7 +229,7 @@ export function sanitizeVaultPayload(raw: unknown): {
       description:
         typeof item.description === 'string' && item.description.trim()
           ? item.description.trim()
-          : 'Lançamento',
+          : tDomainMcp('domainMcp.validation.transactionFallback'),
       amount,
       currency,
       exchangeRate:
@@ -304,7 +312,7 @@ export function sanitizeVaultPayload(raw: unknown): {
     vaultName:
       typeof rawSettings.vaultName === 'string' && rawSettings.vaultName.trim()
         ? rawSettings.vaultName.trim()
-        : 'Cofre Pessoal',
+        : tDomainMcp('domainMcp.validation.vaultFallback'),
     usdToBrlRate,
     usdRateUpdatedAt:
       typeof rawSettings.usdRateUpdatedAt === 'string' ? rawSettings.usdRateUpdatedAt : undefined,
@@ -325,6 +333,10 @@ export function sanitizeVaultPayload(raw: unknown): {
       rawSettings.mcpPort >= 1024 &&
       rawSettings.mcpPort <= 65535
         ? rawSettings.mcpPort
+        : undefined,
+    language:
+      typeof rawSettings.language === 'string'
+        ? normalizeLanguage(rawSettings.language) ?? undefined
         : undefined,
   };
 

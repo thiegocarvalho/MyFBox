@@ -1,3 +1,5 @@
+🇧🇷 [Português (Brasil)](CODE_OF_CONDUCT.md) · 🇬🇧 [English (UK)](docs/i18n/CODE_OF_CONDUCT.en-GB.md) · 🇪🇸 [Español](docs/i18n/CODE_OF_CONDUCT.es.md) · 🇨🇳 [简体中文](docs/i18n/CODE_OF_CONDUCT.zh-CN.md)
+
 # Código de Conduta
 
 ## Nosso compromisso

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bot, ShieldCheck, X } from 'lucide-react';
+import { useI18n } from '../i18n/useI18n';
 import { mcpShortCode, type McpPairingRequest } from '../services/mcpBridge';
 
 interface McpPairDialogProps {
@@ -9,6 +10,7 @@ interface McpPairDialogProps {
 }
 
 export const McpPairDialog: React.FC<McpPairDialogProps> = ({ request, onApprove, onReject }) => {
+  const { t } = useI18n();
   const [code, setCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,8 +35,13 @@ export const McpPairDialog: React.FC<McpPairDialogProps> = ({ request, onApprove
         aria-labelledby="pair-title"
       >
         <header className="modal-header">
-          <h2 id="pair-title">Conectar assistente</h2>
-          <button type="button" className="icon-btn" onClick={onReject} aria-label="Recusar">
+          <h2 id="pair-title">{t('domainMcp.pair.title')}</h2>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onReject}
+            aria-label={t('domainMcp.pair.reject')}
+          >
             <X size={18} />
           </button>
         </header>
@@ -43,34 +50,37 @@ export const McpPairDialog: React.FC<McpPairDialogProps> = ({ request, onApprove
           <div className="pair-icon">
             <Bot size={28} />
           </div>
-          <p>
-            Um assistente (servidor MCP local) quer acessar este cofre para consultar e registrar
-            lançamentos. Ele só funciona nesta máquina e enquanto o cofre estiver desbloqueado.
-          </p>
+          <p>{t('domainMcp.pair.description')}</p>
 
           <div className="pair-code">
-            <span>Confira se o código é o mesmo mostrado pelo assistente</span>
+            <span>{t('domainMcp.pair.codeLabel')}</span>
             <strong className="mono">{code ?? '····-····'}</strong>
           </div>
 
           <ul className="pair-facts">
             <li>
-              <ShieldCheck size={14} /> Conexão só com 127.0.0.1, porta {request.port}
+              <ShieldCheck size={14} /> {t('domainMcp.pair.factLoopback', { port: request.port })}
             </li>
             <li>
-              <ShieldCheck size={14} /> A senha e a chave do cofre não saem do navegador
+              <ShieldCheck size={14} /> {t('domainMcp.pair.factSecrets')}
             </li>
             <li>
-              <ShieldCheck size={14} /> Dá para desligar quando quiser em Configurações › Modo MCP local
+              <ShieldCheck size={14} /> {t('domainMcp.pair.factDisable')}
             </li>
           </ul>
 
           <footer className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onReject}>
-              Recusar
+              {t('domainMcp.pair.reject')}
             </button>
-            <button type="button" className="btn-primary" onClick={onApprove} autoFocus disabled={!code}>
-              Autorizar
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={onApprove}
+              autoFocus
+              disabled={!code}
+            >
+              {t('domainMcp.pair.authorise')}
             </button>
           </footer>
         </div>

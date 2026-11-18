@@ -36,6 +36,7 @@ import {
   getCurrencySymbol,
   type ExchangeRateSource,
 } from '../services/currencyService';
+import { useI18n } from '../i18n/useI18n';
 
 const REPEAT_OPTIONS = [1, 2, 3, 6, 12];
 const NEW_CATEGORY_COLORS = [
@@ -77,6 +78,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   onSave,
   onClose,
 }) => {
+  const { t } = useI18n();
   const isEdit = Boolean(editingTransaction);
   const isDuplicate = !isEdit && Boolean(duplicatingTransaction);
   const baseTransaction = editingTransaction || duplicatingTransaction;
@@ -235,9 +237,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   };
 
   const quickDates = [
-    { label: 'Ontem', value: localTodayStr(-1) },
-    { label: 'Hoje', value: localTodayStr(0) },
-    { label: 'Amanhã', value: localTodayStr(1) },
+    { label: t('tx.modal.yesterday'), value: localTodayStr(-1) },
+    { label: t('tx.modal.today'), value: localTodayStr(0) },
+    { label: t('tx.modal.tomorrow'), value: localTodayStr(1) },
   ];
 
   const currencySymbol = getCurrencySymbol(currency);
@@ -245,29 +247,31 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const executeSave = (andKeepOpen: boolean = false): boolean => {
     const normalizedAmount = Math.round(parsedAmount * 100) / 100;
     if (!amountIsValid) {
-      setError('Informe um valor monetário válido maior que zero.');
+      setError(t('tx.validation.invalidAmount'));
       amountInputRef.current?.focus();
       return false;
     }
     if (!description.trim()) {
-      setError('Informe a descrição do lançamento.');
+      setError(t('tx.validation.missingDescription'));
       return false;
     }
     if (!categoryId || !categories.some((c) => c.id === categoryId && c.type === type)) {
       setError(
         filteredCategories.length === 0
-          ? `Crie uma categoria de ${type === 'expense' ? 'despesa' : 'receita'} para continuar.`
-          : 'Selecione uma categoria.'
+          ? type === 'expense'
+            ? t('tx.validation.createExpenseCategory')
+            : t('tx.validation.createIncomeCategory')
+          : t('tx.validation.selectCategory')
       );
       return false;
     }
     if (!accountId) {
-      setError('Selecione uma conta.');
+      setError(t('tx.validation.selectAccount'));
       return false;
     }
 
     if (needsRate && parsedRate !== undefined && !isValidRate(parsedRate)) {
-      setError(`Informe uma cotação ${foreignCurrency}/BRL maior que zero ou deixe o campo vazio.`);
+      setError(t('tx.validation.invalidRate', { currency: foreignCurrency }));
       return false;
     }
 
@@ -382,12 +386,17 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <header className="modal-header">
           <h2>
             {isEdit
-              ? 'Editar Lançamento'
+              ? t('tx.modal.editTitle')
               : isDuplicate
-                ? 'Duplicar Lançamento'
-                : 'Novo Lançamento'}
+                ? t('tx.modal.duplicateTitle')
+                : t('tx.newTransaction')}
           </h2>
-          <button type="button" className="icon-btn" onClick={onClose} title="Fechar (Esc)">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={onClose}
+            title={t('tx.common.closeEsc')}
+          >
             <X size={18} />
           </button>
         </header>
@@ -395,16 +404,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         <form onSubmit={handleSubmit} className="modal-body">
           {error && <div className="vault-alert-error">{error}</div>}
 
-          <div className="seg-group seg-lg" role="radiogroup" aria-label="Tipo de lançamento">
+          <div className="seg-group seg-lg" role="radiogroup" aria-label={t('tx.modal.typeAria')}>
             <button
               type="button"
               role="radio"
               aria-checked={type === 'expense'}
               className={`seg-btn tone-danger ${type === 'expense' ? 'active' : ''}`}
               onClick={() => handleTypeSwitch('expense')}
-              title="Alternar para Despesa (Alt+1 ou Alt+D)"
+              title={t('tx.modal.switchToExpenseTitle')}
             >
-              <ArrowDownCircle size={18} /> Despesa
+              <ArrowDownCircle size={18} /> {t('tx.modal.expense')}
             </button>
             <button
               type="button"
@@ -412,14 +421,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               aria-checked={type === 'income'}
               className={`seg-btn ${type === 'income' ? 'active' : ''}`}
               onClick={() => handleTypeSwitch('income')}
-              title="Alternar para Receita (Alt+2 ou Alt+R)"
+              title={t('tx.modal.switchToIncomeTitle')}
             >
-              <ArrowUpCircle size={18} /> Receita
+              <ArrowUpCircle size={18} /> {t('tx.modal.income')}
             </button>
           </div>
 
           <div className="form-field">
-            <label htmlFor="tx-amount">Valor</label>
+            <label htmlFor="tx-amount">{t('tx.modal.amountLabel')}</label>
             <div className="amount-field">
               <div className="amount-currency">
                 <div className="amount-currency-display" aria-hidden="true">
@@ -431,11 +440,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 </div>
                 <select
                   id="tx-currency"
-                  aria-label="Moeda do lançamento"
+                  aria-label={t('tx.modal.currencyAria')}
                   className="amount-currency-select"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value as Currency)}
-                  title="Selecionar moeda do lançamento"
+                  title={t('tx.modal.currencyTitle')}
                 >
                   {POPULAR_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
@@ -459,7 +468,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   setError(null);
                   setAmountStr(e.target.value);
                 }}
-                placeholder="0,00"
+                placeholder={t('tx.modal.amountPlaceholder')}
                 aria-describedby="tx-amount-hint"
                 required
               />
@@ -467,24 +476,31 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <span id="tx-amount-hint" className="field-hint">
               {amountIsValid
                 ? `${formatMoney(parsedAmount, currency)}${
-                    repeatMonths > 1 && !isEdit ? ` × ${repeatMonths} meses` : ''
+                    repeatMonths > 1 && !isEdit
+                      ? t('tx.modal.monthsMultiplier', { count: repeatMonths })
+                      : ''
                   }`
-                : 'Use vírgula para centavos — ex: 1.250,90'}
+                : t('tx.modal.amountHint')}
             </span>
 
             {needsRate && (
               <div className="fx-row">
                 <span className="fx-equivalent">
                   {(() => {
-                    if (!effectiveExchangeRate) return 'Sem cotação definida';
+                    if (!effectiveExchangeRate) return t('tx.modal.noRateDefined');
                     const value = amountIsValid ? parsedAmount : 0;
                     return currency === 'BRL'
-                      ? `≈ ${formatMoney(value / effectiveExchangeRate, selectedAccountCurrency)} na conta`
+                      ? t('tx.modal.fxInAccount', {
+                          amount: formatMoney(
+                            value / effectiveExchangeRate,
+                            selectedAccountCurrency
+                          ),
+                        })
                       : `≈ ${formatBRL(value * effectiveExchangeRate)}`;
                   })()}
                 </span>
                 <label htmlFor="tx-fx-rate" className="fx-label">
-                  Cotação {getCurrencySymbol(foreignCurrency)} 1 =
+                  {t('tx.modal.fxLabel', { symbol: getCurrencySymbol(foreignCurrency) })}
                 </label>
                 <div className="fx-input">
                   <span>R$</span>
@@ -497,8 +513,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       setError(null);
                       setRateInput(e.target.value);
                     }}
-                    placeholder="5,40"
-                    title="Cotação fixada para este lançamento (cotação do cofre por padrão)"
+                    placeholder={t('tx.modal.fxPlaceholder')}
+                    title={t('tx.modal.fxTitle')}
                   />
                 </div>
               </div>
@@ -507,10 +523,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
           <div className="form-field">
             <div className="label-with-quick-actions">
-              <label htmlFor="tx-desc">Descrição</label>
+              <label htmlFor="tx-desc">{t('tx.modal.descriptionLabel')}</label>
               {suggestedCategoryName && (
                 <span className="category-suggestion-badge">
-                  <Sparkles size={12} /> Categoria sugerida: {suggestedCategoryName}
+                  <Sparkles size={12} />{' '}
+                  {t('tx.modal.suggestedCategory', { name: suggestedCategoryName })}
                 </span>
               )}
             </div>
@@ -522,15 +539,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               onChange={(e) => handleDescriptionChange(e.target.value)}
               placeholder={
                 type === 'expense'
-                  ? 'Ex: Supermercado, Aluguel, Farmácia...'
-                  : 'Ex: Salário, Consultoria, Rendimentos...'
+                  ? t('tx.modal.descriptionPlaceholderExpense')
+                  : t('tx.modal.descriptionPlaceholderIncome')
               }
               required
             />
           </div>
 
           <div className="form-field">
-            <label id="tx-cat-label">Categoria</label>
+            <label id="tx-cat-label">{t('tx.modal.categoryLabel')}</label>
             <div className="chip-grid" role="radiogroup" aria-labelledby="tx-cat-label">
               {filteredCategories.map((c) => {
                 const isSelected = c.id === categoryId;
@@ -565,8 +582,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                           setCreatingCategory(false);
                         }
                       }}
-                      placeholder={`Nova categoria de ${type === 'expense' ? 'despesa' : 'receita'}`}
-                      aria-label="Nome da nova categoria"
+                      placeholder={
+                        type === 'expense'
+                          ? t('tx.modal.newExpenseCategoryPlaceholder')
+                          : t('tx.modal.newIncomeCategoryPlaceholder')
+                      }
+                      aria-label={t('tx.modal.newCategoryAria')}
                       autoFocus={creatingCategory}
                     />
                     <button
@@ -574,7 +595,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       onClick={() => void handleCreateCategory()}
                       disabled={!newCategoryName.trim()}
                     >
-                      <Plus size={14} /> Criar
+                      <Plus size={14} /> {t('tx.modal.createCategoryBtn')}
                     </button>
                   </div>
                 ) : (
@@ -583,25 +604,26 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     className="chip chip-ghost"
                     onClick={() => setCreatingCategory(true)}
                   >
-                    <Plus size={14} /> Nova
+                    <Plus size={14} /> {t('tx.modal.newCategoryBtn')}
                   </button>
                 ))}
             </div>
             {filteredCategories.length === 0 && (
               <span className="field-hint">
-                Você ainda não tem categorias de {type === 'expense' ? 'despesa' : 'receita'}. Crie
-                uma aqui mesmo.
+                {type === 'expense'
+                  ? t('tx.modal.noExpenseCategoriesHint')
+                  : t('tx.modal.noIncomeCategoriesHint')}
               </span>
             )}
           </div>
 
           <div className="form-grid-2">
             <div className="form-field">
-              <label htmlFor="tx-date">Data</label>
+              <label htmlFor="tx-date">{t('tx.modal.dateLabel')}</label>
               <div className="seg-group">
                 {quickDates.map((q) => (
                   <button
-                    key={q.label}
+                    key={q.value}
                     type="button"
                     className={`seg-btn ${date === q.value ? 'active' : ''}`}
                     onClick={() => handleDateChange(q.value)}
@@ -620,7 +642,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
 
             <div className="form-field">
-              <label id="tx-status-label">Situação</label>
+              <label id="tx-status-label">{t('tx.modal.statusLabel')}</label>
               <div
                 className="seg-group seg-stack"
                 role="radiogroup"
@@ -633,7 +655,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   className={`seg-btn ${status === 'paid' ? 'active' : ''}`}
                   onClick={() => handleStatusChange('paid')}
                 >
-                  <CheckCircle2 size={15} /> {type === 'income' ? 'Já recebido' : 'Já pago'}
+                  <CheckCircle2 size={15} />{' '}
+                  {type === 'income' ? t('tx.modal.alreadyReceived') : t('tx.modal.alreadyPaid')}
                 </button>
                 <button
                   type="button"
@@ -642,18 +665,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   className={`seg-btn tone-warn ${status === 'pending' ? 'active' : ''}`}
                   onClick={() => handleStatusChange('pending')}
                 >
-                  <Clock size={15} /> {type === 'income' ? 'A receber' : 'A pagar'}
+                  <Clock size={15} />{' '}
+                  {type === 'income' ? t('tx.modal.toReceive') : t('tx.modal.toPay')}
                 </button>
               </div>
               {!statusChosenManually && date > localTodayStr(0) && (
-                <span className="field-hint">Data futura: marcado como pendente</span>
+                <span className="field-hint">{t('tx.modal.futureDateHint')}</span>
               )}
             </div>
           </div>
 
           <div className="form-field">
             <label id="tx-acc-label" htmlFor={accounts.length > 4 ? 'tx-acc' : undefined}>
-              Conta
+              {t('tx.modal.accountLabel')}
             </label>
             {accounts.length > 4 ? (
               <select
@@ -694,7 +718,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <div className="form-field">
               <label id="tx-repeat-label">
                 <Repeat size={13} style={{ display: 'inline', marginRight: 4 }} />
-                Repetir mensalmente
+                {t('tx.modal.repeatLabel')}
               </label>
               <div className="seg-group" role="radiogroup" aria-labelledby="tx-repeat-label">
                 {REPEAT_OPTIONS.map((n) => (
@@ -706,7 +730,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     className={`seg-btn ${repeatMonths === n ? 'active' : ''}`}
                     onClick={() => setRepeatMonths(n)}
                   >
-                    {n === 1 ? 'Não repete' : `${n}×`}
+                    {n === 1 ? t('tx.modal.noRepeat') : `${n}×`}
                   </button>
                 ))}
                 <input
@@ -719,16 +743,26 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     const n = Math.max(1, Math.min(36, Number(e.target.value) || 1));
                     setRepeatMonths(n);
                   }}
-                  placeholder="Outro"
-                  aria-label="Outro número de meses (até 36)"
+                  placeholder={t('tx.modal.repeatOtherPlaceholder')}
+                  aria-label={t('tx.modal.repeatOtherAria')}
                 />
               </div>
               {repeatMonths > 1 && (
                 <span className="field-hint">
-                  {repeatMonths} lançamentos
-                  {amountIsValid ? ` de ${formatMoney(parsedAmount, currency)}` : ''} · último em{' '}
-                  {formatMonthYearLabel(addMonthsToDateStr(date, repeatMonths - 1).slice(0, 7))}. Os
-                  seguintes ao primeiro ficam pendentes.
+                  {amountIsValid
+                    ? t('tx.modal.repeatSummaryWithAmount', {
+                        count: repeatMonths,
+                        amount: formatMoney(parsedAmount, currency),
+                        lastMonth: formatMonthYearLabel(
+                          addMonthsToDateStr(date, repeatMonths - 1).slice(0, 7)
+                        ),
+                      })
+                    : t('tx.modal.repeatSummary', {
+                        count: repeatMonths,
+                        lastMonth: formatMonthYearLabel(
+                          addMonthsToDateStr(date, repeatMonths - 1).slice(0, 7)
+                        ),
+                      })}
                 </span>
               )}
             </div>
@@ -736,28 +770,29 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
           <div className="form-field">
             <label htmlFor="tx-notes">
-              Observações <span className="label-optional">opcional</span>
+              {t('tx.modal.notesLabel')}{' '}
+              <span className="label-optional">{t('tx.modal.optional')}</span>
             </label>
             <input
               id="tx-notes"
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ex: Nota fiscal, comprovante..."
+              placeholder={t('tx.modal.notesPlaceholder')}
             />
           </div>
 
           <footer className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>
-              Cancelar
+              {t('tx.common.cancel')}
             </button>
 
             <button type="submit" className="btn-primary">
               {isEdit
-                ? 'Salvar Alterações'
+                ? t('tx.modal.saveChanges')
                 : repeatMonths > 1
-                  ? `Gerar ${repeatMonths} Lançamentos`
-                  : 'Registrar no Cofre'}
+                  ? t('tx.modal.generateMultiple', { count: repeatMonths })
+                  : t('tx.modal.saveSingle')}
             </button>
           </footer>
         </form>

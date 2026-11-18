@@ -1,3 +1,5 @@
+import { tDomainMcp } from '../i18n/modules/domainMcp';
+
 export type McpBridgeStatus = 'off' | 'connecting' | 'connected' | 'error';
 
 export interface McpBridgeOptions {
@@ -26,7 +28,10 @@ export function startMcpBridge(opts: McpBridgeOptions): () => void {
     try {
       socket = new WebSocket(`ws://127.0.0.1:${opts.port}`);
     } catch (err) {
-      opts.onStatus('error', err instanceof Error ? err.message : 'Falha ao abrir conexão');
+      opts.onStatus(
+        'error',
+        err instanceof Error ? err.message : tDomainMcp('domainMcp.mcpBridge.openError')
+      );
       scheduleRetry();
       return;
     }
@@ -69,10 +74,10 @@ export function startMcpBridge(opts: McpBridgeOptions): () => void {
       socket = null;
       if (stopped) return;
       if (event.code === 4401) {
-        opts.onStatus('error', 'Código de pareamento recusado pelo servidor MCP.');
+        opts.onStatus('error', tDomainMcp('domainMcp.mcpBridge.pairRejected'));
         return;
       }
-      opts.onStatus('error', 'Servidor MCP local não encontrado. Ele está rodando?');
+      opts.onStatus('error', tDomainMcp('domainMcp.mcpBridge.serverNotFound'));
       scheduleRetry();
     };
   };
@@ -82,7 +87,7 @@ export function startMcpBridge(opts: McpBridgeOptions): () => void {
   return () => {
     stopped = true;
     window.clearTimeout(retryTimer);
-    socket?.close(1000, 'MCP desativado');
+    socket?.close(1000, tDomainMcp('domainMcp.mcpBridge.closeReason'));
     socket = null;
     opts.onStatus('off');
   };

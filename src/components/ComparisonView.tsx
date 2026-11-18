@@ -12,6 +12,8 @@ import { formatBRL, formatMonthYearLabel } from '../utils/formatters';
 import { buildMonthComparison, type MonthComparison } from '../utils/comparison';
 import type { ExchangeRateSource } from '../services/currencyService';
 import { InsightAudioPlayer } from './InsightAudioPlayer';
+import { useI18n } from '../i18n/useI18n';
+import type { I18nContextValue } from '../i18n/context';
 
 interface ComparisonViewProps {
   selectedYearMonth: string;
@@ -24,24 +26,24 @@ interface ComparisonViewProps {
 }
 
 const RANGE_OPTIONS = [6, 12];
-const SHORT_MONTHS = [
-  'Jan',
-  'Fev',
-  'Mar',
-  'Abr',
-  'Mai',
-  'Jun',
-  'Jul',
-  'Ago',
-  'Set',
-  'Out',
-  'Nov',
-  'Dez',
-];
+const MONTH_KEYS = [
+  'analytics.months.jan',
+  'analytics.months.feb',
+  'analytics.months.mar',
+  'analytics.months.apr',
+  'analytics.months.may',
+  'analytics.months.jun',
+  'analytics.months.jul',
+  'analytics.months.aug',
+  'analytics.months.sep',
+  'analytics.months.oct',
+  'analytics.months.nov',
+  'analytics.months.dec',
+] as const;
 
-function shortMonth(ym: string): string {
+function shortMonth(ym: string, t: I18nContextValue['t']): string {
   const [y, m] = ym.split('-');
-  return `${SHORT_MONTHS[Number(m) - 1]}/${y.slice(2)}`;
+  return `${t(MONTH_KEYS[Number(m) - 1])}/${y.slice(2)}`;
 }
 
 const CATEGORY_LIMIT = 4;
@@ -58,17 +60,21 @@ function hadPrevious(current: number, delta: number): boolean {
   return Math.abs(current - delta) > 0.004;
 }
 
-function resultNote(r: MonthComparison): string | null {
-  if (r.income.total <= 0) return r.expense.total > 0 ? 'Sem entradas no mês' : null;
+function resultNote(r: MonthComparison, t: I18nContextValue['t']): string | null {
+  if (r.income.total <= 0) {
+    return r.expense.total > 0 ? t('analytics.comparison.noIncomeInMonth') : null;
+  }
   const pct = Math.round((r.net / r.income.total) * 100);
-  return r.net >= 0 ? `Sobram ${pct}% das entradas` : `Faltam ${Math.abs(pct)}% das entradas`;
+  return r.net >= 0
+    ? t('analytics.comparison.surplusPct', { pct })
+    : t('analytics.comparison.deficitPct', { pct: Math.abs(pct) });
 }
 
-function formatDateTime(iso: string): string {
+function formatDateTime(iso: string, language: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ''
-    : d.toLocaleString('pt-BR', {
+    : d.toLocaleString(language, {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
@@ -82,7 +88,14 @@ const Delta: React.FC<{
   hideValues: boolean;
   suffix?: string;
 }> = ({ value, goodWhenUp, hideValues, suffix }) => {
-  if (value === 0) return <span className="cmp-delta neutral">= {suffix ?? 'igual'}</span>;
+  const { t } = useI18n();
+  if (value === 0) {
+    return (
+      <span className="cmp-delta neutral">
+        = {suffix ?? t('analytics.comparison.equal')}
+      </span>
+    );
+  }
   const up = value > 0;
   const good = up === goodWhenUp;
   return (
@@ -104,6 +117,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   usdToBrlRate,
   rateSource,
 }) => {
+  const { t, language } = useI18n();
   const effectiveRates = rateSource ?? usdToBrlRate;
   const [range, setRange] = useState(6);
   const [readingInsightMonth, setReadingInsightMonth] = useState<string | null>(null);
@@ -150,10 +164,18 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
       <section className="panel-card">
         <header className="panel-header">
           <div>
-            <span className="eyebrow">COMPARATIVOS</span>
-            <h3>Mês a mês até {formatMonthYearLabel(selectedYearMonth)}</h3>
+            <span className="eyebrow">{t('analytics.comparison.eyebrow')}</span>
+            <h3>
+              {t('analytics.comparison.title', {
+                month: formatMonthYearLabel(selectedYearMonth, language),
+              })}
+            </h3>
           </div>
-          <div className="seg-group cmp-range" role="radiogroup" aria-label="Período">
+          <div
+            className="seg-group cmp-range"
+            role="radiogroup"
+            aria-label={t('analytics.comparison.rangeAria')}
+          >
             {RANGE_OPTIONS.map((n) => (
               <button
                 key={n}
@@ -163,13 +185,13 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 className={`seg-btn ${range === n ? 'active' : ''}`}
                 onClick={() => setRange(n)}
               >
-                {n} meses
+                {t('analytics.comparison.rangeMonths', { count: n })}
               </button>
             ))}
           </div>
         </header>
 
-        <div className="cmp-chart" role="img" aria-label="Entradas e saídas por mês">
+        <div className="cmp-chart" role="img" aria-label={t('analytics.comparison.chartAria')}>
           {rows.map((r) => (
             <div
               key={r.month}
@@ -186,32 +208,38 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 <span
                   className="cmp-bar income"
                   style={{ height: `${(r.income.total / maxValue) * 100}%` }}
-                  title={`Entradas: ${formatBRL(r.income.total)}`}
+                  title={t('analytics.comparison.incomeTooltip', {
+                    amount: formatBRL(r.income.total),
+                  })}
                 />
                 <span
                   className="cmp-bar expense"
                   style={{ height: `${(r.expense.total / maxValue) * 100}%` }}
-                  title={`Saídas: ${formatBRL(r.expense.total)}`}
+                  title={t('analytics.comparison.expenseTooltip', {
+                    amount: formatBRL(r.expense.total),
+                  })}
                 />
               </div>
-              <span className="cmp-chart-label">{shortMonth(r.month)}</span>
+              <span className="cmp-chart-label">{shortMonth(r.month, t)}</span>
             </div>
           ))}
         </div>
         <div className="cmp-legend">
           <span>
-            <i className="income" /> Entradas
+            <i className="income" /> {t('analytics.comparison.income')}
           </span>
           <span>
-            <i className="expense" /> Saídas
+            <i className="expense" /> {t('analytics.comparison.expense')}
           </span>
-          <span className="cmp-legend-note">Totais do mês, pagos e pendentes</span>
+          <span className="cmp-legend-note">{t('analytics.comparison.legendNote')}</span>
         </div>
       </section>
 
       {emptyMonths.length > 0 && (
         <p className="cmp-empty-months">
-          Sem lançamentos em {emptyMonths.map((m) => shortMonth(m)).join(', ')}.
+          {t('analytics.comparison.emptyMonths', {
+            months: emptyMonths.map((m) => shortMonth(m, t)).join(', '),
+          })}
         </p>
       )}
 
@@ -219,6 +247,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
         {recentFirst.map((r: MonthComparison, idx) => {
           const insight = insightByMonth.get(r.month);
           const outdated = insight && insight.dataSignature !== r.signature;
+          const note = resultNote(r, t);
           return (
             <article
               key={r.month}
@@ -227,41 +256,55 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
               <header className="cmp-month-header">
                 <span className="bk-num">.{String(idx + 1).padStart(2, '0')}</span>
                 <div>
-                  <h3>{formatMonthYearLabel(r.month)}</h3>
+                  <h3>{formatMonthYearLabel(r.month, language)}</h3>
                   <span className="field-hint">
-                    {`${r.transactionCount} lançamento${r.transactionCount === 1 ? '' : 's'}`}
+                    {r.transactionCount === 1
+                      ? t('analytics.comparison.transactionCountOne', {
+                          count: r.transactionCount,
+                        })
+                      : t('analytics.comparison.transactionCountMany', {
+                          count: r.transactionCount,
+                        })}
                   </span>
                 </div>
               </header>
 
               <div className="cmp-figures">
                 <div>
-                  <span>Entradas</span>
+                  <span>{t('analytics.comparison.income')}</span>
                   <strong className="positive">{formatBRL(r.income.total, hideValues)}</strong>
                   {r.income.pending > 0 && (
-                    <em>{formatBRL(r.income.pending, hideValues)} a receber</em>
+                    <em>
+                      {t('analytics.comparison.toReceive', {
+                        amount: formatBRL(r.income.pending, hideValues),
+                      })}
+                    </em>
                   )}
                   {r.vsPrevious && hadPrevious(r.income.total, r.vsPrevious.income) && (
                     <Delta value={r.vsPrevious.income} goodWhenUp hideValues={hideValues} />
                   )}
                 </div>
                 <div>
-                  <span>Saídas</span>
+                  <span>{t('analytics.comparison.expense')}</span>
                   <strong className="negative">{formatBRL(r.expense.total, hideValues)}</strong>
                   {r.expense.pending > 0 && (
-                    <em>{formatBRL(r.expense.pending, hideValues)} a pagar</em>
+                    <em>
+                      {t('analytics.comparison.toPay', {
+                        amount: formatBRL(r.expense.pending, hideValues),
+                      })}
+                    </em>
                   )}
                   {r.vsPrevious && hadPrevious(r.expense.total, r.vsPrevious.expense) && (
                     <Delta value={r.vsPrevious.expense} goodWhenUp={false} hideValues={hideValues} />
                   )}
                 </div>
                 <div>
-                  <span>Resultado</span>
+                  <span>{t('analytics.comparison.result')}</span>
                   <strong className={r.net >= 0 ? '' : 'negative'}>
                     {r.net >= 0 ? '+' : '−'}
                     {formatBRL(Math.abs(r.net), hideValues)}
                   </strong>
-                  {resultNote(r) && <em className="cmp-result-note">{resultNote(r)}</em>}
+                  {note && <em className="cmp-result-note">{note}</em>}
                   {r.vsPrevious && hadPrevious(r.net, r.vsPrevious.net) && (
                     <Delta value={r.vsPrevious.net} goodWhenUp hideValues={hideValues} />
                   )}
@@ -270,7 +313,9 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
 
               {expenseCategories(r).length > 0 && (
                 <div className="cmp-cats">
-                  <span className="eyebrow">SAÍDAS POR CATEGORIA</span>
+                  <span className="eyebrow">
+                    {t('analytics.comparison.expensesByCategoryEyebrow')}
+                  </span>
                   <ul>
                     {expenseCategories(r).map((c) => (
                       <li key={c.categoryId}>
@@ -284,7 +329,9 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                             (hadPrevious(c.total, c.delta) ? (
                               <Delta value={c.delta} goodWhenUp={false} hideValues={hideValues} />
                             ) : (
-                              <span className="cmp-new">novo</span>
+                              <span className="cmp-new">
+                                {t('analytics.comparison.newCategory')}
+                              </span>
                             ))}
                         </span>
                         <span className="cmp-cat-bar" aria-hidden>
@@ -301,8 +348,10 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                   {hiddenCategories(r) > 0 && (
                     <span className="field-hint">
                       {hiddenCategories(r) === 1
-                        ? '+ 1 categoria menor'
-                        : `+ ${hiddenCategories(r)} categorias menores`}
+                        ? t('analytics.comparison.hiddenCategoryOne')
+                        : t('analytics.comparison.hiddenCategoryMany', {
+                            count: hiddenCategories(r),
+                          })}
                     </span>
                   )}
                 </div>
@@ -314,19 +363,23 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                     type="button"
                     className="cmp-insight-trigger-btn"
                     onClick={() => handleOpenInsight(r.month)}
-                    title={`Ler análise completa de ${formatMonthYearLabel(r.month)}`}
+                    title={t('analytics.comparison.readFullInsightTitle', {
+                      month: formatMonthYearLabel(r.month, language),
+                    })}
                   >
                     <div className="cmp-insight-trigger-badge">
                       <Sparkles size={13} />
-                      <span>INSIGHT DA IA</span>
+                      <span>{t('analytics.comparison.aiInsightBadge')}</span>
                       {outdated && (
                         <span className="cmp-outdated-tag">
-                          <TriangleAlert size={10} /> Desatualizado
+                          <TriangleAlert size={10} /> {t('analytics.comparison.outdated')}
                         </span>
                       )}
                     </div>
                     <strong className="cmp-insight-trigger-title">{insight.title}</strong>
-                    <span className="cmp-insight-trigger-cta">Ler análise completa &rarr;</span>
+                    <span className="cmp-insight-trigger-cta">
+                      {t('analytics.comparison.readFullInsightCta')} &rarr;
+                    </span>
                   </button>
                 </div>
               )}
@@ -352,9 +405,9 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
               <div className="cmp-insight-modal-title-wrap">
                 <div className="cmp-insight-modal-eyebrow">
                   <Sparkles size={13} />
-                  <span>INSIGHT DA IA</span>
+                  <span>{t('analytics.comparison.aiInsightBadge')}</span>
                   <span className="cmp-insight-modal-dot">•</span>
-                  <span>{formatMonthYearLabel(activeInsight.month)}</span>
+                  <span>{formatMonthYearLabel(activeInsight.month, language)}</span>
                 </div>
                 <h2 id="cmp-insight-modal-title">{activeInsight.title}</h2>
               </div>
@@ -362,8 +415,8 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 type="button"
                 className="icon-btn"
                 onClick={handleCloseInsight}
-                aria-label="Fechar"
-                title="Fechar (Esc)"
+                aria-label={t('analytics.common.close')}
+                title={t('analytics.comparison.closeWithEsc')}
               >
                 <X size={18} />
               </button>
@@ -374,7 +427,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 title={activeInsight.title}
                 paragraphs={activeInsight.body.split(/\n\s*\n/).filter(Boolean)}
                 highlights={activeInsight.highlights}
-                monthLabel={formatMonthYearLabel(activeInsight.month)}
+                monthLabel={formatMonthYearLabel(activeInsight.month, language)}
                 currentReadingIndex={readingSegmentIndex ?? undefined}
                 onReadingIndexChange={setReadingSegmentIndex}
               />
@@ -383,11 +436,11 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 <div className="cmp-modal-outdated-alert">
                   <TriangleAlert size={16} />
                   <div>
-                    <strong>Lançamentos do mês foram alterados</strong>
+                    <strong>{t('analytics.comparison.outdatedAlertTitle')}</strong>
                     <p>
-                      Esta análise foi elaborada com dados anteriores de{' '}
-                      {formatMonthYearLabel(activeInsight.month)}. Os totais ou percentuais podem
-                      não refletir o estado atual do cofre.
+                      {t('analytics.comparison.outdatedAlertBody', {
+                        month: formatMonthYearLabel(activeInsight.month, language),
+                      })}
                     </p>
                   </div>
                 </div>
@@ -416,7 +469,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                       : ''
                   }`}
                 >
-                  <span className="eyebrow">PONTOS DE DESTAQUE</span>
+                  <span className="eyebrow">{t('analytics.comparison.highlightsEyebrow')}</span>
                   <ul>
                     {activeInsight.highlights.map((h, i) => (
                       <li key={i}>{h}</li>
@@ -428,15 +481,19 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
               <div className="cmp-modal-meta">
                 <Bot size={14} />
                 <span>
-                  Análise gerada pelo assistente local via MCP · Atualizada em{' '}
-                  {formatDateTime(activeInsight.updatedAt || activeInsight.createdAt)}
+                  {t('analytics.comparison.generatedMeta', {
+                    date: formatDateTime(
+                      activeInsight.updatedAt || activeInsight.createdAt,
+                      language
+                    ),
+                  })}
                 </span>
               </div>
             </div>
 
             <footer className="modal-footer cmp-insight-modal-footer">
               <button type="button" className="btn-primary" onClick={handleCloseInsight}>
-                Fechar
+                {t('analytics.common.close')}
               </button>
             </footer>
           </div>

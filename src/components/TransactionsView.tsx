@@ -35,25 +35,26 @@ import {
 } from '../utils/formatters';
 import { txAmountInBrl } from '../utils/money';
 import type { ExchangeRateSource } from '../services/currencyService';
+import { useI18n } from '../i18n/useI18n';
 
 export type ScopeMode = 'month' | 'year' | 'all' | 'custom';
 
 const PAGE_SIZE = 100;
 
-const MONTH_NAMES_SHORT = [
-  { num: '01', label: 'Jan' },
-  { num: '02', label: 'Fev' },
-  { num: '03', label: 'Mar' },
-  { num: '04', label: 'Abr' },
-  { num: '05', label: 'Mai' },
-  { num: '06', label: 'Jun' },
-  { num: '07', label: 'Jul' },
-  { num: '08', label: 'Ago' },
-  { num: '09', label: 'Set' },
-  { num: '10', label: 'Out' },
-  { num: '11', label: 'Nov' },
-  { num: '12', label: 'Dez' },
-];
+const MONTH_NUMBERS = [
+  '01',
+  '02',
+  '03',
+  '04',
+  '05',
+  '06',
+  '07',
+  '08',
+  '09',
+  '10',
+  '11',
+  '12',
+] as const;
 
 interface TransactionsViewProps {
   selectedYearMonth: string;
@@ -86,6 +87,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onDeleteTransaction,
   onToggleTransactionStatus,
 }) => {
+  const { t } = useI18n();
   const effectiveRates = rateSource ?? usdToBrlRate;
 
   const [scopeMode, setScopeMode] = useState<ScopeMode>('month');
@@ -157,13 +159,16 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       case 'month':
         return formatMonthYearLabel(selectedYearMonth).toUpperCase();
       case 'year':
-        return `EXERCÍCIO DE ${selectedYear}`;
+        return t('tx.scope.yearLabel', { year: selectedYear });
       case 'all':
-        return 'HISTÓRICO COMPLETO';
+        return t('tx.scope.allLabel');
       case 'custom':
-        return `${formatShortDate(customStartDate)} ATÉ ${formatShortDate(customEndDate)}`;
+        return t('tx.scope.customLabel', {
+          start: formatShortDate(customStartDate),
+          end: formatShortDate(customEndDate),
+        });
     }
-  }, [scopeMode, selectedYearMonth, selectedYear, customStartDate, customEndDate]);
+  }, [scopeMode, selectedYearMonth, selectedYear, customStartDate, customEndDate, t]);
 
   const filteredTransactions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -334,7 +339,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       <section className="panel-card brutalist-scope-banner">
         <div className="scope-banner-top">
           <div className="scope-title-meta">
-            <span className="scope-eyebrow">LIVRO-RAZÃO // CONSOLIDAÇÃO FINANCEIRA</span>
+            <span className="scope-eyebrow">{t('tx.eyebrow')}</span>
             <div className="scope-heading-row">
               {scopeMode === 'month' && onSelectYearMonth ? (
                 <div className="scope-inline-nav">
@@ -342,8 +347,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     type="button"
                     className="scope-nav-btn"
                     onClick={() => onSelectYearMonth(shiftYearMonth(selectedYearMonth, -1))}
-                    title="Mês anterior"
-                    aria-label="Mês anterior"
+                    title={t('tx.nav.prevMonth')}
+                    aria-label={t('tx.nav.prevMonth')}
                   >
                     &lt;&lt;
                   </button>
@@ -352,8 +357,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     type="button"
                     className="scope-nav-btn"
                     onClick={() => onSelectYearMonth(shiftYearMonth(selectedYearMonth, 1))}
-                    title="Próximo mês"
-                    aria-label="Próximo mês"
+                    title={t('tx.nav.nextMonth')}
+                    aria-label={t('tx.nav.nextMonth')}
                   >
                     &gt;&gt;
                   </button>
@@ -362,10 +367,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       type="button"
                       className="scope-today-btn"
                       onClick={() => onSelectYearMonth(getCurrentYearMonth())}
-                      title="Voltar ao mês atual"
+                      title={t('tx.nav.backToCurrentMonth')}
                     >
                       <Calendar size={12} />
-                      <span>Mês Atual</span>
+                      <span>{t('tx.nav.currentMonth')}</span>
                     </button>
                   )}
                 </div>
@@ -378,8 +383,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       const prevY = String(Number(selectedYear) - 1);
                       onSelectYearMonth(`${prevY}-${selectedYearMonth.slice(5, 7)}`);
                     }}
-                    title="Ano anterior"
-                    aria-label="Ano anterior"
+                    title={t('tx.nav.prevYear')}
+                    aria-label={t('tx.nav.prevYear')}
                   >
                     &lt;&lt;
                   </button>
@@ -391,8 +396,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       const nextY = String(Number(selectedYear) + 1);
                       onSelectYearMonth(`${nextY}-${selectedYearMonth.slice(5, 7)}`);
                     }}
-                    title="Próximo ano"
-                    aria-label="Próximo ano"
+                    title={t('tx.nav.nextYear')}
+                    aria-label={t('tx.nav.nextYear')}
                   >
                     &gt;&gt;
                   </button>
@@ -401,10 +406,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                       type="button"
                       className="scope-today-btn"
                       onClick={() => onSelectYearMonth(getCurrentYearMonth())}
-                      title="Voltar ao ano atual"
+                      title={t('tx.nav.backToCurrentYear')}
                     >
                       <Calendar size={12} />
-                      <span>Ano Atual</span>
+                      <span>{t('tx.nav.currentYear')}</span>
                     </button>
                   )}
                 </div>
@@ -415,7 +420,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
 
           <div className="scope-actions-right">
-            <div className="scope-button-group" role="radiogroup" aria-label="Escopo temporal">
+            <div className="scope-button-group" role="radiogroup" aria-label={t('tx.scope.aria')}>
               <button
                 type="button"
                 role="radio"
@@ -423,7 +428,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className={`scope-pill-btn ${scopeMode === 'month' ? 'active' : ''}`}
                 onClick={() => setScopeMode('month')}
               >
-                Mês
+                {t('tx.scope.month')}
               </button>
               <button
                 type="button"
@@ -432,7 +437,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className={`scope-pill-btn ${scopeMode === 'year' ? 'active' : ''}`}
                 onClick={() => setScopeMode('year')}
               >
-                Ano ({selectedYear})
+                {t('tx.scope.year', { year: selectedYear })}
               </button>
               <button
                 type="button"
@@ -441,7 +446,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className={`scope-pill-btn ${scopeMode === 'all' ? 'active' : ''}`}
                 onClick={() => setScopeMode('all')}
               >
-                Histórico Total
+                {t('tx.scope.all')}
               </button>
               <button
                 type="button"
@@ -450,36 +455,41 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className={`scope-pill-btn ${scopeMode === 'custom' ? 'active' : ''}`}
                 onClick={() => setScopeMode('custom')}
               >
-                Personalizado
+                {t('tx.scope.custom')}
               </button>
             </div>
           </div>
         </div>
 
         {scopeMode === 'month' && onSelectYearMonth && (
-          <div className="month-quick-strip" role="group" aria-label="Meses do ano">
+          <div className="month-quick-strip" role="group" aria-label={t('tx.monthsStrip.aria')}>
             <div className="strip-year-label">
               <Calendar size={12} />
               <span>{selectedYear}</span>
             </div>
             <div className="strip-months-list">
-              {MONTH_NAMES_SHORT.map((m) => {
-                const isSelected = selectedYearMonth === `${selectedYear}-${m.num}`;
-                const isCurrentCalendar = getCurrentYearMonth() === `${selectedYear}-${m.num}`;
-                const hasTxs = monthsWithTransactions.has(m.num);
+              {MONTH_NUMBERS.map((num) => {
+                const monthLabel = t(`tx.month.${num}`);
+                const isSelected = selectedYearMonth === `${selectedYear}-${num}`;
+                const isCurrentCalendar = getCurrentYearMonth() === `${selectedYear}-${num}`;
+                const hasTxs = monthsWithTransactions.has(num);
 
                 return (
                   <button
-                    key={m.num}
+                    key={num}
                     type="button"
                     className={`strip-month-btn ${isSelected ? 'active' : ''} ${
                       isCurrentCalendar ? 'is-calendar-current' : ''
                     }`}
-                    onClick={() => onSelectYearMonth(`${selectedYear}-${m.num}`)}
-                    title={`${m.label} de ${selectedYear}${hasTxs ? ' (com lançamentos)' : ' (sem lançamentos)'}`}
+                    onClick={() => onSelectYearMonth(`${selectedYear}-${num}`)}
+                    title={
+                      hasTxs
+                        ? t('tx.monthsStrip.titleWithTx', { month: monthLabel, year: selectedYear })
+                        : t('tx.monthsStrip.titleEmpty', { month: monthLabel, year: selectedYear })
+                    }
                     aria-current={isSelected ? 'date' : undefined}
                   >
-                    <span className="strip-month-name">{m.label}</span>
+                    <span className="strip-month-name">{monthLabel}</span>
                     {hasTxs && !isSelected && <span className="strip-month-dot" />}
                   </button>
                 );
@@ -491,17 +501,17 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         {scopeMode === 'custom' && (
           <div className="custom-date-range-bar">
             <span className="range-label">
-              <Calendar size={13} /> INTERVALO DE DATAS:
+              <Calendar size={13} /> {t('tx.customRange.label')}
             </span>
             <div className="range-inputs">
-              <label htmlFor="custom-start">De</label>
+              <label htmlFor="custom-start">{t('tx.customRange.from')}</label>
               <input
                 id="custom-start"
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
               />
-              <label htmlFor="custom-end">Até</label>
+              <label htmlFor="custom-end">{t('tx.customRange.to')}</label>
               <input
                 id="custom-end"
                 type="date"
@@ -513,53 +523,53 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         )}
       </section>
 
-      <section className="kpi-grid-3" aria-label="Indicadores consolidados do período">
+      <section className="kpi-grid-3" aria-label={t('tx.kpi.aria')}>
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">ENTRADAS DO PERÍODO</span>
+            <span className="kpi-label">{t('tx.kpi.incomeTitle')}</span>
             <TrendingUp size={17} className="kpi-icon green" />
           </div>
           <div className="kpi-value mono positive">
             +{formatBRL(consolidated.incBrlTotal, hideValues)}
           </div>
           <div className="kpi-sub">
-            <span>Recebido: {formatBRL(consolidated.incBrlPaid, hideValues)}</span>
+            <span>{t('tx.kpi.received', { amount: formatBRL(consolidated.incBrlPaid, hideValues) })}</span>
           </div>
           {consolidated.incBrlPending > 0 && (
             <div className="kpi-sub">
               <span className="pending-tag">
-                + {formatBRL(consolidated.incBrlPending, hideValues)} a receber
+                {t('tx.kpi.toReceive', { amount: formatBRL(consolidated.incBrlPending, hideValues) })}
               </span>
             </div>
           )}
           {consolidated.incUsdTotal > 0 && (
             <div className="kpi-sub kpi-usd-line">
-              Inclui +{formatMoney(consolidated.incUsdTotal, 'USD', hideValues)}
+              {t('tx.kpi.includesIncome', { amount: formatMoney(consolidated.incUsdTotal, 'USD', hideValues) })}
             </div>
           )}
         </article>
 
         <article className="kpi-card">
           <div className="kpi-card-top">
-            <span className="kpi-label">SAÍDAS DO PERÍODO</span>
+            <span className="kpi-label">{t('tx.kpi.expenseTitle')}</span>
             <TrendingDown size={17} className="kpi-icon coral" />
           </div>
           <div className="kpi-value mono negative">
             -{formatBRL(consolidated.expBrlTotal, hideValues)}
           </div>
           <div className="kpi-sub">
-            <span>Pago: {formatBRL(consolidated.expBrlPaid, hideValues)}</span>
+            <span>{t('tx.kpi.paid', { amount: formatBRL(consolidated.expBrlPaid, hideValues) })}</span>
           </div>
           {consolidated.expBrlPending > 0 && (
             <div className="kpi-sub">
               <span className="pending-tag">
-                + {formatBRL(consolidated.expBrlPending, hideValues)} a pagar
+                {t('tx.kpi.toPay', { amount: formatBRL(consolidated.expBrlPending, hideValues) })}
               </span>
             </div>
           )}
           {consolidated.expUsdTotal > 0 && (
             <div className="kpi-sub kpi-usd-line">
-              Inclui -{formatMoney(consolidated.expUsdTotal, 'USD', hideValues)}
+              {t('tx.kpi.includesExpense', { amount: formatMoney(consolidated.expUsdTotal, 'USD', hideValues) })}
             </div>
           )}
         </article>
@@ -567,7 +577,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         <article className="kpi-card">
           <div className="kpi-card-top">
             <span className="kpi-label">
-              {consolidated.netBrlTotal >= 0 ? 'SALDO DO PERÍODO' : 'DÉFICIT DO PERÍODO'}
+              {consolidated.netBrlTotal >= 0 ? t('tx.kpi.balanceTitle') : t('tx.kpi.deficitTitle')}
             </span>
             <Scale
               size={17}
@@ -584,18 +594,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           </div>
           <div className="kpi-sub">
             <span>
-              Quitado: {formatBRL(consolidated.netBrlPaid, hideValues)}
+              {t('tx.kpi.settled', { amount: formatBRL(consolidated.netBrlPaid, hideValues) })}
               {consolidated.savingsRate !== null
-                ? ` · ${consolidated.savingsRate.toFixed(1)}% de margem`
+                ? t('tx.kpi.marginSuffix', { rate: consolidated.savingsRate.toFixed(1) })
                 : ''}
             </span>
           </div>
           {consolidated.hasUsd && (
             <div className="kpi-sub kpi-usd-line">
-              Parcela USD: {consolidated.netUsdTotal >= 0 ? '+' : ''}
+              {t('tx.kpi.usdShare')} {consolidated.netUsdTotal >= 0 ? '+' : ''}
               {formatMoney(consolidated.netUsdTotal, 'USD', hideValues)}
               {usdToBrlRate ? (
-                <span title={`Cotação USD: R$ ${usdToBrlRate.toFixed(2)}`}>
+                <span title={t('tx.kpi.usdRateTitle', { rate: usdToBrlRate.toFixed(2) })}>
                   {' '}
                   (≈ {formatBRL(consolidated.netUsdTotal * usdToBrlRate, hideValues)})
                 </span>
@@ -615,9 +625,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           >
             <div className="drawer-title-row">
               <PieChart size={15} />
-              <span>DISTRIBUIÇÃO DE DESPESAS POR CATEGORIA NO PERÍODO</span>
+              <span>{t('tx.categories.breakdownTitle')}</span>
               <span className="drawer-badge">
-                {consolidated.topExpenseCategories.length} categorias ativas
+                {t('tx.categories.activeCount', { count: consolidated.topExpenseCategories.length })}
               </span>
             </div>
             <div className="drawer-toggle-icon">
@@ -636,7 +646,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           className="cat-color-dot"
                           style={{ backgroundColor: item.category?.color || '#94A3B8' }}
                         />
-                        <strong>{item.category?.name || 'Outros'}</strong>
+                        <strong>{item.category?.name || t('tx.categories.other')}</strong>
                         <span className="cat-count">({item.count}×)</span>
                       </div>
                       <div className="cat-bar-values mono">
@@ -669,14 +679,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar lançamento, nota ou categoria..."
+              placeholder={t('tx.search.placeholder')}
             />
             {searchQuery && (
               <button
                 type="button"
                 className="search-clear-btn"
                 onClick={() => setSearchQuery('')}
-                title="Limpar busca"
+                title={t('tx.search.clear')}
               >
                 <X size={13} />
               </button>
@@ -690,10 +700,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             }`}
             onClick={() => setShowMobileFilters((v) => !v)}
             aria-expanded={showMobileFilters}
-            aria-label="Abrir ou fechar filtros avançados"
+            aria-label={t('tx.filters.toggleAria')}
           >
             <Filter size={14} />
-            <span className="filter-btn-text">Filtros</span>
+            <span className="filter-btn-text">{t('tx.filters.button')}</span>
             {activeFiltersCount > 0 && (
               <span className="filter-badge-count">{activeFiltersCount}</span>
             )}
@@ -704,16 +714,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         </div>
 
         {activeFiltersCount > 0 && (
-          <div className="active-filters-chips-row" aria-label="Filtros ativos">
-            <span className="active-filters-label">ATIVOS:</span>
+          <div className="active-filters-chips-row" aria-label={t('tx.filters.activeAria')}>
+            <span className="active-filters-label">{t('tx.filters.activeLabel')}</span>
             {typeFilter !== 'all' && (
               <button
                 type="button"
                 className="active-filter-chip"
                 onClick={() => setTypeFilter('all')}
-                title="Remover filtro de tipo"
+                title={t('tx.filters.removeType')}
               >
-                <span>{typeFilter === 'income' ? 'Entradas' : 'Saídas'}</span>
+                <span>
+                  {typeFilter === 'income' ? t('tx.filters.typeIncome') : t('tx.filters.typeExpense')}
+                </span>
                 <X size={11} />
               </button>
             )}
@@ -722,9 +734,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 type="button"
                 className="active-filter-chip"
                 onClick={() => setStatusFilter('all')}
-                title="Remover filtro de status"
+                title={t('tx.filters.removeStatus')}
               >
-                <span>{statusFilter === 'paid' ? 'Quitados' : 'Pendentes'}</span>
+                <span>
+                  {statusFilter === 'paid'
+                    ? t('tx.filters.statusPaid')
+                    : t('tx.filters.statusPending')}
+                </span>
                 <X size={11} />
               </button>
             )}
@@ -733,9 +749,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 type="button"
                 className="active-filter-chip"
                 onClick={() => setCategoryFilter('all')}
-                title="Remover filtro de categoria"
+                title={t('tx.filters.removeCategory')}
               >
-                <span>{catMap.get(categoryFilter)?.name || 'Categoria'}</span>
+                <span>{catMap.get(categoryFilter)?.name || t('tx.filters.categoryFallback')}</span>
                 <X size={11} />
               </button>
             )}
@@ -744,9 +760,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 type="button"
                 className="active-filter-chip"
                 onClick={() => setAccountFilter('all')}
-                title="Remover filtro de conta"
+                title={t('tx.filters.removeAccount')}
               >
-                <span>{accMap.get(accountFilter)?.name || 'Conta'}</span>
+                <span>{accMap.get(accountFilter)?.name || t('tx.filters.accountFallback')}</span>
                 <X size={11} />
               </button>
             )}
@@ -754,15 +770,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               type="button"
               className="active-filters-clear-all"
               onClick={handleClearAllFilters}
-              title="Limpar todos os filtros"
+              title={t('tx.filters.clearAllTitle')}
             >
-              Limpar tudo
+              {t('tx.filters.clearAll')}
             </button>
           </div>
         )}
 
         <div className={`ledger-secondary-filters ${showMobileFilters ? 'mobile-expanded' : ''}`}>
-          <div className="segmented-filter" role="radiogroup" aria-label="Filtrar por tipo">
+          <div className="segmented-filter" role="radiogroup" aria-label={t('tx.filters.byTypeAria')}>
             <button
               type="button"
               role="radio"
@@ -770,7 +786,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={typeFilter === 'all' ? 'active' : ''}
               onClick={() => setTypeFilter('all')}
             >
-              Todos
+              {t('tx.filters.typeAll')}
             </button>
             <button
               type="button"
@@ -779,7 +795,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={typeFilter === 'income' ? 'active' : ''}
               onClick={() => setTypeFilter('income')}
             >
-              Entradas
+              {t('tx.filters.typeIncome')}
             </button>
             <button
               type="button"
@@ -788,11 +804,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={typeFilter === 'expense' ? 'active' : ''}
               onClick={() => setTypeFilter('expense')}
             >
-              Saídas
+              {t('tx.filters.typeExpense')}
             </button>
           </div>
 
-          <div className="segmented-filter" role="radiogroup" aria-label="Filtrar por situação">
+          <div
+            className="segmented-filter"
+            role="radiogroup"
+            aria-label={t('tx.filters.byStatusAria')}
+          >
             <button
               type="button"
               role="radio"
@@ -800,7 +820,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={statusFilter === 'all' ? 'active' : ''}
               onClick={() => setStatusFilter('all')}
             >
-              Status
+              {t('tx.filters.statusAll')}
             </button>
             <button
               type="button"
@@ -809,7 +829,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={statusFilter === 'paid' ? 'active' : ''}
               onClick={() => setStatusFilter('paid')}
             >
-              Quitados
+              {t('tx.filters.statusPaid')}
             </button>
             <button
               type="button"
@@ -818,7 +838,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               className={statusFilter === 'pending' ? 'active' : ''}
               onClick={() => setStatusFilter('pending')}
             >
-              Pendentes
+              {t('tx.filters.statusPending')}
             </button>
           </div>
 
@@ -826,9 +846,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             className="filter-select"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            aria-label="Filtrar por categoria"
+            aria-label={t('tx.filters.byCategoryAria')}
           >
-            <option value="all">Todas as Categorias</option>
+            <option value="all">{t('tx.filters.allCategories')}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.type === 'income' ? '↑ ' : '↓ '}
@@ -841,9 +861,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             className="filter-select"
             value={accountFilter}
             onChange={(e) => setAccountFilter(e.target.value)}
-            aria-label="Filtrar por conta"
+            aria-label={t('tx.filters.byAccountAria')}
           >
-            <option value="all">Todas as Contas</option>
+            <option value="all">{t('tx.filters.allAccounts')}</option>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name}
@@ -856,21 +876,21 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
       <section className="panel-card ledger-table-card">
         {filteredTransactions.length === 0 ? (
           <div className="empty-state-box">
-            <p>Nenhum lançamento encontrado para os filtros selecionados no período.</p>
+            <p>{t('tx.empty.message')}</p>
             <div className="empty-state-actions">
               <button
                 type="button"
                 className="btn-Quick-expense"
                 onClick={() => onOpenNewTransaction('expense')}
               >
-                + Adicionar Despesa
+                {t('tx.empty.addExpense')}
               </button>
               <button
                 type="button"
                 className="btn-Quick-income"
                 onClick={() => onOpenNewTransaction('income')}
               >
-                + Adicionar Receita
+                {t('tx.empty.addIncome')}
               </button>
             </div>
           </div>
@@ -879,13 +899,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             <table className="ledger-table">
               <thead>
                 <tr>
-                  <th>DATA</th>
-                  <th>DESCRIÇÃO</th>
-                  <th>CATEGORIA</th>
-                  {showAccount && <th>CONTA / CARTEIRA</th>}
-                  <th>SITUAÇÃO</th>
-                  <th className="align-right">VALOR</th>
-                  <th className="align-right">AÇÕES</th>
+                  <th>{t('tx.table.date')}</th>
+                  <th>{t('tx.table.description')}</th>
+                  <th>{t('tx.table.category')}</th>
+                  {showAccount && <th>{t('tx.table.account')}</th>}
+                  <th>{t('tx.table.status')}</th>
+                  <th className="align-right">{t('tx.table.amount')}</th>
+                  <th className="align-right">{t('tx.table.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -907,12 +927,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             className="cat-color-dot"
                             style={{ backgroundColor: cat?.color || '#94A3B8' }}
                           />
-                          {cat?.name || 'Geral'}
+                          {cat?.name || t('tx.table.categoryFallback')}
                         </span>
                       </td>
                       {showAccount && (
                         <td className="td-acc">
-                          <span className="acc-pill">{acc?.name || 'Conta'}</span>
+                          <span className="acc-pill">
+                            {acc?.name || t('tx.filters.accountFallback')}
+                          </span>
                         </td>
                       )}
                       <td className="td-status">
@@ -920,21 +942,23 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                           type="button"
                           className={`status-badge-btn ${tx.status}`}
                           onClick={() => onToggleTransactionStatus(tx.id)}
-                          title="Clique para alternar entre Quitado e Pendente"
+                          title={t('tx.table.toggleStatusTitle')}
                         >
                           {tx.status === 'paid' ? (
                             <>
                               <CheckCircle2 size={13} />{' '}
-                              {tx.type === 'income' ? 'Recebido' : 'Pago'}
+                              {tx.type === 'income' ? t('tx.status.received') : t('tx.status.paid')}
                             </>
                           ) : (
                             <>
-                              <Clock size={13} /> Pendente
+                              <Clock size={13} /> {t('tx.status.pending')}
                             </>
                           )}
                         </button>
                         {tx.status === 'paid' && tx.paidAt && tx.paidAt !== tx.date && (
-                          <span className="paid-at-hint">em {formatShortDate(tx.paidAt)}</span>
+                          <span className="paid-at-hint">
+                            {t('tx.table.paidAt', { date: formatShortDate(tx.paidAt) })}
+                          </span>
                         )}
                       </td>
                       <td
@@ -964,8 +988,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             type="button"
                             className="icon-btn-sm"
                             onClick={() => onEditTransaction(tx)}
-                            title="Editar lançamento"
-                            aria-label={`Editar ${tx.description}`}
+                            title={t('tx.actions.editTitle')}
+                            aria-label={t('tx.actions.editAria', { description: tx.description })}
                           >
                             <Edit3 size={14} />
                           </button>
@@ -973,8 +997,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             type="button"
                             className="icon-btn-sm"
                             onClick={() => onDuplicateTransaction(tx)}
-                            title="Duplicar lançamento"
-                            aria-label={`Duplicar ${tx.description}`}
+                            title={t('tx.actions.duplicateTitle')}
+                            aria-label={t('tx.actions.duplicateAria', {
+                              description: tx.description,
+                            })}
                           >
                             <Copy size={14} />
                           </button>
@@ -982,8 +1008,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             type="button"
                             className="icon-btn-sm danger"
                             onClick={() => setTxToDelete(tx)}
-                            title="Excluir lançamento"
-                            aria-label={`Excluir ${tx.description}`}
+                            title={t('tx.actions.deleteTitle')}
+                            aria-label={t('tx.actions.deleteAria', {
+                              description: tx.description,
+                            })}
                           >
                             <Trash2 size={14} />
                           </button>
@@ -1014,7 +1042,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     })
                   }
                 >
-                  Carregar mais ({filteredTransactions.length - visibleCount} restantes)
+                  {t('tx.pagination.loadMore', {
+                    count: filteredTransactions.length - visibleCount,
+                  })}
                 </button>
               </div>
             )}
@@ -1039,13 +1069,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               <header className="modal-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <AlertTriangle size={18} style={{ color: 'var(--color-coral)' }} />
-                  <h2 id="delete-tx-title">Excluir Lançamento</h2>
+                  <h2 id="delete-tx-title">{t('tx.delete.title')}</h2>
                 </div>
                 <button
                   type="button"
                   className="icon-action-btn"
                   onClick={() => setTxToDelete(null)}
-                  title="Fechar (Esc)"
+                  title={t('tx.common.closeEsc')}
                 >
                   <X size={16} />
                 </button>
@@ -1069,21 +1099,23 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                     </span>
                   </div>
 
-                  <p className="delete-confirm-desc">
-                    Tem certeza de que deseja excluir este lançamento permanentemente?
-                  </p>
+                  <p className="delete-confirm-desc">{t('tx.delete.confirmQuestion')}</p>
 
                   <div className="delete-confirm-impact">
                     <p>
-                      <strong>Data:</strong> {formatFullDateBR(txToDelete.date)} <br />
-                      <strong>Categoria:</strong> {cat?.name || 'Sem Categoria'} <br />
-                      <strong>Conta:</strong> {acc?.name || 'Conta Padrão'} <br />
-                      <strong>Status:</strong>{' '}
-                      {txToDelete.status === 'paid' ? 'Pago / Confirmado' : 'Pendente'}
+                      <strong>{t('tx.delete.dateLabel')}</strong> {formatFullDateBR(txToDelete.date)}{' '}
+                      <br />
+                      <strong>{t('tx.delete.categoryLabel')}</strong>{' '}
+                      {cat?.name || t('tx.delete.noCategory')} <br />
+                      <strong>{t('tx.delete.accountLabel')}</strong>{' '}
+                      {acc?.name || t('tx.delete.defaultAccount')} <br />
+                      <strong>{t('tx.delete.statusLabel')}</strong>{' '}
+                      {txToDelete.status === 'paid'
+                        ? t('tx.delete.statusPaid')
+                        : t('tx.status.pending')}
                     </p>
                     <p style={{ marginTop: 8, fontSize: '11.5px', color: 'var(--color-coral)' }}>
-                      ⚠️ Esta operação removerá o registro do seu cofre e atualizará seus saldos
-                      consolidados.
+                      {t('tx.delete.warning')}
                     </p>
                   </div>
                 </div>
@@ -1095,7 +1127,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   className="btn-secondary"
                   onClick={() => setTxToDelete(null)}
                 >
-                  Cancelar
+                  {t('tx.common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -1106,7 +1138,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                   }}
                   autoFocus
                 >
-                  <Trash2 size={14} /> Confirmar Exclusão
+                  <Trash2 size={14} /> {t('tx.delete.confirmButton')}
                 </button>
               </footer>
             </div>
