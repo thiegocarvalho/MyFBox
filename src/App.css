@@ -1095,6 +1095,74 @@
   background-color: var(--color-coral);
 }
 
+.mcp-header-btn {
+  height: 38px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 0;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.mcp-header-btn:hover {
+  color: var(--text-main);
+  border-color: var(--border-card);
+  background-color: var(--bg-surface-elevated);
+}
+
+.mcp-header-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.mcp-header-btn.status-connected {
+  color: var(--color-accent);
+  border-color: rgba(200, 255, 0, 0.5);
+  background-color: rgba(200, 255, 0, 0.08);
+}
+
+.mcp-header-btn.status-connected .mcp-header-dot {
+  background-color: var(--color-accent);
+}
+
+.mcp-header-btn.status-connecting {
+  color: var(--color-amber);
+  border-color: rgba(255, 176, 32, 0.5);
+  background-color: rgba(255, 176, 32, 0.08);
+}
+
+.mcp-header-btn.status-connecting .mcp-header-dot {
+  background-color: var(--color-amber);
+}
+
+.mcp-header-btn.status-error {
+  color: var(--color-coral);
+  border-color: rgba(255, 77, 61, 0.5);
+  background-color: rgba(255, 77, 61, 0.08);
+}
+
+.mcp-header-btn.status-error .mcp-header-dot {
+  background-color: var(--color-coral);
+}
+
+@media (max-width: 640px) {
+  .mcp-header-label {
+    display: none;
+  }
+}
+
 .btn-primary.btn-sm {
   height: 38px;
   padding: 0 16px;

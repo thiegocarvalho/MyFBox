@@ -14,6 +14,7 @@ import {
   Wallet,
   Settings,
   Plus,
+  Bot,
 } from 'lucide-react';
 import type {
   Account,
@@ -726,6 +727,31 @@ export function App() {
         />
 
         <div className="header-right">
+          <button
+            type="button"
+            className={`mcp-header-btn status-${mcpStatus}`}
+            onClick={() => handleUpdateMcpSettings({ mcpEnabled: !vault.settings.mcpEnabled })}
+            aria-pressed={Boolean(vault.settings.mcpEnabled)}
+            title={
+              mcpStatus === 'connected'
+                ? 'MCP em execução — clique para desligar'
+                : mcpStatus === 'connecting'
+                ? 'MCP procurando servidor local — clique para desligar'
+                : mcpStatus === 'error'
+                ? `MCP sem conexão${mcpDetail ? `: ${mcpDetail}` : ''} — clique para desligar`
+                : 'MCP desligado — clique para ligar'
+            }
+            aria-label={
+              vault.settings.mcpEnabled
+                ? `Desligar Modo MCP (status: ${mcpStatus})`
+                : 'Ligar Modo MCP'
+            }
+          >
+            <span className="mcp-header-dot" aria-hidden />
+            <Bot size={15} aria-hidden />
+            <span className="mcp-header-label">MCP</span>
+          </button>
+
           <button
             type="button"
             className="icon-action-btn"
