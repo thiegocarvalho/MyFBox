@@ -120,12 +120,9 @@ Abra **http://localhost:41730**, crie um cofre e uma senha mestra.
   faltar espaço. Favoritar o app ajuda o Chrome a conceder.
 - As pastas `vaults/` e `backups/` e qualquer `*.myfbox.json` são ignoradas pelo git.
 
-### Compatibilidade dos arquivos cifrados
+### Formato dos arquivos cifrados
 
-O formato do envelope é `formatVersion: 1` e o número de iterações do PBKDF2 fica gravado nele.
-Cofres e backups antigos (310.000 iterações) continuam abrindo e são recifrados com o padrão
-atual (600.000) no próximo desbloqueio ou restauração. Arquivos novos também abrem em versões
-anteriores do app.
+O formato do envelope é `formatVersion: 1`, com parâmetros `PBKDF2-HMAC-SHA256` (600.000 iterações) e `AES-256-GCM` gravados no cabeçalho.
 
 ## Modo MCP local
 

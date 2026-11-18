@@ -30,15 +30,7 @@
 | Verificação de senha | Bloco "verifier" cifrado com a mesma chave (distingue senha errada de arquivo corrompido) |
 | Impressão da chave | 32 bits de `SHA-256("MYFBOX_KEY_FINGERPRINT_V2" ‖ chave derivada)`, só para conferência visual |
 
-O envelope guarda o algoritmo, o número de iterações e o sal, então parâmetros mais fortes podem
-ser adotados sem quebrar arquivos antigos: cofres com menos iterações são recifrados com o padrão
-atual no desbloqueio/restauração.
-
-> **Correção (nov/2026):** versões anteriores calculavam a impressão da chave com uma derivação
-> separada de apenas 10.000 iterações e a gravavam no envelope, o que permitia testar senhas
-> offline cerca de 31× mais rápido contra um backup. A impressão agora vem da chave forte. Se
-> você tem backups feitos antes dessa correção guardados em lugares menos confiáveis, gere um
-> backup novo e apague os antigos; se suspeitar que algum vazou, troque a senha mestra.
+O envelope guarda o algoritmo, o número de iterações e o sal, permitindo evoluir os parâmetros criptográficos em versões futuras.
 
 ## Modo MCP local
 
