@@ -4,26 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101010" />
-    <title>MyFBox — Controle Financeiro Pessoal Local-First e Cifrado</title>
+    <title>MyFBox — Seu dinheiro no seu controle, direto no seu aparelho</title>
     <meta
       name="description"
-      content="MyFBox é seu cofre financeiro pessoal 100% local-first, sem conta, sem servidor e cifrado com AES-256-GCM. Use direto no navegador ou baixe para Windows, macOS e Linux."
+      content="Organize contas, gastos, metas e moedas sem criar conta nem mandar seus extratos para a nuvem. Use direto no navegador ou baixe para Windows, macOS e Linux."
     />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
-    <meta property="og:title" content="MyFBox — Controle Financeiro Pessoal Local-First e Cifrado" />
+    <meta property="og:title" content="MyFBox — Controle financeiro pessoal no seu aparelho" />
     <meta
       property="og:description"
-      content="Sem conta, sem servidor, sem rastreio. Seus dados financeiros cifrados com AES-256-GCM no navegador ou no app desktop."
+      content="Sem login, sem nuvem obrigatória, sem mensalidade. Organize suas finanças no navegador ou no computador."
     />
+    <meta property="og:image" content="./assets/screen-dashboard.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MyFBox — My Financial Box" />
     <meta
       name="twitter:description"
-      content="Controle financeiro pessoal 100% offline e cifrado com AES-256-GCM."
+      content="Controle financeiro pessoal rápido, offline e protegido por senha no seu aparelho."
     />
-    <link rel="icon" type="image/svg+xml" href="./app/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./assets/logo.svg" />
+    <link rel="preload" href="./fonts/unbounded-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/plus-jakarta-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -33,7 +36,7 @@
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "Web, Windows, macOS, Linux",
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-        "description": "Controle financeiro pessoal local-first e cifrado no dispositivo com AES-256-GCM e PBKDF2-HMAC-SHA256, sem conta ou servidor.",
+        "description": "Controle financeiro pessoal direto no seu aparelho, sem conta ou servidor.",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -42,282 +45,600 @@
       }
     </script>
     <style>
-      :root {
-        --bg: #0d0d0d;
-        --surface: #161616;
-        --surface-2: #1f1f1f;
-        --border: #2e2e2e;
-        --text: #f5f5f5;
-        --muted: #b3b3b3;
-        --accent: #d4ff4f;
-        --accent-ink: #0d0d0d;
-        --radius: 10px;
+      @font-face {
+        font-family: "Unbounded";
+        font-style: normal;
+        font-weight: 800;
+        font-display: swap;
+        src: url("./fonts/unbounded-latin-800-normal.woff2") format("woff2");
       }
-      * {
+      @font-face {
+        font-family: "Space Grotesk";
+        font-style: normal;
+        font-weight: 500;
+        font-display: swap;
+        src: url("./fonts/space-grotesk-latin-500-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Space Grotesk";
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url("./fonts/space-grotesk-latin-700-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("./fonts/plus-jakarta-sans-latin-400-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url("./fonts/plus-jakarta-sans-latin-600-normal.woff2") format("woff2");
+      }
+      @font-face {
+        font-family: "JetBrains Mono";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("./fonts/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+      }
+
+      :root {
+        --bg: #101010;
+        --surface: #151515;
+        --surface-2: #1c1c1c;
+        --border: #2e2e2e;
+        --border-strong: #ffffff;
+        --text: #ffffff;
+        --muted: #a3a3a3;
+        --accent: #c8ff00;
+        --accent-ink: #101010;
+        --coral: #ff4d3d;
+        --font-display: "Unbounded", "Space Grotesk", system-ui, sans-serif;
+        --font-heading: "Space Grotesk", system-ui, sans-serif;
+        --font-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
       }
+
       html {
         scroll-behavior: smooth;
       }
+
       body {
         margin: 0;
         background: var(--bg);
         color: var(--text);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family: var(--font-sans);
+        font-size: 16px;
         line-height: 1.55;
         -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
       }
+
       .skip-link {
         position: absolute;
         left: -9999px;
         top: 0;
         background: var(--accent);
         color: var(--accent-ink);
-        padding: 0.6rem 1rem;
+        padding: 0.65rem 1rem;
         font-weight: 700;
-        z-index: 100;
+        z-index: 200;
       }
       .skip-link:focus {
         left: 1rem;
         top: 1rem;
       }
+
       .container {
         width: 100%;
-        max-width: 1080px;
+        max-width: 1180px;
         margin: 0 auto;
-        padding: 0 1.25rem;
+        padding: 0 1.5rem;
       }
+
       header {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: rgba(16, 16, 16, 0.94);
+        backdrop-filter: blur(8px);
         border-bottom: 1px solid var(--border);
-        background: var(--bg);
       }
+
       .nav {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: 1rem;
-        min-height: 68px;
+        height: 70px;
       }
+
       .brand {
         display: inline-flex;
         align-items: center;
-        gap: 0.65rem;
-        color: var(--text);
+        gap: 0.7rem;
         text-decoration: none;
-        font-weight: 800;
-        font-size: 1.125rem;
+        color: var(--text);
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: 1.15rem;
         letter-spacing: -0.02em;
       }
-      .brand-badge {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+
+      .brand img {
         width: 32px;
         height: 32px;
-        border-radius: 8px;
-        background: var(--accent);
-        color: var(--accent-ink);
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-weight: 900;
-        font-size: 0.9rem;
+        display: block;
       }
+
       .nav-links {
         display: flex;
         align-items: center;
-        gap: 1.25rem;
-        flex-wrap: wrap;
+        gap: 1.5rem;
       }
-      .nav-links a {
+
+      .nav-links a.nav-item {
         color: var(--muted);
         text-decoration: none;
         font-size: 0.94rem;
-        font-weight: 500;
+        font-weight: 600;
+        transition: color 0.15s ease;
       }
-      .nav-links a:hover,
-      .nav-links a:focus-visible {
+      .nav-links a.nav-item:hover,
+      .nav-links a.nav-item:focus-visible {
         color: var(--text);
       }
+
       .btn {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
-        padding: 0.78rem 1.3rem;
-        border-radius: var(--radius);
+        padding: 0.85rem 1.4rem;
+        font-family: var(--font-heading);
         font-weight: 700;
-        font-size: 0.98rem;
+        font-size: 0.95rem;
         text-decoration: none;
-        border: 2px solid transparent;
+        border: 2px solid var(--border-strong);
         cursor: pointer;
-        transition: transform 0.12s ease, background-color 0.12s ease;
+        transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
       }
-      .btn:hover {
-        transform: translateY(-1px);
-      }
+
       .btn-primary {
         background: var(--accent);
         color: var(--accent-ink);
         border-color: var(--accent);
+        box-shadow: -5px 5px 0 var(--text);
       }
+      .btn-primary:hover {
+        transform: translate(2px, -2px);
+        box-shadow: -7px 7px 0 var(--text);
+      }
+
       .btn-secondary {
-        background: var(--surface-2);
-        color: var(--text);
-        border-color: var(--border);
-      }
-      .btn-sm {
-        padding: 0.5rem 0.95rem;
-        font-size: 0.88rem;
-      }
-      .hero {
-        padding: 4.5rem 0 3.5rem;
-      }
-      .eyebrow {
-        display: inline-block;
-        padding: 0.28rem 0.7rem;
-        border-radius: 999px;
-        border: 1px solid var(--border);
         background: var(--surface);
+        color: var(--text);
+        border-color: var(--border-strong);
+      }
+      .btn-secondary:hover {
+        background: var(--surface-2);
+        transform: translate(2px, -2px);
+        box-shadow: -5px 5px 0 var(--accent);
+      }
+
+      .btn-sm {
+        padding: 0.55rem 1rem;
+        font-size: 0.86rem;
+        box-shadow: none;
+      }
+      .btn-sm:hover {
+        box-shadow: -3px 3px 0 var(--text);
+      }
+
+      /* Ato 1: Abertura */
+      .hero {
+        padding: 4.5rem 0 4rem;
+        background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 3rem;
+      }
+
+      .hero-copy {
+        max-width: 780px;
+      }
+
+      .tag-line {
+        display: inline-block;
+        padding: 0.3rem 0.7rem;
+        border: 1px solid var(--accent);
         color: var(--accent);
-        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 0.8rem;
-        font-weight: 600;
-        margin-bottom: 1.25rem;
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        letter-spacing: 0.06em;
+        margin-bottom: 1.4rem;
       }
+
       h1 {
-        margin: 0 0 1.1rem;
-        font-size: clamp(2.1rem, 4.8vw, 3.45rem);
-        line-height: 1.08;
+        margin: 0 0 1.2rem;
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: clamp(2.15rem, 5.2vw, 3.85rem);
+        line-height: 1.04;
         letter-spacing: -0.03em;
-        max-width: 18ch;
       }
-      .lead {
+
+      .hero-lead {
         margin: 0 0 2rem;
-        font-size: clamp(1.05rem, 2vw, 1.22rem);
+        font-size: clamp(1.06rem, 1.8vw, 1.24rem);
         color: var(--muted);
-        max-width: 58ch;
+        max-width: 54ch;
       }
+
       .hero-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.85rem;
-        margin-bottom: 2.5rem;
-      }
-      .trust-strip {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        gap: 0.85rem;
-        padding-top: 1.75rem;
-        border-top: 1px solid var(--border);
-      }
-      .trust-item strong {
-        display: block;
-        font-size: 0.95rem;
-        color: var(--text);
-      }
-      .trust-item span {
-        font-size: 0.86rem;
-        color: var(--muted);
-      }
-      section {
-        padding: 3.5rem 0;
-        border-top: 1px solid var(--border);
-      }
-      h2 {
-        margin: 0 0 0.65rem;
-        font-size: clamp(1.5rem, 3vw, 2.05rem);
-        letter-spacing: -0.02em;
-      }
-      .section-sub {
-        margin: 0 0 2rem;
-        color: var(--muted);
-        max-width: 60ch;
-      }
-      .grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
         gap: 1rem;
       }
-      .card {
+
+      .stage-frame {
+        border: 2px solid var(--border-strong);
+        background: var(--surface);
+        box-shadow: -10px 10px 0 var(--accent);
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .stage-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.6rem 1rem;
+        border-bottom: 1px solid var(--border);
+        background: #0b0b0b;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .stage-dots {
+        display: inline-flex;
+        gap: 0.4rem;
+      }
+      .stage-dots span {
+        width: 9px;
+        height: 9px;
+        background: var(--border);
+        display: inline-block;
+      }
+      .stage-dots span:first-child {
+        background: var(--accent);
+      }
+
+      .stage-img {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1360 / 840;
+        background: var(--bg);
+      }
+
+      /* Seções */
+      section {
+        padding: 4.5rem 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .section-kicker {
+        font-family: var(--font-mono);
+        font-size: 0.76rem;
+        color: var(--accent);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.6rem;
+        display: block;
+      }
+
+      h2 {
+        margin: 0 0 0.75rem;
+        font-family: var(--font-heading);
+        font-weight: 700;
+        font-size: clamp(1.65rem, 3.2vw, 2.35rem);
+        line-height: 1.12;
+        letter-spacing: -0.025em;
+      }
+
+      .section-lead {
+        margin: 0 0 2.5rem;
+        color: var(--muted);
+        max-width: 56ch;
+        font-size: 1.02rem;
+      }
+
+      /* Ato 2: Storyboard interativo das telas */
+      .storyboard {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 2rem;
+        align-items: start;
+      }
+
+      .scene-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .scene-btn {
+        text-align: left;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 1.35rem;
+        color: var(--text);
+        padding: 1.1rem 1.15rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
       }
-      .card h3 {
-        margin: 0 0 0.45rem;
-        font-size: 1.08rem;
+
+      .scene-btn:hover {
+        border-color: var(--muted);
       }
-      .card p {
+
+      .scene-btn[aria-selected="true"] {
+        border: 2px solid var(--accent);
+        background: var(--surface-2);
+        box-shadow: -5px 5px 0 var(--accent);
+      }
+
+      .scene-num {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--accent);
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+
+      .scene-btn strong {
+        display: block;
+        font-family: var(--font-heading);
+        font-size: 1.02rem;
+        margin-bottom: 0.3rem;
+      }
+
+      .scene-btn span.scene-desc {
+        display: block;
+        font-size: 0.88rem;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .scene-stage {
+        border: 2px solid var(--border);
+        background: var(--surface);
+      }
+
+      .scene-caption {
+        padding: 0.85rem 1.1rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .scene-caption kbd {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        padding: 0.12rem 0.45rem;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: var(--text);
+      }
+
+      /* Ato 3: Pilares humanos */
+      .pillars {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1.25rem;
+      }
+
+      .pillar {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 1.6rem;
+      }
+
+      .pillar-num {
+        font-family: var(--font-display);
+        font-size: 1.4rem;
+        color: var(--accent);
+        margin-bottom: 0.9rem;
+        display: block;
+      }
+
+      .pillar h3 {
+        margin: 0 0 0.55rem;
+        font-family: var(--font-heading);
+        font-size: 1.15rem;
+      }
+
+      .pillar p {
         margin: 0;
         color: var(--muted);
-        font-size: 0.94rem;
+        font-size: 0.95rem;
       }
-      .download-grid {
+
+      /* Ato 4: Onde usar */
+      .downloads-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 1rem;
       }
-      .download-card {
+
+      .dl-card {
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 1.5rem;
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 1.35rem;
+        padding: 1.4rem;
       }
-      .download-card h3 {
-        margin: 0 0 0.3rem;
-        font-size: 1.08rem;
+
+      .dl-card.featured {
+        border: 2px solid var(--accent);
+        box-shadow: -6px 6px 0 var(--accent);
       }
-      .download-card p {
+
+      .dl-badge {
+        display: inline-block;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--accent);
+        margin-bottom: 0.5rem;
+      }
+
+      .dl-card h3 {
+        margin: 0 0 0.4rem;
+        font-family: var(--font-heading);
+        font-size: 1.12rem;
+      }
+
+      .dl-card p {
         margin: 0;
         color: var(--muted);
         font-size: 0.9rem;
       }
-      .faq-list {
+
+      /* Ato 5: FAQ */
+      .faq-grid {
         display: grid;
-        gap: 0.85rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
       }
+
       .faq-item {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 1.15rem 1.35rem;
+        padding: 1.35rem;
       }
+
       .faq-item h3 {
-        margin: 0 0 0.35rem;
-        font-size: 1rem;
+        margin: 0 0 0.45rem;
+        font-family: var(--font-heading);
+        font-size: 1.02rem;
       }
+
       .faq-item p {
         margin: 0;
         color: var(--muted);
         font-size: 0.93rem;
       }
+
+      .tech-note {
+        margin-top: 2rem;
+        padding: 1rem 1.25rem;
+        border-left: 3px solid var(--accent);
+        background: var(--surface);
+        font-size: 0.88rem;
+        color: var(--muted);
+      }
+      .tech-note a {
+        color: var(--text);
+      }
+
       footer {
         border-top: 1px solid var(--border);
-        padding: 2rem 0 3rem;
+        padding: 2.5rem 0 3.5rem;
         color: var(--muted);
         font-size: 0.88rem;
       }
-      .footer-row {
+
+      .footer-inner {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 1.25rem;
       }
+
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.25rem;
+      }
+
       footer a {
         color: var(--text);
         text-decoration: underline;
         text-underline-offset: 3px;
       }
-      @media (max-width: 640px) {
-        .hero {
-          padding: 3rem 0 2.5rem;
+
+      /* Animação discreta de entrada no scroll */
+      .reveal {
+        opacity: 1;
+        transform: translateY(0);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+      .js-anim .reveal:not(.is-visible) {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
         }
-        .nav-links .hide-mobile {
+        .stage-frame,
+        .btn,
+        .reveal {
+          transition: none;
+          transform: none !important;
+          opacity: 1 !important;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .storyboard {
+          grid-template-columns: 1fr;
+        }
+        .pillars {
+          grid-template-columns: 1fr;
+        }
+        .downloads-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .faq-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .nav-links a.nav-item {
           display: none;
+        }
+        .downloads-grid {
+          grid-template-columns: 1fr;
+        }
+        .stage-frame {
+          box-shadow: -6px 6px 0 var(--accent);
         }
       }
     </style>
@@ -328,172 +649,215 @@
     <header>
       <div class="container nav">
         <a class="brand" href="./">
-          <span class="brand-badge" aria-hidden="true">M$</span>
+          <img src="./assets/logo.svg" alt="MyFBox" width="32" height="32" />
           <span>MyFBox</span>
         </a>
         <nav class="nav-links" aria-label="Navegação principal">
-          <a class="hide-mobile" href="#recursos">Recursos</a>
-          <a class="hide-mobile" href="#seguranca">Segurança</a>
-          <a class="hide-mobile" href="#downloads">Downloads</a>
-          <a class="btn btn-primary btn-sm" href="./app/">Abrir App Web</a>
+          <a class="nav-item" href="#telas">Telas</a>
+          <a class="nav-item" href="#privacidade">Privacidade</a>
+          <a class="nav-item" href="#baixar">Baixar</a>
+          <a class="btn btn-primary btn-sm" href="./app/">Abrir app</a>
         </nav>
       </div>
     </header>
 
     <main id="conteudo">
       <section class="hero" style="border-top: 0">
-        <div class="container">
-          <span class="eyebrow">LOCAL-FIRST · AES-256-GCM · ZERO SERVIDOR</span>
-          <h1>Seu cofre financeiro pessoal, 100% no seu dispositivo.</h1>
-          <p class="lead">
-            Controle contas, lançamentos, metas e múltiplas moedas sem criar conta, sem nuvem
-            obrigatória e sem rastreio. Só a sua senha mestra abre o cofre.
-          </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="./app/">Usar agora no navegador</a>
-            <a class="btn btn-secondary" href="#downloads">Baixar para Desktop</a>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="tag-line">SEM CADASTRO · SEM NUVEM · NO SEU APARELHO</span>
+            <h1>Seu dinheiro no seu controle.</h1>
+            <p class="hero-lead">
+              Acompanhe contas, gastos do mês e metas sem criar conta, sem pagar mensalidade e sem
+              entregar seus extratos para ninguém.
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="./app/">Abrir no navegador</a>
+              <a class="btn btn-secondary" href="#baixar">Baixar no computador</a>
+            </div>
           </div>
-          <div class="trust-strip">
-            <div class="trust-item">
-              <strong>AES-256-GCM + PBKDF2</strong>
-              <span>600.000 iterações com WebCrypto nativo</span>
+
+          <div class="stage-frame" id="hero-stage">
+            <div class="stage-bar">
+              <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              <span>MYFBOX // VISÃO DO MÊS</span>
             </div>
-            <div class="trust-item">
-              <strong>100% Offline</strong>
-              <span>Zero requisições a APIs externas</span>
-            </div>
-            <div class="trust-item">
-              <strong>Web &amp; Desktop</strong>
-              <span>Mesmo cofre cifrado via backup .myfbox.json</span>
-            </div>
-            <div class="trust-item">
-              <strong>AGPL-3.0-or-later</strong>
-              <span>Código aberto auditável e soberano</span>
-            </div>
+            <img
+              class="stage-img"
+              src="./assets/screen-dashboard.png"
+              alt="Tela principal do MyFBox mostrando saldo atual, entradas, saídas, previsão do mês e despesas por categoria"
+              width="1360"
+              height="840"
+              fetchpriority="high"
+            />
           </div>
         </div>
       </section>
 
-      <section id="recursos">
+      <section id="telas" class="reveal">
         <div class="container">
-          <h2>Feito para velocidade e privacidade real</h2>
-          <p class="section-sub">
-            Interface neo-brutalista pensada para registrar gastos em segundos pelo teclado, com
-            previsão de saldo e comparativos mês a mês.
+          <span class="section-kicker">POR DENTRO DO APP</span>
+          <h2>Feito para usar todo dia em poucos segundos</h2>
+          <p class="section-lead">
+            Escolha uma tela abaixo para ver como o MyFBox funciona na prática.
           </p>
-          <div class="grid">
-            <article class="card">
-              <h3>Entrada rápida pelo teclado</h3>
-              <p>
-                Pressione <kbd>N</kbd> de qualquer tela, digite o valor e a descrição com
-                categorização automática e salve com <kbd>Ctrl</kbd>+<kbd>Enter</kbd>.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Saldo hoje e previsão do mês</h3>
-              <p>
-                Separe o saldo confirmado das pendências e parcelamentos futuros para saber
-                exatamente quanto sobra no fim do mês.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Múltiplas moedas offline</h3>
-              <p>
-                Gerencie contas e lançamentos em BRL, USD, EUR e outras moedas com cotações
-                locais sem consultar serviços externos.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Metas e comparativos</h3>
-              <p>
-                Defina tetos mensais por categoria e acompanhe variações de receita e despesa entre
-                meses com clareza.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Backups cifrados portáteis</h3>
-              <p>
-                Exporte e restaure arquivos <code>.myfbox.json</code> cifrados a qualquer momento,
-                ou gere planilhas CSV protegidas contra injeção de fórmulas.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Modo MCP local opcional</h3>
-              <p>
-                Desligado por padrão. Quando pareado localmente via <code>127.0.0.1</code>, permite
-                que seu assistente de IA registre lançamentos no cofre aberto.
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
 
-      <section id="seguranca">
-        <div class="container">
-          <h2>Arquitetura de segurança sem concessões</h2>
-          <p class="section-sub">
-            Não existe backend, login ou telemetria. Todo o cofre é cifrado no cliente antes de
-            tocar o armazenamento do navegador ou o arquivo local no desktop.
-          </p>
-          <div class="grid">
-            <article class="card">
-              <h3>Criptografia autenticada</h3>
-              <p>
-                Cada gravação gera um novo IV de 96 bits para <strong>AES-256-GCM</strong>. A chave
-                derivada via <strong>PBKDF2-HMAC-SHA256</strong> (600.000 iterações) permanece em
-                memória como <code>CryptoKey</code> não extraível.
-              </p>
-            </article>
-            <article class="card">
-              <h3>CSP restrita</h3>
-              <p>
-                O build de produção bloqueia scripts externos, formulários e conexões de rede fora
-                da própria origem e da ponte MCP opcional em loopback.
-              </p>
-            </article>
-            <article class="card">
-              <h3>Desktop com cofre nativo</h3>
-              <p>
-                No app Electron, o cofre cifrado é gravado atomicamente no diretório do usuário com
-                permissão restrita (<code>0600</code> em POSIX) e isolamento de processo
-                (<code>sandbox: true</code>).
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="downloads">
-        <div class="container">
-          <h2>Use no navegador ou baixe o app Desktop</h2>
-          <p class="section-sub">
-            A versão web roda direto em <code>/app/</code> como PWA offline. Se preferir arquivo
-            nativo no disco, escolha o instalador do seu sistema operacional.
-          </p>
-          <div class="download-grid">
-            <div class="download-card">
-              <div>
-                <h3>Web / PWA</h3>
-                <p>Sem instalação. Dados cifrados no IndexedDB do navegador.</p>
-              </div>
-              <a class="btn btn-primary" href="./app/">Abrir App Web</a>
-            </div>
-            <div class="download-card">
-              <div>
-                <h3>Linux</h3>
-                <p>Pacotes <code>AppImage</code> e <code>.deb</code> (x64) via GitHub Releases.</p>
-              </div>
-              <a
-                class="btn btn-secondary"
-                href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
-                rel="noopener noreferrer"
-                >Baixar para Linux</a
+          <div class="storyboard">
+            <div class="scene-list" role="tablist" aria-label="Telas do MyFBox">
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="true"
+                data-img="./assets/screen-dashboard.png"
+                data-alt="Visão geral do mês com saldo atual, previsão até o fim do mês e gráfico anual"
+                data-label="MYFBOX // VISÃO GERAL"
+                data-caption="Separa o dinheiro que já entrou ou saiu do que ainda vai vencer."
               >
+                <span class="scene-num">01 / VISÃO DO MÊS</span>
+                <strong>Saiba quanto vai sobrar</strong>
+                <span class="scene-desc">
+                  Veja o saldo de hoje separado das contas pendentes até o fim do mês.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="./assets/screen-transactions.png"
+                data-alt="Lista de lançamentos com filtros, categorias e valores pagos ou pendentes"
+                data-label="MYFBOX // LANÇAMENTOS"
+                data-caption="Aperte N em qualquer tela para anotar um gasto sem tirar a mão do teclado."
+              >
+                <span class="scene-num">02 / LANÇAMENTOS</span>
+                <strong>Anote sem perder tempo</strong>
+                <span class="scene-desc">
+                  Parcelamentos, recorrências, filtros rápidos e sugestão automática de categoria.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="./assets/screen-budgets.png"
+                data-alt="Tela de metas mensais por categoria com barra de progresso do orçamento"
+                data-label="MYFBOX // METAS"
+                data-caption="Defina limites por categoria e acompanhe antes de estourar o mês."
+              >
+                <span class="scene-num">03 / METAS</span>
+                <strong>Limites que avisam antes</strong>
+                <span class="scene-desc">
+                  Coloque um teto mensal para mercado, lazer ou transporte e veja o quanto já usou.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="scene-btn"
+                role="tab"
+                aria-selected="false"
+                data-img="./assets/screen-lock.png"
+                data-alt="Tela de desbloqueio por senha mestra do cofre MyFBox"
+                data-label="MYFBOX // COFRE TRANCADO"
+                data-caption="Tranca sozinho por inatividade. Só a sua senha abre de novo."
+              >
+                <span class="scene-num">04 / PRIVACIDADE</span>
+                <strong>Só você abre o cofre</strong>
+                <span class="scene-desc">
+                  Seus dados ficam protegidos pela sua senha mestra, mesmo se alguém abrir o aparelho.
+                </span>
+              </button>
             </div>
-            <div class="download-card">
+
+            <div class="scene-stage">
+              <div class="stage-bar">
+                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span id="scene-label">MYFBOX // VISÃO GERAL</span>
+              </div>
+              <img
+                id="scene-img"
+                class="stage-img"
+                src="./assets/screen-dashboard.png"
+                alt="Visão geral do mês com saldo atual, previsão até o fim do mês e gráfico anual"
+                width="1360"
+                height="840"
+                loading="lazy"
+              />
+              <div class="scene-caption">
+                <span id="scene-caption">Separa o dinheiro que já entrou ou saiu do que ainda vai vencer.</span>
+                <span>Atalho rápido: <kbd>N</kbd></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="privacidade" class="reveal">
+        <div class="container">
+          <span class="section-kicker">SEU DINHEIRO, SUAS REGRAS</span>
+          <h2>Por que não pedimos nem seu e-mail</h2>
+          <p class="section-lead">
+            A maioria dos aplicativos financeiros ganha dinheiro olhando o que você compra. O MyFBox
+            faz o caminho oposto: tudo roda no seu próprio aparelho.
+          </p>
+
+          <div class="pillars">
+            <article class="pillar">
+              <span class="pillar-num">01</span>
+              <h3>Sem servidor no meio</h3>
+              <p>
+                Não existe conta para criar, senha para recuperar por e-mail nem banco de dados
+                externo recebendo seus lançamentos.
+              </p>
+            </article>
+            <article class="pillar">
+              <span class="pillar-num">02</span>
+              <h3>Funciona sem internet</h3>
+              <p>
+                Use no avião, no metrô ou no escritório. O app não consulta APIs de bancos nem
+                serviços externos.
+              </p>
+            </article>
+            <article class="pillar">
+              <span class="pillar-num">03</span>
+              <h3>Leve para onde quiser</h3>
+              <p>
+                Quer trocar de computador ou celular? Baixe um único arquivo protegido por senha e
+                restaure no outro aparelho.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="baixar" class="reveal">
+        <div class="container">
+          <span class="section-kicker">COMECE AGORA</span>
+          <h2>Use no navegador ou instale no computador</h2>
+          <p class="section-lead">
+            Os dois usam o mesmo formato de arquivo protegido. Você pode começar no navegador hoje e
+            levar seus dados para o app instalado depois.
+          </p>
+
+          <div class="downloads-grid">
+            <div class="dl-card featured">
               <div>
+                <span class="dl-badge">MAIS RÁPIDO</span>
+                <h3>Web / Celular</h3>
+                <p>Abre direto no navegador, sem instalar nada. Também funciona como aplicativo offline.</p>
+              </div>
+              <a class="btn btn-primary" href="./app/">Abrir agora</a>
+            </div>
+
+            <div class="dl-card">
+              <div>
+                <span class="dl-badge">DESKTOP</span>
                 <h3>Windows</h3>
-                <p>Instalador <code>NSIS (.exe)</code> e versão portátil via GitHub Releases.</p>
+                <p>Instalador tradicional ou versão portátil em um único arquivo.</p>
               </div>
               <a
                 class="btn btn-secondary"
@@ -502,10 +866,12 @@
                 >Baixar para Windows</a
               >
             </div>
-            <div class="download-card">
+
+            <div class="dl-card">
               <div>
+                <span class="dl-badge">DESKTOP</span>
                 <h3>macOS</h3>
-                <p>Imagem <code>.dmg</code> universal (Apple Silicon arm64 e Intel x64).</p>
+                <p>Compatível com Mac Apple Silicon (M1/M2/M3/M4) e Intel.</p>
               </div>
               <a
                 class="btn btn-secondary"
@@ -514,50 +880,135 @@
                 >Baixar para macOS</a
               >
             </div>
+
+            <div class="dl-card">
+              <div>
+                <span class="dl-badge">DESKTOP</span>
+                <h3>Linux</h3>
+                <p>Pacotes prontos em AppImage e .deb (Ubuntu/Debian).</p>
+              </div>
+              <a
+                class="btn btn-secondary"
+                href="https://github.com/thiegocarvalho/MyFBox/releases/latest"
+                rel="noopener noreferrer"
+                >Baixar para Linux</a
+              >
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="releases-info">
+      <section id="duvidas" class="reveal">
         <div class="container">
-          <h2>Perguntas frequentes</h2>
-          <div class="faq-list">
+          <span class="section-kicker">DÚVIDAS COMUNS</span>
+          <h2>Perguntas diretas</h2>
+          <div class="faq-grid">
             <article class="faq-item">
-              <h3>Onde meus dados ficam salvos?</h3>
+              <h3>Onde meus dados ficam guardados?</h3>
               <p>
-                Na versão web (<code>/app/</code>), os dados cifrados ficam no IndexedDB do seu
-                navegador. No app desktop, ficam em um arquivo cifrado local
-                (<code>vault.myfbox.json</code>) no diretório de dados do usuário.
+                No navegador, eles ficam salvos no armazenamento local do próprio navegador. No app
+                instalado no computador, ficam em um arquivo protegido na sua pasta de usuário.
               </p>
             </article>
             <article class="faq-item">
-              <h3>Posso migrar do navegador para o Desktop (e vice-versa)?</h3>
+              <h3>E se eu esquecer minha senha mestra?</h3>
               <p>
-                Sim. Basta baixar um backup cifrado (<code>.myfbox.json</code>) na aba
-                <strong>Backups &amp; Segurança</strong> e restaurá-lo no outro dispositivo com a
-                mesma senha mestra.
+                Não é possível recuperar, porque ninguém além de você tem a chave. Guarde sua senha
+                em um gerenciador de senhas confiável.
               </p>
             </article>
             <article class="faq-item">
-              <h3>E se eu esquecer a senha mestra?</h3>
+              <h3>Funciona com mais de uma moeda?</h3>
               <p>
-                Não existe recuperação de senha porque não há servidor nem cópia da sua chave. Guarde
-                a senha mestra em um gerenciador de senhas confiável.
+                Sim. Você pode ter contas e lançamentos em Real, Dólar, Euro e outras moedas, com
+                cotações informadas por você sem depender de internet.
+              </p>
+            </article>
+            <article class="faq-item">
+              <h3>Posso exportar meus dados para planilha?</h3>
+              <p>
+                Sim. Além do arquivo de backup protegido por senha, você pode baixar seus
+                lançamentos em CSV a qualquer momento.
               </p>
             </article>
           </div>
+
+          <p class="tech-note">
+            <strong>Para quem audita código:</strong> software livre sob licença AGPL-3.0-or-later,
+            cifrado localmente com AES-256-GCM + PBKDF2-HMAC-SHA256 (600.000 iterações) e suporte
+            opcional a assistentes de IA locais via MCP.
+            <a href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer"
+              >Ver código no GitHub</a
+            >.
+          </p>
         </div>
       </section>
     </main>
 
     <footer>
-      <div class="container footer-row">
-        <span>MyFBox · Software livre sob licença AGPL-3.0-or-later</span>
-        <span>
-          <a href="./app/">Abrir MyFBox Web</a> ·
-          <a href="#seguranca">Modelo de segurança</a>
-        </span>
+      <div class="container footer-inner">
+        <a class="brand" href="./">
+          <img src="./assets/logo.svg" alt="MyFBox" width="24" height="24" />
+          <span>MyFBox</span>
+        </a>
+        <div class="footer-links">
+          <a href="./app/">Abrir App Web</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/thiegocarvalho/MyFBox/blob/main/SECURITY.md" rel="noopener noreferrer"
+            >Segurança</a
+          >
+          <a href="https://github.com/thiegocarvalho/MyFBox/releases" rel="noopener noreferrer"
+            >Downloads</a
+          >
+        </div>
       </div>
     </footer>
+
+    <script>
+      (function () {
+        document.documentElement.classList.add('js-anim');
+        var buttons = document.querySelectorAll('.scene-btn');
+        var img = document.getElementById('scene-img');
+        var label = document.getElementById('scene-label');
+        var caption = document.getElementById('scene-caption');
+
+        buttons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            buttons.forEach(function (b) {
+              b.setAttribute('aria-selected', 'false');
+            });
+            btn.setAttribute('aria-selected', 'true');
+            if (img) {
+              img.src = btn.getAttribute('data-img') || '';
+              img.alt = btn.getAttribute('data-alt') || '';
+            }
+            if (label) label.textContent = btn.getAttribute('data-label') || '';
+            if (caption) caption.textContent = btn.getAttribute('data-caption') || '';
+          });
+        });
+
+        var reveals = document.querySelectorAll('.reveal');
+        if ('IntersectionObserver' in window) {
+          var io = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                  entry.target.classList.add('is-visible');
+                  io.unobserve(entry.target);
+                }
+              });
+            },
+            { threshold: 0.12 }
+          );
+          reveals.forEach(function (el) {
+            io.observe(el);
+          });
+        } else {
+          reveals.forEach(function (el) {
+            el.classList.add('is-visible');
+          });
+        }
+      })();
+    </script>
   </body>
 </html>
