@@ -6,6 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/thiegocarvalho/MyFBox)](https://github.com/thiegocarvalho/MyFBox/releases)
 [![Licença AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![AES-256-GCM](https://img.shields.io/badge/crypto-AES--256--GCM-10b981.svg)](SECURITY.md)
+[![MCP Local](https://img.shields.io/badge/MCP-Local--First-c8ff00.svg)](#modo-mcp-local)
 
 Controle financeiro pessoal **local-first** e **cifrado no seu dispositivo**. Sem conta, sem
 servidor, sem rastreio: os dados ficam no seu navegador (ou arquivo local no app desktop), cifrados com AES-256-GCM, e só a sua
@@ -18,6 +19,16 @@ senha mestra abre o cofre.
 | Visão Geral | Lançamentos | Metas |
 |---|---|---|
 | ![MyFBox Visão Geral](landing/assets/screen-dashboard.png) | ![MyFBox Lançamentos](landing/assets/screen-transactions.png) | ![MyFBox Metas](landing/assets/screen-budgets.png) |
+
+## Converse com suas finanças (MCP Local)
+
+O MyFBox traz um **servidor MCP embutido** (`127.0.0.1`) para você conectar Claude Code, Codex, Cursor ou outro cliente MCP diretamente ao seu cofre aberto — **sem que sua senha ou chave mestra saiam do dispositivo**:
+
+> *"Registre R$ 84,50 no mercado hoje no Nubank"* · *"Quanto já gastei em mercado este mês?"* · *"Lembra que dia 25 vence a internet de R$ 149,90"*
+
+- **Desligado por padrão:** só funciona enquanto o cofre estiver destravado e após você autorizar o pareamento com código curto.
+- **Trancou, cortou:** bloquear o app (manualmente ou por inatividade) encerra a ponte MCP na hora.
+- **20 ferramentas prontas:** lançamentos, consultas, metas, contas, cotações offline, insights mensais e backup cifrado (veja [como configurar](#modo-mcp-local)).
 
 ## Recursos
 
