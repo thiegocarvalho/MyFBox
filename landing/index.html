@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101010" />
+    <title>MyFBox — Controle Financeiro Pessoal Local-First e Cifrado</title>
+    <meta
+      name="description"
+      content="MyFBox é seu cofre financeiro pessoal 100% local-first, sem conta, sem servidor e cifrado com AES-256-GCM. Use direto no navegador ou baixe para Windows, macOS e Linux."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content="MyFBox — Controle Financeiro Pessoal Local-First e Cifrado" />
+    <meta
+      property="og:description"
+      content="Sem conta, sem servidor, sem rastreio. Seus dados financeiros cifrados com AES-256-GCM no navegador ou no app desktop."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MyFBox — My Financial Box" />
+    <meta
+      name="twitter:description"
+      content="Controle financeiro pessoal 100% offline e cifrado com AES-256-GCM."
+    />
+    <link rel="icon" type="image/svg+xml" href="./app/favicon.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "MyFBox",
+        "alternateName": "My Financial Box",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Web, Windows, macOS, Linux",
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+        "description": "Controle financeiro pessoal local-first e cifrado no dispositivo com AES-256-GCM e PBKDF2-HMAC-SHA256, sem conta ou servidor.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "BRL"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #0d0d0d;
+        --surface: #161616;
+        --surface-2: #1f1f1f;
+        --border: #2e2e2e;
+        --text: #f5f5f5;
+        --muted: #b3b3b3;
+        --accent: #d4ff4f;
+        --accent-ink: #0d0d0d;
+        --radius: 10px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      .skip-link {
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        background: var(--accent);
+        color: var(--accent-ink);
+        padding: 0.6rem 1rem;
+        font-weight: 700;
+        z-index: 100;
+      }
+      .skip-link:focus {
+        left: 1rem;
+        top: 1rem;
+      }
+      .container {
+        width: 100%;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        background: var(--bg);
+      }
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 68px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.65rem;
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 800;
+        font-size: 1.125rem;
+        letter-spacing: -0.02em;
+      }
+      .brand-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 900;
+        font-size: 0.9rem;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+      }
+      .nav-links a {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 0.94rem;
+        font-weight: 500;
+      }
+      .nav-links a:hover,
+      .nav-links a:focus-visible {
+        color: var(--text);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.78rem 1.3rem;
+        border-radius: var(--radius);
+        font-weight: 700;
+        font-size: 0.98rem;
+        text-decoration: none;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: transform 0.12s ease, background-color 0.12s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: var(--accent-ink);
+        border-color: var(--accent);
+      }
+      .btn-secondary {
+        background: var(--surface-2);
+        color: var(--text);
+        border-color: var(--border);
+      }
+      .btn-sm {
+        padding: 0.5rem 0.95rem;
+        font-size: 0.88rem;
+      }
+      .hero {
+        padding: 4.5rem 0 3.5rem;
+      }
+      .eyebrow {
+        display: inline-block;
+        padding: 0.28rem 0.7rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--accent);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 1.25rem;
+      }
+      h1 {
+        margin: 0 0 1.1rem;
+        font-size: clamp(2.1rem, 4.8vw, 3.45rem);
+        line-height: 1.08;
+        letter-spacing: -0.03em;
+        max-width: 18ch;
+      }
+      .lead {
+        margin: 0 0 2rem;
+        font-size: clamp(1.05rem, 2vw, 1.22rem);
+        color: var(--muted);
+        max-width: 58ch;
+      }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.85rem;
+        margin-bottom: 2.5rem;
+      }
+      .trust-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 0.85rem;
+        padding-top: 1.75rem;
+        border-top: 1px solid var(--border);
+      }
+      .trust-item strong {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+      .trust-item span {
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+      section {
+        padding: 3.5rem 0;
+        border-top: 1px solid var(--border);
+      }
+      h2 {
+        margin: 0 0 0.65rem;
+        font-size: clamp(1.5rem, 3vw, 2.05rem);
+        letter-spacing: -0.02em;
+      }
+      .section-sub {
+        margin: 0 0 2rem;
+        color: var(--muted);
+        max-width: 60ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.35rem;
+      }
+      .card h3 {
+        margin: 0 0 0.45rem;
+        font-size: 1.08rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+      .download-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 1rem;
+      }
+      .download-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.35rem;
+      }
+      .download-card h3 {
+        margin: 0 0 0.3rem;
+        font-size: 1.08rem;
+      }
+      .download-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .faq-list {
+        display: grid;
+        gap: 0.85rem;
+      }
+      .faq-item {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.15rem 1.35rem;
+      }
+      .faq-item h3 {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+      }
+      .faq-item p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.93rem;
+      }
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 2rem 0 3rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+      .footer-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      footer a {
+        color: var(--text);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      @media (max-width: 640px) {
+        .hero {
+          padding: 3rem 0 2.5rem;
+        }
+        .nav-links .hide-mobile {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+    <header>
+      <div class="container nav">
+        <a class="brand" href="./">
+          <span class="brand-badge" aria-hidden="true">M$</span>
+          <span>MyFBox</span>
+        </a>
+        <nav class="nav-links" aria-label="Navegação principal">
+          <a class="hide-mobile" href="#recursos">Recursos</a>
+          <a class="hide-mobile" href="#seguranca">Segurança</a>
+          <a class="hide-mobile" href="#downloads">Downloads</a>
+          <a class="btn btn-primary btn-sm" href="./app/">Abrir App Web</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="conteudo">
+      <section class="hero" style="border-top: 0">
+        <div class="container">
+          <span class="eyebrow">LOCAL-FIRST · AES-256-GCM · ZERO SERVIDOR</span>
+          <h1>Seu cofre financeiro pessoal, 100% no seu dispositivo.</h1>
+          <p class="lead">
+            Controle contas, lançamentos, metas e múltiplas moedas sem criar conta, sem nuvem
+            obrigatória e sem rastreio. Só a sua senha mestra abre o cofre.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="./app/">Usar agora no navegador</a>
+            <a class="btn btn-secondary" href="#downloads">Baixar para Desktop</a>
+          </div>
+          <div class="trust-strip">
+            <div class="trust-item">
+              <strong>AES-256-GCM + PBKDF2</strong>
+              <span>600.000 iterações com WebCrypto nativo</span>
+            </div>
+            <div class="trust-item">
+              <strong>100% Offline</strong>
+              <span>Zero requisições a APIs externas</span>
+            </div>
+            <div class="trust-item">
+              <strong>Web &amp; Desktop</strong>
+              <span>Mesmo cofre cifrado via backup .myfbox.json</span>
+            </div>
+            <div class="trust-item">
+              <strong>AGPL-3.0-or-later</strong>
+              <span>Código aberto auditável e soberano</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="recursos">
+        <div class="container">
+          <h2>Feito para velocidade e privacidade real</h2>
+          <p class="section-sub">
+            Interface neo-brutalista pensada para registrar gastos em segundos pelo teclado, com
+            previsão de saldo e comparativos mês a mês.
+          </p>
+          <div class="grid">
+            <article class="card">
+              <h3>Entrada rápida pelo teclado</h3>
+              <p>
+                Pressione <kbd>N</kbd> de qualquer tela, digite o valor e a descrição com
+                categorização automática e salve com <kbd>Ctrl</kbd>+<kbd>Enter</kbd>.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Saldo hoje e previsão do mês</h3>
+              <p>
+                Separe o saldo confirmado das pendências e parcelamentos futuros para saber
+                exatamente quanto sobra no fim do mês.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Múltiplas moedas offline</h3>
+              <p>
+                Gerencie contas e lançamentos em BRL, USD, EUR e outras moedas com cotações
+                locais sem consultar serviços externos.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Metas e comparativos</h3>
+              <p>
+                Defina tetos mensais por categoria e acompanhe variações de receita e despesa entre
+                meses com clareza.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Backups cifrados portáteis</h3>
+              <p>
+                Exporte e restaure arquivos <code>.myfbox.json</code> cifrados a qualquer momento,
+                ou gere planilhas CSV protegidas contra injeção de fórmulas.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Modo MCP local opcional</h3>
+              <p>
+                Desligado por padrão. Quando pareado localmente via <code>127.0.0.1</code>, permite
+                que seu assistente de IA registre lançamentos no cofre aberto.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="seguranca">
+        <div class="container">
+          <h2>Arquitetura de segurança sem concessões</h2>
+          <p class="section-sub">
+            Não existe backend, login ou telemetria. Todo o cofre é cifrado no cliente antes de
+            tocar o armazenamento do navegador ou o arquivo local no desktop.
+          </p>
+          <div class="grid">
+            <article class="card">
+              <h3>Criptografia autenticada</h3>
+              <p>
+                Cada gravação gera um novo IV de 96 bits para <strong>AES-256-GCM</strong>. A chave
+                derivada via <strong>PBKDF2-HMAC-SHA256</strong> (600.000 iterações) permanece em
+                memória como <code>CryptoKey</code> não extraível.
+              </p>
+            </article>
+            <article class="card">
+              <h3>CSP restrita</h3>
+              <p>
+                O build de produção bloqueia scripts externos, formulários e conexões de rede fora
+                da própria origem e da ponte MCP opcional em loopback.
+              </p>
+            </article>
+            <article class="card">
+              <h3>Desktop com cofre nativo</h3>
+              <p>
+                No app Electron, o cofre cifrado é gravado atomicamente no diretório do usuário com
+                permissão restrita (<code>0600</code> em POSIX) e isolamento de processo
+                (<code>sandbox: true</code>).
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="downloads">
+        <div class="container">
+          <h2>Use no navegador ou baixe o app Desktop</h2>
+          <p class="section-sub">
+            A versão web roda direto em <code>/app/</code> como PWA offline. Se preferir arquivo
+            nativo no disco, escolha o instalador do seu sistema operacional.
+          </p>
+          <div class="download-grid">
+            <div class="download-card">
+              <div>
+                <h3>Web / PWA</h3>
+                <p>Sem instalação. Dados cifrados no IndexedDB do navegador.</p>
+              </div>
+              <a class="btn btn-primary" href="./app/">Abrir App Web</a>
+            </div>
+            <div class="download-card">
+              <div>
+                <h3>Linux</h3>
+                <p>Pacotes <code>AppImage</code> e <code>.deb</code> (x64) via GitHub Releases.</p>
+              </div>
+              <a class="btn btn-secondary" href="#releases-info">Ver Releases Linux</a>
+            </div>
+            <div class="download-card">
+              <div>
+                <h3>Windows</h3>
+                <p>Instalador <code>NSIS (.exe)</code> e versão portátil via GitHub Releases.</p>
+              </div>
+              <a class="btn btn-secondary" href="#releases-info">Ver Releases Windows</a>
+            </div>
+            <div class="download-card">
+              <div>
+                <h3>macOS</h3>
+                <p>Imagem <code>.dmg</code> universal (Apple Silicon arm64 e Intel x64).</p>
+              </div>
+              <a class="btn btn-secondary" href="#releases-info">Ver Releases macOS</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="releases-info">
+        <div class="container">
+          <h2>Perguntas frequentes</h2>
+          <div class="faq-list">
+            <article class="faq-item">
+              <h3>Onde meus dados ficam salvos?</h3>
+              <p>
+                Na versão web (<code>/app/</code>), os dados cifrados ficam no IndexedDB do seu
+                navegador. No app desktop, ficam em um arquivo cifrado local
+                (<code>vault.myfbox.json</code>) no diretório de dados do usuário.
+              </p>
+            </article>
+            <article class="faq-item">
+              <h3>Posso migrar do navegador para o Desktop (e vice-versa)?</h3>
+              <p>
+                Sim. Basta baixar um backup cifrado (<code>.myfbox.json</code>) na aba
+                <strong>Backups &amp; Segurança</strong> e restaurá-lo no outro dispositivo com a
+                mesma senha mestra.
+              </p>
+            </article>
+            <article class="faq-item">
+              <h3>E se eu esquecer a senha mestra?</h3>
+              <p>
+                Não existe recuperação de senha porque não há servidor nem cópia da sua chave. Guarde
+                a senha mestra em um gerenciador de senhas confiável.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-row">
+        <span>MyFBox · Software livre sob licença AGPL-3.0-or-later</span>
+        <span>
+          <a href="./app/">Abrir MyFBox Web</a> ·
+          <a href="#seguranca">Modelo de segurança</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>
