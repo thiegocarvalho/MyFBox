@@ -1,10 +1,23 @@
 # MyFBox
 
+[![CI](https://github.com/thiegocarvalho/MyFBox/actions/workflows/ci.yml/badge.svg)](https://github.com/thiegocarvalho/MyFBox/actions/workflows/ci.yml)
+[![Desktop Release](https://github.com/thiegocarvalho/MyFBox/actions/workflows/desktop-release.yml/badge.svg)](https://github.com/thiegocarvalho/MyFBox/actions/workflows/desktop-release.yml)
+[![GitHub Pages](https://github.com/thiegocarvalho/MyFBox/actions/workflows/gh-pages.yml/badge.svg)](https://github.com/thiegocarvalho/MyFBox/actions/workflows/gh-pages.yml)
+[![Release](https://img.shields.io/github/v/release/thiegocarvalho/MyFBox)](https://github.com/thiegocarvalho/MyFBox/releases)
+[![Licença AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)](LICENSE)
+[![AES-256-GCM](https://img.shields.io/badge/crypto-AES--256--GCM-10b981.svg)](SECURITY.md)
+
 Controle financeiro pessoal **local-first** e **cifrado no seu dispositivo**. Sem conta, sem
-servidor, sem rastreio: os dados ficam no seu navegador, cifrados com AES-256-GCM, e só a sua
+servidor, sem rastreio: os dados ficam no seu navegador (ou arquivo local no app desktop), cifrados com AES-256-GCM, e só a sua
 senha mestra abre o cofre.
 
-> Interface em português do Brasil · React 19 + TypeScript + Vite · estilo neo-brutalista
+> Interface em português do Brasil · React 19 + TypeScript + Vite + Electron · estilo neo-brutalista
+
+## Capturas de tela
+
+| Desktop | Mobile |
+|---|---|
+| ![MyFBox Desktop](public/screenshots/screenshot-desktop.png) | ![MyFBox Mobile](public/screenshots/screenshot-mobile.png) |
 
 ## Recursos
 
