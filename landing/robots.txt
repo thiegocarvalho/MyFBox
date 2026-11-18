@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://thiegocarvalho.github.io/MyFBox/sitemap.xml

@@ -10,21 +10,25 @@
       content="Organize contas, gastos, metas e moedas sem criar conta nem mandar seus extratos para a nuvem. Use direto no navegador ou baixe para Windows, macOS e Linux."
     />
     <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://thiegocarvalho.github.io/MyFBox/" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
+    <meta property="og:url" content="https://thiegocarvalho.github.io/MyFBox/" />
     <meta property="og:title" content="MyFBox — Controle financeiro pessoal no seu aparelho" />
     <meta
       property="og:description"
       content="Sem login, sem nuvem obrigatória, sem mensalidade. Organize suas finanças no navegador ou no computador."
     />
-    <meta property="og:image" content="./assets/screen-dashboard.png" />
+    <meta property="og:image" content="https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="MyFBox — My Financial Box" />
     <meta
       name="twitter:description"
       content="Controle financeiro pessoal rápido, offline e protegido por senha no seu aparelho."
     />
+    <meta name="twitter:image" content="https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png" />
     <link rel="icon" type="image/svg+xml" href="./assets/logo.svg" />
+    <link rel="preload" as="image" href="./assets/screen-dashboard.png" fetchpriority="high" />
     <link rel="preload" href="./fonts/unbounded-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="./fonts/plus-jakarta-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
     <script type="application/ld+json">
@@ -33,6 +37,8 @@
         "@type": "SoftwareApplication",
         "name": "MyFBox",
         "alternateName": "My Financial Box",
+        "url": "https://thiegocarvalho.github.io/MyFBox/",
+        "screenshot": "https://thiegocarvalho.github.io/MyFBox/assets/screen-dashboard.png",
         "applicationCategory": "FinanceApplication",
         "operatingSystem": "Web, Windows, macOS, Linux",
         "license": "https://www.gnu.org/licenses/agpl-3.0.html",
@@ -42,6 +48,46 @@
           "price": "0",
           "priceCurrency": "BRL"
         }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Onde meus dados ficam guardados?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No navegador, eles ficam salvos no armazenamento local do próprio navegador. No app instalado no computador, ficam em um arquivo protegido na sua pasta de usuário."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "E se eu esquecer minha senha mestra?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Não é possível recuperar, porque ninguém além de você tem a chave. Guarde sua senha em um gerenciador de senhas confiável."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Funciona com mais de uma moeda?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Você pode ter contas e lançamentos em Real, Dólar, Euro e outras moedas, com cotações informadas por você sem depender de internet."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Posso exportar meus dados para planilha?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Sim. Além do arquivo de backup protegido por senha, você pode baixar seus lançamentos em CSV a qualquer momento."
+            }
+          }
+        ]
       }
     </script>
     <style>
@@ -1108,6 +1154,7 @@
                 width="1360"
                 height="840"
                 loading="lazy"
+                decoding="async"
               />
               <div class="scene-caption">
                 <span id="scene-caption">Separa o dinheiro que já entrou ou saiu do que ainda vai vencer.</span>
