@@ -1,7 +1,7 @@
 {
   "name": "myfbox",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Controle financeiro pessoal local-first, cifrado no dispositivo (AES-256-GCM), para Web e Desktop (Electron), com modo MCP local.",
   "license": "AGPL-3.0-or-later",
   "keywords": [

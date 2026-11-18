@@ -7,6 +7,18 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ## [Não lançado]
 
+## [0.1.1] - 2026-11-18
+
+### Adicionado
+- `CHANGELOG.md` no padrão **Keep a Changelog 1.1.0** integrado automaticamente ao workflow de publicação de Releases do GitHub (`desktop-release.yml`).
+- Capturas de tela reais localizadas por idioma (`pt-BR`, `en-GB`, `es`, `zh-CN`) aplicadas nos respectivos `README*.md` e nas Landing Pages estáticas (`/en-gb/`, `/es/`, `/zh-cn/`).
+
+### Corrigido
+- Tradução dinâmica dos nomes de moedas nos seletores (`VaultLockScreen`, `BackupSecurityView`, `AccountsView` e `TransactionModal`) via `Intl.DisplayNames`, além de formatação regional de cotações (`formatRate`).
+- Tradução completa dos rótulos, tempos de quebra e dicas do medidor de força de senha (`src/utils/password.ts`) na troca de senha mestre.
+- Tradução das mensagens residuais nas respostas do servidor de ações MCP (`src/services/mcpActions.ts`).
+- Determinismo de idioma nos testes unitários de força de senha (`src/utils/password.test.ts`) em runners CI com locale `en-US`.
+
 ## [0.1.0] - 2026-11-18
 
 ### Adicionado
@@ -47,6 +59,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - Servidor MCP local (`mcp/server.mjs`) para integração segura com assistentes de IA.
 - Suíte de testes unitários (Vitest), E2E (Playwright), auditoria de CVEs no CI e workflows de deploy no GitHub Pages e empacotamento Desktop.
 
-[Não lançado]: https://github.com/thiegocarvalho/MyFBox/compare/v0.1.0...HEAD
+[Não lançado]: https://github.com/thiegocarvalho/MyFBox/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/thiegocarvalho/MyFBox/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/thiegocarvalho/MyFBox/compare/0.0.1...v0.1.0
 [0.0.1]: https://github.com/thiegocarvalho/MyFBox/releases/tag/0.0.1
