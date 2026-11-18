@@ -19,14 +19,15 @@ import type { VaultPayload } from '../types/finance';
 function makeVault(): VaultPayload {
   return {
     version: 1,
+    updatedAt: '2026-11-18T12:00:00Z',
     accounts: [
-      { id: 'acc-1', name: 'Carteira', type: 'wallet', initialBalance: 1000, currency: 'BRL' },
-      { id: 'acc-2', name: 'Dólar', type: 'checking', initialBalance: 100, currency: 'USD' },
+      { id: 'acc-1', name: 'Carteira', type: 'wallet', initialBalance: 1000, currency: 'BRL', color: '#10b981' },
+      { id: 'acc-2', name: 'Dólar', type: 'checking', initialBalance: 100, currency: 'USD', color: '#3b82f6' },
     ],
     categories: [
-      { id: 'cat-food', name: 'Alimentação', type: 'expense', color: '#ff5500' },
-      { id: 'cat-other-exp', name: 'Outros', type: 'expense', color: '#888888', isSystem: true },
-      { id: 'cat-other-inc', name: 'Outros', type: 'income', color: '#888888', isSystem: true },
+      { id: 'cat-food', name: 'Alimentação', type: 'expense', color: '#ff5500', icon: 'utensils' },
+      { id: 'cat-other-exp', name: 'Outros', type: 'expense', color: '#888888', icon: 'tag', isSystem: true },
+      { id: 'cat-other-inc', name: 'Outros', type: 'income', color: '#888888', icon: 'tag', isSystem: true },
     ],
     transactions: [
       {
@@ -42,6 +43,9 @@ function makeVault(): VaultPayload {
       },
     ],
     settings: {
+      currency: 'BRL',
+      hideValuesByDefault: false,
+      vaultName: 'Teste',
       autoLockMinutes: 15,
       exchangeRates: [{ from: 'USD', to: 'BRL', rate: 5, updatedAt: '2026-11-18 10:00' }],
     },
@@ -80,6 +84,7 @@ describe('domain/vaultUseCases', () => {
       name: 'Viagem',
       type: 'expense',
       color: '#00aaff',
+      icon: 'plane',
     });
     expect(withCat.categories).toHaveLength(4);
 
@@ -88,6 +93,7 @@ describe('domain/vaultUseCases', () => {
       name: 'Tentativa',
       type: 'expense',
       color: '#000000',
+      icon: 'tag',
     });
     expect(protectedUpdate.categories.find((c) => c.id === 'cat-other-exp')?.name).toBe('Outros');
     expect(deleteCategoryInVault(protectedUpdate, 'cat-other-exp')).toBeNull();
@@ -105,6 +111,7 @@ describe('domain/vaultUseCases', () => {
       type: 'reserve',
       initialBalance: 0,
       currency: 'BRL',
+      color: '#6366f1',
     });
     expect(v1.accounts).toHaveLength(3);
 
