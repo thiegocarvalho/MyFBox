@@ -71,13 +71,40 @@ jobs:
     if: always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && needs.build-desktop.result != 'cancelled'
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v ver="$TAG" '
+            $0 ~ "^## \\[" ver "\\]" { in_sec=1; next }
+            in_sec && /^## \[/ { exit }
+            in_sec { print }
+          ' CHANGELOG.md > release-notes.md || true
+          if [ -s release-notes.md ]; then
+            echo "has_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download all installers
         uses: actions/download-artifact@v8
         with:
           path: dist-release
           merge-multiple: true
 
-      - name: Attach installers to GitHub Release
+      - name: Attach installers to GitHub Release (with CHANGELOG)
+        if: steps.changelog.outputs.has_notes == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md
+          files: dist-release/*
+
+      - name: Attach installers to GitHub Release (auto notes fallback)
+        if: steps.changelog.outputs.has_notes != 'true'
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
