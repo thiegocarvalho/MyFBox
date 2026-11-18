@@ -66,6 +66,14 @@ atual no desbloqueio/restauração.
 - Fontes servidas localmente (sem Google Fonts) e `referrer` desativado.
 - Servidor de desenvolvimento ligado só em `127.0.0.1`.
 
+## App Desktop (Electron) e IPC
+
+- **Isolamento do renderer:** `BrowserWindow` configurado com `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `webSecurity: true` e `allowRunningInsecureContent: false`.
+- **Bloqueio de navegação e permissões:** `setWindowOpenHandler` nega pop-ups/novas janelas; `will-navigate` restringe navegação à origem do app; `will-attach-webview` e `setPermissionRequestHandler` bloqueiam webviews e permissões de dispositivo.
+- **IPC mínimo e validado:** `electron/preload.ts` expõe apenas `vault.{load, save, delete, info}` e `mcp.info` (nenhum acesso genérico a `fs` ou `ipcRenderer`). O processo principal valida integralmente a estrutura de `EncryptedVaultEnvelope` (PBKDF2-HMAC-SHA256 + AES-256-GCM, limite de 20 MB) antes de gravar.
+- **Persistência atômica em disco:** o cofre cifrado é gravado via arquivo temporário + `rename` em `app.getPath('userData')/vault.myfbox.json` com permissão `0600` (POSIX) — nenhum dado descriptografado trafega por IPC ou toca o disco.
+- **Instância única:** `app.requestSingleInstanceLock()` evita duas janelas concorrentes escrevendo no mesmo cofre.
+
 ## Reportar uma vulnerabilidade
 
 Não abra uma issue pública. Use o recurso de **Security Advisory privado** do repositório (aba

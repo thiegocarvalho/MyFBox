@@ -73,6 +73,13 @@ Abra **http://localhost:41730**, crie um cofre e uma senha mestra.
 | `npm run preview` | Serve o build de produção na mesma porta |
 | `npm run lint` | Lint com oxlint |
 | `npm run mcp` | Inicia o servidor MCP local manualmente (normalmente o cliente MCP inicia sozinho) |
+| `npm run electron:dev` | Abre o MyFBox no Electron em modo desenvolvimento |
+| `npm run electron:start` | Compila app + Electron e abre a janela desktop |
+| `npm run dist:linux` | Gera pacotes Linux (`AppImage` e `deb`) em `release/` |
+| `npm run dist:win` | Gera instalador Windows (`nsis` e `portable`) |
+| `npm run dist:mac` | Gera imagem macOS (`dmg` `x64` e `arm64`) |
+
+> **Versão Desktop vs Web (GitHub Pages):** o app web e o Electron compartilham o mesmo build Vite (`base: './'`). No GitHub Pages, a Landing Page (`landing/`) fica na raiz (`/`) e o app web em `/app/`, enquanto o pacote Electron nunca inclui `landing/`. No desktop, o cofre cifrado é gravado em `vault.myfbox.json` no diretório de dados do usuário (`app.getPath('userData')`).
 
 ## Seus dados e backups
 
