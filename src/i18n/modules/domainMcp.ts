@@ -145,6 +145,10 @@ export const domainMcpMessages = {
     'domainMcp.mcpActions.noticeDeletedInsight': 'MCP removeu o insight de {{month}}',
     'domainMcp.mcpActions.offlineRatesNote':
       'O MyFBox opera de forma 100% offline. Cotações são cadastradas manualmente ou pelo agente via MCP.',
+    'domainMcp.mcpActions.alreadyExists': 'já existe',
+    'domainMcp.mcpActions.defaultTransferDescription': 'Transferência entre contas',
+    'domainMcp.mcpActions.comparisonNote':
+      'Valores em BRL. Totais do mês contam pagos + pendentes (competência). Moedas estrangeiras convertidas pela cotação fixada no lançamento ou pela atual.',
     'domainMcp.mcpActions.fromToRequired': 'from e to são obrigatórios',
     'domainMcp.mcpActions.ratePositiveNumber': 'rate deve ser um número positivo maior que zero',
     'domainMcp.mcpActions.unsupportedFromCurrency':
@@ -585,6 +589,10 @@ export const domainMcpMessages = {
     'domainMcp.mcpActions.noticeDeletedInsight': 'MCP removed the insight for {{month}}',
     'domainMcp.mcpActions.offlineRatesNote':
       'MyFBox operates 100% offline. Exchange rates are entered manually or by the agent via MCP.',
+    'domainMcp.mcpActions.alreadyExists': 'already exists',
+    'domainMcp.mcpActions.defaultTransferDescription': 'Transfer between accounts',
+    'domainMcp.mcpActions.comparisonNote':
+      'Amounts in BRL. Monthly totals include paid + pending (accrual basis). Foreign currencies converted using the fixed transaction rate or current rate.',
     'domainMcp.mcpActions.fromToRequired': 'from and to are required',
     'domainMcp.mcpActions.ratePositiveNumber': 'rate must be a positive number greater than zero',
     'domainMcp.mcpActions.unsupportedFromCurrency':
@@ -1026,6 +1034,10 @@ export const domainMcpMessages = {
     'domainMcp.mcpActions.noticeDeletedInsight': 'MCP eliminó el insight de {{month}}',
     'domainMcp.mcpActions.offlineRatesNote':
       'MyFBox funciona 100% sin conexión. Las cotizaciones se ingresan manualmente o mediante el agente vía MCP.',
+    'domainMcp.mcpActions.alreadyExists': 'ya existe',
+    'domainMcp.mcpActions.defaultTransferDescription': 'Transferencia entre cuentas',
+    'domainMcp.mcpActions.comparisonNote':
+      'Importes en BRL. Los totales mensuales incluyen pagados + pendientes (devengo). Monedas extranjeras convertidas por la cotización fijada o la actual.',
     'domainMcp.mcpActions.fromToRequired': 'from y to son obligatorios',
     'domainMcp.mcpActions.ratePositiveNumber': 'rate debe ser un número positivo mayor que cero',
     'domainMcp.mcpActions.unsupportedFromCurrency':
@@ -1460,6 +1472,10 @@ export const domainMcpMessages = {
     'domainMcp.mcpActions.noticeDeletedInsight': 'MCP 删除了 {{month}} 的洞察',
     'domainMcp.mcpActions.offlineRatesNote':
       'MyFBox 100% 离线运行。汇率由用户手动输入或由助手通过 MCP 设置。',
+    'domainMcp.mcpActions.alreadyExists': '已存在',
+    'domainMcp.mcpActions.defaultTransferDescription': '账户间转账',
+    'domainMcp.mcpActions.comparisonNote':
+      '金额以 BRL 计价。月度总计包含已付和待处理项目（权责发生制）。外币按交易锁定汇率或当前汇率换算。',
     'domainMcp.mcpActions.fromToRequired': 'from 和 to 为必填项',
     'domainMcp.mcpActions.ratePositiveNumber': 'rate 必须是大于零的正数',
     'domainMcp.mcpActions.unsupportedFromCurrency':

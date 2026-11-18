@@ -43,6 +43,7 @@ import { buildMcpSetupInfo } from '../utils/mcpConfig';
 import type { StoragePersistStatus } from '../services/storagePersistence';
 import {
   POPULAR_CURRENCIES,
+  getCurrencyName,
   formatRate,
   getCurrencyInfo,
   getVaultExchangeRates,
@@ -658,7 +659,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                 >
                   {POPULAR_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.flag} {c.code} — {c.name} ({c.symbol})
+                      {c.flag} {c.code} — {getCurrencyName(c.code)} ({c.symbol})
                     </option>
                   ))}
                 </select>
@@ -676,7 +677,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
                 >
                   {POPULAR_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.flag} {c.code} — {c.name} ({c.symbol})
+                      {c.flag} {c.code} — {getCurrencyName(c.code)} ({c.symbol})
                     </option>
                   ))}
                 </select>

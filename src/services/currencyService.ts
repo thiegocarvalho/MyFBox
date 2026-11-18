@@ -1,3 +1,4 @@
+import { getActiveLanguage, type AppLanguage } from '../i18n';
 import {
   findExchangeRate,
   formatRateDate,
@@ -79,30 +80,48 @@ export function getCurrencyFlag(code: string): string {
   return CURRENCY_BY_CODE.get(normalizeCurrency(code))?.flag || '';
 }
 
+const currencyDisplayCache = new Map<string, Intl.DisplayNames>();
+
+export function getCurrencyName(code: string, lang: AppLanguage = getActiveLanguage()): string {
+  const norm = normalizeCurrency(code);
+  const fallback = CURRENCY_BY_CODE.get(norm)?.name || norm;
+  try {
+    let dn = currencyDisplayCache.get(lang);
+    if (!dn && typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function') {
+      dn = new Intl.DisplayNames([lang], { type: 'currency' });
+      currencyDisplayCache.set(lang, dn);
+    }
+    const localized = dn?.of(norm);
+    if (localized && localized !== norm) {
+      return localized.charAt(0).toUpperCase() + localized.slice(1);
+    }
+  } catch {
+    /* fallback to static name */
+  }
+  return fallback;
+}
+
 export function isSupportedCurrency(code: string): code is PopularCurrencyCode {
   return SUPPORTED_CODE_SET.has(normalizeCurrency(code));
 }
 
-const RATE_FMT_2 = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const RATE_FMT_4 = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-const RATE_FMT_6 = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 4,
-  maximumFractionDigits: 6,
-});
-
-export function formatRate(rate: number): string {
+export function formatRate(rate: number, lang: AppLanguage = getActiveLanguage()): string {
   if (!Number.isFinite(rate) || rate <= 0) return '0.00';
+  const locale = lang === 'es' ? 'es-ES' : lang;
   if (rate >= 100) {
-    return RATE_FMT_2.format(rate);
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(rate);
   }
   if (rate >= 1) {
-    return RATE_FMT_4.format(rate);
+    return new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    }).format(rate);
   }
-  return RATE_FMT_6.format(rate);
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 6,
+  }).format(rate);
 }

@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 export interface PasswordStrengthResult {
   score: number;
   label: string;
@@ -38,29 +40,41 @@ const COMMON_WEAK_PASSWORDS = new Set([
 ]);
 
 export function formatCrackTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return 'Bilhões de anos';
-  if (seconds <= 1) return 'Instantâneo';
-  if (seconds < 60) return `~${Math.max(1, Math.round(seconds))} s`;
+  if (!Number.isFinite(seconds)) return t('lock.crackTime.billionsYears');
+  if (seconds <= 1) return t('lock.crackTime.instant');
+  if (seconds < 60) return t('lock.crackTime.seconds', { count: Math.max(1, Math.round(seconds)) });
 
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `~${minutes} min`;
+  if (minutes < 60) return t('lock.crackTime.minutes', { count: minutes });
 
   const hours = Math.round(seconds / 3600);
-  if (hours < 24) return `~${hours} h`;
+  if (hours < 24) return t('lock.crackTime.hours', { count: hours });
 
   const days = Math.round(seconds / 86400);
-  if (days < 30) return `~${days} ${days === 1 ? 'dia' : 'dias'}`;
+  if (days < 30) {
+    return t(days === 1 ? 'lock.crackTime.daySingular' : 'lock.crackTime.dayPlural', {
+      count: days,
+    });
+  }
 
   const months = Math.round(seconds / (86400 * 30.44));
-  if (months < 12) return `~${months} ${months === 1 ? 'mês' : 'meses'}`;
+  if (months < 12) {
+    return t(months === 1 ? 'lock.crackTime.monthSingular' : 'lock.crackTime.monthPlural', {
+      count: months,
+    });
+  }
 
   const years = Math.round(seconds / (86400 * 365.25));
-  if (years < 100) return `~${years} ${years === 1 ? 'ano' : 'anos'}`;
-  if (years < 1000) return 'Centenas de anos';
-  if (years < 10_000) return `~${Math.round(years / 1000)} mil anos`;
-  if (years < 1_000_000) return 'Centenas de milhares de anos';
-  if (years < 1_000_000_000) return 'Milhões de anos';
-  return 'Bilhões de anos';
+  if (years < 100) {
+    return t(years === 1 ? 'lock.crackTime.yearSingular' : 'lock.crackTime.yearPlural', {
+      count: years,
+    });
+  }
+  if (years < 1000) return t('lock.crackTime.hundredsYears');
+  if (years < 10_000) return t('lock.crackTime.thousandYears', { count: Math.round(years / 1000) });
+  if (years < 1_000_000) return t('lock.crackTime.hundredThousandsYears');
+  if (years < 1_000_000_000) return t('lock.crackTime.millionsYears');
+  return t('lock.crackTime.billionsYears');
 }
 
 export function passwordStrength(pw: string): PasswordStrengthResult {
@@ -105,10 +119,10 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
   if (isRepetition || isNumericSequence || isCommon) {
     return {
       score: 0,
-      label: 'Muito fraca',
-      crackTimeText: 'Instantâneo',
+      label: t('lock.strength.0'),
+      crackTimeText: t('lock.crackTime.instant'),
       crackTimeSeconds: 0.1,
-      tip: 'Evite sequências ou senhas muito comuns.',
+      tip: t('lock.strength.tipCommon'),
       checks,
     };
   }
@@ -137,41 +151,41 @@ export function passwordStrength(pw: string): PasswordStrengthResult {
   if (pw.length < 6) {
     return {
       score: 0,
-      label: 'Muito fraca',
+      label: t('lock.strength.0'),
       crackTimeText: formatCrackTime(seconds),
       crackTimeSeconds: seconds,
-      tip: 'A senha precisa de pelo menos 6 caracteres.',
+      tip: t('lock.strength.tipMin6'),
       checks,
     };
   }
 
   let score = 0;
-  let label = 'Muito fraca';
+  let label = t('lock.strength.0');
 
   if (seconds < 60) {
     score = 0;
-    label = 'Muito fraca';
+    label = t('lock.strength.0');
   } else if (seconds < 86400 * 2) {
     score = 1;
-    label = 'Fraca';
+    label = t('lock.strength.1');
   } else if (seconds < 86400 * 365.25 * 5) {
     score = 2;
-    label = 'Razoável';
+    label = t('lock.strength.2');
   } else if (seconds < 86400 * 365.25 * 10_000) {
     score = 3;
-    label = 'Boa';
+    label = t('lock.strength.3');
   } else {
     score = 4;
-    label = 'Forte';
+    label = t('lock.strength.4');
   }
 
   let tip = '';
   if (pw.length < 8) {
-    tip = 'Recomendado usar pelo menos 8 a 12 caracteres.';
+    tip = t('lock.strength.tipMin8');
   } else if (pw.length < 12) {
-    tip = 'Boa combinação! Com 12+ caracteres ela se torna virtualmente impossível de quebrar.';
+    tip = t('lock.strength.tipGood12');
   } else {
-    tip = 'Excelente! Senha altamente resistente a ataques de força bruta.';
+    tip = t('lock.strength.tipStrong');
   }
 
   return {

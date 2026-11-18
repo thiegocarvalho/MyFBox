@@ -316,7 +316,7 @@ function createAccount(
     return {
       result: {
         created: false,
-        reason: 'já existe',
+        reason: tDomainMcp('domainMcp.mcpActions.alreadyExists'),
         account: describeAccount(existing, vault, month),
       },
     };
@@ -377,7 +377,8 @@ function transferBetweenAccounts(
   }
 
   const date = isoDate(args, 'date') ?? ctx.today;
-  const description = str(args, 'description') ?? 'Transferência entre contas';
+  const description =
+    str(args, 'description') ?? tDomainMcp('domainMcp.mcpActions.defaultTransferDescription');
 
   const outcome = transferBetweenAccountsInVault(vault, {
     fromAccId: fromAcc.id,
@@ -422,7 +423,11 @@ function createCategory(vault: VaultPayload, args: Args, ctx: McpActionContext):
   );
   if (existing) {
     return {
-      result: { created: false, reason: 'já existe', category: describeCategory(existing) },
+      result: {
+        created: false,
+        reason: tDomainMcp('domainMcp.mcpActions.alreadyExists'),
+        category: describeCategory(existing),
+      },
     };
   }
 
@@ -689,7 +694,7 @@ function monthComparison(vault: VaultPayload, args: Args): McpActionOutcome {
   const insights = vault.insights ?? [];
   return {
     result: {
-      note: 'Valores em BRL. Totais do mês contam pagos + pendentes (competência). Moedas estrangeiras convertidas pela cotação fixada no lançamento ou pela atual.',
+      note: tDomainMcp('domainMcp.mcpActions.comparisonNote'),
       months: rows.map((r) => {
         const insight = insights.find((i) => i.month === r.month);
         return {

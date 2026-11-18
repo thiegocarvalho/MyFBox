@@ -32,6 +32,7 @@ import { getDefaultCategoryId } from '../utils/categories';
 import { accountCurrency, isValidRate, parseDecimalInput } from '../utils/money';
 import {
   POPULAR_CURRENCIES,
+  getCurrencyName,
   findExchangeRate,
   getCurrencySymbol,
   type ExchangeRateSource,
@@ -448,7 +449,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 >
                   {POPULAR_CURRENCIES.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.flag} {c.code} — {c.name} ({c.symbol})
+                      {c.flag} {c.code} — {getCurrencyName(c.code)} ({c.symbol})
                     </option>
                   ))}
                   {!POPULAR_CURRENCIES.some((c) => c.code === currency) && (

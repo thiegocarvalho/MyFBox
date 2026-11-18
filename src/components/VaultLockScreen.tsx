@@ -30,7 +30,7 @@ import { MyFBoxBrand } from './MyFBoxLogo';
 import { LanguageSelector } from './LanguageSelector';
 import { passwordStrength, type PasswordStrengthResult } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
-import { POPULAR_CURRENCIES, getCurrencySymbol } from '../services/currencyService';
+import { POPULAR_CURRENCIES, getCurrencyName, getCurrencySymbol } from '../services/currencyService';
 import { useI18n } from '../i18n/useI18n';
 
 interface VaultLockScreenProps {
@@ -102,7 +102,7 @@ function formatCrackTimeLocalized(seconds: number, t: TranslateFn): string {
 
 function getStrengthTip(pw: string, strength: PasswordStrengthResult, t: TranslateFn): string {
   if (!pw) return '';
-  if (strength.tip === 'Evite sequências ou senhas muito comuns.') {
+  if (strength.score === 0 && strength.crackTimeSeconds <= 0.1) {
     return t('lock.strength.tipCommon');
   }
   if (pw.length < 6) return t('lock.strength.tipMin6');
@@ -675,7 +675,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
                     >
                       {POPULAR_CURRENCIES.map((c) => (
                         <option key={c.code} value={c.code}>
-                          {c.flag} {c.code} — {c.name} ({c.symbol})
+                          {c.flag} {c.code} — {getCurrencyName(c.code)} ({c.symbol})
                         </option>
                       ))}
                     </select>
