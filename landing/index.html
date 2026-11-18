@@ -223,15 +223,38 @@
         gap: 0.7rem;
         text-decoration: none;
         color: var(--text);
-        font-family: var(--font-heading);
-        font-weight: 700;
-        font-size: 1.15rem;
-        letter-spacing: -0.02em;
+      }
+
+      .brand-wordmark {
+        display: flex;
+        flex-direction: column;
+        line-height: 1;
+      }
+
+      .brand-name {
+        font-family: var(--font-display);
+        font-weight: 800;
+        font-size: 1.02rem;
+        letter-spacing: 0.02em;
+        color: var(--text);
+      }
+
+      .brand-name .brand-f {
+        color: var(--accent);
+      }
+
+      .brand-sub {
+        margin-top: 2px;
+        font-family: var(--font-sans);
+        font-size: 0.68rem;
+        font-weight: 400;
+        color: var(--muted);
+        letter-spacing: 0.01em;
       }
 
       .brand img {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
         display: block;
       }
 
@@ -1101,8 +1124,11 @@
     <header>
       <div class="container nav">
         <a class="brand" href="./">
-          <img src="./assets/logo.svg" alt="MyFBox" width="32" height="32" />
-          <span>MyFBox</span>
+          <img src="./assets/logo.svg" alt="MyFBox" width="34" height="34" />
+          <span class="brand-wordmark">
+            <span class="brand-name">MY<span class="brand-f">F</span>BOX</span>
+            <span class="brand-sub">My Financial Box</span>
+          </span>
         </a>
         <nav class="nav-links" aria-label="Navegação principal">
           <a class="nav-item" href="#telas">Telas</a>
@@ -1542,8 +1568,11 @@
     <footer>
       <div class="container footer-inner">
         <a class="brand" href="./">
-          <img src="./assets/logo.svg" alt="MyFBox" width="24" height="24" />
-          <span>MyFBox</span>
+          <img src="./assets/logo.svg" alt="MyFBox" width="28" height="28" />
+          <span class="brand-wordmark">
+            <span class="brand-name">MY<span class="brand-f">F</span>BOX</span>
+            <span class="brand-sub">My Financial Box</span>
+          </span>
         </a>
         <div class="footer-links">
           <a href="./app/">Abrir App Web</a>
