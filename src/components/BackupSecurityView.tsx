@@ -171,6 +171,19 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [showMcpInstructions, setShowMcpInstructions] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('all');
+  const [desktopVaultPath, setDesktopVaultPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const vaultApi = window.myfboxDesktop?.vault;
+    if (!vaultApi) return;
+    let alive = true;
+    vaultApi.info().then((info) => {
+      if (alive) setDesktopVaultPath(info.filePath);
+    }).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [envelope]);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -1057,13 +1070,20 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           <div>
             <span>Armazenamento</span>
             <strong>
-              {storageStatus === 'persisted'
+              {desktopVaultPath
+                ? 'Arquivo local'
+                : storageStatus === 'persisted'
                 ? 'Persistente'
                 : storageStatus === 'unsupported'
                 ? 'Sem garantia'
                 : 'Pode ser apagado'}
             </strong>
-            {storageStatus === 'not-persisted' && (
+            {desktopVaultPath && (
+              <span className="mono" title={desktopVaultPath} style={{ fontSize: '0.72rem', opacity: 0.78, wordBreak: 'break-all' }}>
+                {desktopVaultPath}
+              </span>
+            )}
+            {!desktopVaultPath && storageStatus === 'not-persisted' && (
               <button type="button" className="bk-status-action" onClick={onRequestPersist}>
                 Pedir ao navegador
               </button>

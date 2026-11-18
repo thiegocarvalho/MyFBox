@@ -1,6 +1,7 @@
 export type StoragePersistStatus = 'persisted' | 'not-persisted' | 'unsupported';
 
 export async function getStoragePersistStatus(): Promise<StoragePersistStatus> {
+  if (window.myfboxDesktop?.vault) return 'persisted';
   if (!navigator.storage?.persisted) return 'unsupported';
   try {
     return (await navigator.storage.persisted()) ? 'persisted' : 'not-persisted';

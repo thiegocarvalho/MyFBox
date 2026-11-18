@@ -20,6 +20,9 @@ function openVaultDB(): Promise<IDBDatabase> {
 }
 
 export async function loadEncryptedEnvelopeFromDisk(): Promise<EncryptedVaultEnvelope | null> {
+  if (window.myfboxDesktop?.vault) {
+    return window.myfboxDesktop.vault.load();
+  }
   const db = await openVaultDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -39,6 +42,10 @@ export async function loadEncryptedEnvelopeFromDisk(): Promise<EncryptedVaultEnv
 export async function saveEncryptedEnvelopeToDisk(
   envelope: EncryptedVaultEnvelope
 ): Promise<void> {
+  if (window.myfboxDesktop?.vault) {
+    await window.myfboxDesktop.vault.save(envelope);
+    return;
+  }
   const db = await openVaultDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -56,6 +63,10 @@ export async function saveEncryptedEnvelopeToDisk(
 }
 
 export async function deleteEncryptedVaultFromDisk(): Promise<void> {
+  if (window.myfboxDesktop?.vault) {
+    await window.myfboxDesktop.vault.delete();
+    return;
+  }
   const db = await openVaultDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
