@@ -311,7 +311,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
         <div className="gate-grid-pattern" />
         <div className="gate-aside-content">
           <div className="gate-brand">
-            <MyFBoxBrand size={56} />
+            <MyFBoxBrand size={40} />
           </div>
 
           <div className="gate-pitch">
@@ -373,7 +373,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
       <main className="gate-main">
         <div className="gate-panel">
           <div className="gate-brand gate-brand-mobile">
-            <MyFBoxBrand size={48} />
+            <MyFBoxBrand size={40} />
           </div>
 
           <div className="gate-tabs" role="tablist" aria-label="Acesso ao cofre">
