@@ -4,10 +4,13 @@ on:
   push:
     tags:
       - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-desktop:
@@ -29,10 +32,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: setup-node@v4
         with:
           node-version: 22
           cache: npm
+
+      - name: Sync version from tag or release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          npm version "$TAG" --no-git-tag-version --allow-same-version
 
       - name: Install dependencies
         run: npm ci
@@ -51,5 +61,23 @@ jobs:
             release/*
             !release/*.yaml
             !release/*.yml
+            !release/*.blockmap
             !release/builder-*
             !release/*-unpacked
+
+  publish-release:
+    needs: build-desktop
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Attach installers to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist-release/*
