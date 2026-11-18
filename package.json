@@ -14,7 +14,7 @@
     "vite"
   ],
   "type": "module",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/electron/main.js",
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
