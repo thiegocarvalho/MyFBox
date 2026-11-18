@@ -15,9 +15,9 @@ senha mestra abre o cofre.
 
 ## Capturas de tela
 
-| Desktop | Mobile |
-|---|---|
-| ![MyFBox Desktop](public/screenshots/screenshot-desktop.png) | ![MyFBox Mobile](public/screenshots/screenshot-mobile.png) |
+| Visão Geral | Lançamentos | Metas |
+|---|---|---|
+| ![MyFBox Visão Geral](landing/assets/screen-dashboard.png) | ![MyFBox Lançamentos](landing/assets/screen-transactions.png) | ![MyFBox Metas](landing/assets/screen-budgets.png) |
 
 ## Recursos
 
