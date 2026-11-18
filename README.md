@@ -72,6 +72,9 @@ Abra **http://localhost:41730**, crie um cofre e uma senha mestra.
 | `npm run build` | Checagem de tipos + build de produção em `dist/` (com Content Security Policy) |
 | `npm run preview` | Serve o build de produção na mesma porta |
 | `npm run lint` | Lint com oxlint |
+| `npm test` | Testes unitários (Vitest) |
+| `npm run test:coverage` | Testes unitários com relatório de cobertura (v8) |
+| `npm run test:e2e` | Testes ponta a ponta (Playwright) contra `vite preview` |
 | `npm run mcp` | Inicia o servidor MCP local manualmente (normalmente o cliente MCP inicia sozinho) |
 | `npm run electron:dev` | Abre o MyFBox no Electron em modo desenvolvimento |
 | `npm run electron:start` | Compila app + Electron e abre a janela desktop |
@@ -133,11 +136,14 @@ src/
   domain/                   casos de uso puros do cofre, validação de esquema e IDs criptográficos
   components/               telas (Visão Geral, Lançamentos, Comparativos, Metas, Contas, Backups)
   services/cryptoVault.ts   cifra/decifra o cofre com WebCrypto (AES-256-GCM + PBKDF2)
-  services/vaultStorage.ts  persistência isolada do envelope cifrado no IndexedDB
-  services/currencyService.ts motor offline de câmbio (16 moedas + triangulação BRL/USD)
+  services/vaultStorage.ts  adapter de persistência do cofre (IPC desktop ou IndexedDB no navegador)
+  services/currencyService.ts helpers e catálogo de moedas (re-exporta regras puras de `domain/currency.ts`)
   services/mcpBridge.ts     ponte do navegador com o servidor MCP local
   services/mcpActions.ts    ações do MCP (20 ferramentas puras)
   utils/                    cálculos de saldo, conversão, comparativos, formatação
+electron/                   shell desktop seguro (`main.ts`, `preload.ts`, `vaultStore.ts`, `menu.ts`)
+landing/                    landing page estática para a raiz do GitHub Pages (excluída do Electron)
+e2e/                        testes ponta a ponta com Playwright
 mcp/server.mjs              servidor MCP (stdio) + ponte WebSocket/HTTP autenticada em 127.0.0.1
 ```
 
