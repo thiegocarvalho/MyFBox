@@ -564,6 +564,224 @@
         color: var(--text);
       }
 
+      /* Ato MCP: Chat de IA + App ao vivo */
+      .mcp-stage {
+        display: grid;
+        grid-template-columns: 1fr 1.05fr;
+        gap: 1.5rem;
+        align-items: stretch;
+      }
+
+      .mcp-pane {
+        border: 2px solid var(--border);
+        background: var(--surface);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .mcp-pane.live {
+        border-color: var(--accent);
+        box-shadow: -8px 8px 0 var(--accent);
+      }
+
+      .mcp-chat-body {
+        padding: 1.15rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 360px;
+      }
+
+      .chat-msg {
+        max-width: 88%;
+        padding: 0.75rem 0.95rem;
+        border: 1px solid var(--border);
+        font-size: 0.9rem;
+        line-height: 1.45;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+
+      .chat-msg.is-on {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .chat-msg.user {
+        align-self: flex-end;
+        background: var(--surface-2);
+        border-color: var(--border-strong);
+      }
+
+      .chat-msg.ai {
+        align-self: flex-start;
+        background: #12170a;
+        border-color: var(--accent);
+      }
+
+      .chat-role {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      .chat-msg.ai .chat-role {
+        color: var(--accent);
+      }
+
+      .mcp-replay {
+        margin-top: auto;
+        padding: 0.75rem 1.15rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      .mcp-replay button {
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid var(--border-strong);
+        padding: 0.35rem 0.75rem;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        cursor: pointer;
+      }
+      .mcp-replay button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .live-app-body {
+        padding: 1.15rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .live-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.65rem;
+      }
+
+      .live-kpi {
+        border: 1px solid var(--border);
+        background: var(--bg);
+        padding: 0.75rem;
+        transition: border-color 0.25s ease;
+      }
+
+      .live-kpi.flash {
+        border-color: var(--accent);
+      }
+
+      .live-kpi span {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 0.68rem;
+        color: var(--muted);
+        margin-bottom: 0.25rem;
+      }
+
+      .live-kpi strong {
+        font-family: var(--font-heading);
+        font-size: 1.05rem;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .live-meta {
+        border: 1px solid var(--border);
+        background: var(--bg);
+        padding: 0.85rem;
+      }
+
+      .live-meta-head {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.82rem;
+        margin-bottom: 0.45rem;
+      }
+
+      .live-bar-track {
+        height: 8px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+      }
+
+      .live-bar-fill {
+        height: 100%;
+        width: 47%;
+        background: var(--accent);
+        transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .live-tx-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .live-tx {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 0.86rem;
+        transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+      }
+
+      .live-tx.pending-insert {
+        display: none;
+        opacity: 0;
+        transform: translateY(-6px);
+      }
+
+      .live-tx.is-added {
+        display: flex;
+        opacity: 1;
+        transform: translateY(0);
+        border-color: var(--accent);
+      }
+
+      .live-tx-tag {
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        padding: 0.12rem 0.4rem;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        margin-left: 0.45rem;
+      }
+
+      .live-tx-tag.warn {
+        border-color: #ffb020;
+        color: #ffb020;
+      }
+
+      .live-tx-amt {
+        font-family: var(--font-mono);
+        font-variant-numeric: tabular-nums;
+        color: var(--coral);
+        font-weight: 600;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .chat-msg,
+        .live-tx.pending-insert {
+          opacity: 1 !important;
+          transform: none !important;
+          display: flex !important;
+        }
+      }
+
       footer {
         border-top: 1px solid var(--border);
         padding: 2.5rem 0 3.5rem;
@@ -616,7 +834,8 @@
       }
 
       @media (max-width: 960px) {
-        .storyboard {
+        .storyboard,
+        .mcp-stage {
           grid-template-columns: 1fr;
         }
         .pillars {
@@ -654,6 +873,7 @@
         </a>
         <nav class="nav-links" aria-label="Navegação principal">
           <a class="nav-item" href="#telas">Telas</a>
+          <a class="nav-item" href="#mcp">Assistente IA</a>
           <a class="nav-item" href="#privacidade">Privacidade</a>
           <a class="nav-item" href="#baixar">Baixar</a>
           <a class="btn btn-primary btn-sm" href="./app/">Abrir app</a>
@@ -790,6 +1010,113 @@
               <div class="scene-caption">
                 <span id="scene-caption">Separa o dinheiro que já entrou ou saiu do que ainda vai vencer.</span>
                 <span>Atalho rápido: <kbd>N</kbd></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="mcp" class="reveal">
+        <div class="container">
+          <span class="section-kicker">MODO ASSISTENTE (OPCIONAL)</span>
+          <h2>Converse com suas finanças sem entregar sua senha</h2>
+          <p class="section-lead">
+            Quando quiser, conecte seu assistente de IA local via MCP. Você pede em linguagem
+            natural e o cofre aberto atualiza na hora — ao trancar o app, o acesso corta na hora.
+          </p>
+
+          <div class="mcp-stage" id="mcp-demo">
+            <div class="mcp-pane">
+              <div class="stage-bar">
+                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>CHAT // ASSISTENTE LOCAL (MCP)</span>
+              </div>
+              <div class="mcp-chat-body" id="mcp-chat-body">
+                <div class="chat-msg user" data-step="1">
+                  <span class="chat-role">VOCÊ</span>
+                  Paguei R$ 84,50 no mercado hoje no Nubank
+                </div>
+                <div class="chat-msg ai" data-step="2">
+                  <span class="chat-role">ASSISTENTE · SALVO NO COFRE</span>
+                  Registrado em Alimentação (Nubank). Saldo de hoje atualizado.
+                </div>
+                <div class="chat-msg user" data-step="3">
+                  <span class="chat-role">VOCÊ</span>
+                  Quanto já gastei em mercado este mês?
+                </div>
+                <div class="chat-msg ai" data-step="4">
+                  <span class="chat-role">ASSISTENTE · CONSULTA LOCAL</span>
+                  R$ 505,30 em 2 compras — 56% da sua meta de R$ 900,00.
+                </div>
+                <div class="chat-msg user" data-step="5">
+                  <span class="chat-role">VOCÊ</span>
+                  Lembra que dia 25 vence a internet de R$ 149,90
+                </div>
+                <div class="chat-msg ai" data-step="6">
+                  <span class="chat-role">ASSISTENTE · AGENDADO</span>
+                  Lançado como pendente para 25/11. Previsão do mês atualizada.
+                </div>
+              </div>
+              <div class="mcp-replay">
+                <span>Desligado por padrão · só roda na sua máquina</span>
+                <button type="button" id="mcp-replay-btn">Repetir cena</button>
+              </div>
+            </div>
+
+            <div class="mcp-pane live">
+              <div class="stage-bar">
+                <span class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>MYFBOX // COFRE ABERTO AO VIVO</span>
+              </div>
+              <div class="live-app-body">
+                <div class="live-kpis">
+                  <div class="live-kpi" id="kpi-saldo">
+                    <span>SALDO HOJE</span>
+                    <strong id="val-saldo">R$ 4.850,00</strong>
+                  </div>
+                  <div class="live-kpi" id="kpi-saidas">
+                    <span>SAÍDAS DO MÊS</span>
+                    <strong id="val-saidas">R$ 420,80</strong>
+                  </div>
+                  <div class="live-kpi" id="kpi-previsto">
+                    <span>SALDO PREVISTO</span>
+                    <strong id="val-previsto">R$ 4.850,00</strong>
+                  </div>
+                </div>
+
+                <div class="live-meta">
+                  <div class="live-meta-head">
+                    <span>Meta: Alimentação</span>
+                    <strong id="val-meta">R$ 420,80 / R$ 900,00</strong>
+                  </div>
+                  <div class="live-bar-track">
+                    <div class="live-bar-fill" id="val-meta-bar"></div>
+                  </div>
+                </div>
+
+                <div class="live-tx-list">
+                  <div class="live-tx pending-insert" id="tx-internet">
+                    <div>
+                      <strong>Internet Fibra</strong>
+                      <span class="live-tx-tag warn">Pendente · 25/11</span>
+                    </div>
+                    <span class="live-tx-amt">-R$ 149,90</span>
+                  </div>
+                  <div class="live-tx pending-insert" id="tx-mercado-new">
+                    <div>
+                      <strong>Supermercado</strong>
+                      <span class="live-tx-tag">Alimentação · Pago</span>
+                    </div>
+                    <span class="live-tx-amt">-R$ 84,50</span>
+                  </div>
+                  <div class="live-tx">
+                    <div>
+                      <strong>Supermercado</strong>
+                      <span class="live-tx-tag">Alimentação · Pago</span>
+                    </div>
+                    <span class="live-tx-amt">-R$ 420,80</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1008,6 +1335,91 @@
           reveals.forEach(function (el) {
             el.classList.add('is-visible');
           });
+        }
+
+        // Animação sincronizada Chat MCP <-> Interface do App
+        var mcpDemo = document.getElementById('mcp-demo');
+        var msgs = document.querySelectorAll('#mcp-chat-body .chat-msg');
+        var valSaldo = document.getElementById('val-saldo');
+        var valSaidas = document.getElementById('val-saidas');
+        var valPrevisto = document.getElementById('val-previsto');
+        var valMeta = document.getElementById('val-meta');
+        var valMetaBar = document.getElementById('val-meta-bar');
+        var txMercado = document.getElementById('tx-mercado-new');
+        var txInternet = document.getElementById('tx-internet');
+        var kpiSaldo = document.getElementById('kpi-saldo');
+        var kpiSaidas = document.getElementById('kpi-saidas');
+        var kpiPrevisto = document.getElementById('kpi-previsto');
+        var replayBtn = document.getElementById('mcp-replay-btn');
+        var timers = [];
+
+        function flashKpi(el) {
+          if (!el) return;
+          el.classList.add('flash');
+          setTimeout(function () {
+            el.classList.remove('flash');
+          }, 900);
+        }
+
+        function resetMcpScene() {
+          timers.forEach(clearTimeout);
+          timers = [];
+          msgs.forEach(function (m) {
+            m.classList.remove('is-on');
+          });
+          if (valSaldo) valSaldo.textContent = 'R$ 4.850,00';
+          if (valSaidas) valSaidas.textContent = 'R$ 420,80';
+          if (valPrevisto) valPrevisto.textContent = 'R$ 4.850,00';
+          if (valMeta) valMeta.textContent = 'R$ 420,80 / R$ 900,00';
+          if (valMetaBar) valMetaBar.style.width = '47%';
+          if (txMercado) txMercado.classList.remove('is-added');
+          if (txInternet) txInternet.classList.remove('is-added');
+        }
+
+        function playMcpScene() {
+          resetMcpScene();
+          var delays = [250, 1100, 2300, 3200, 4400, 5300];
+          msgs.forEach(function (m, idx) {
+            timers.push(
+              setTimeout(function () {
+                m.classList.add('is-on');
+                if (idx === 1) {
+                  if (valSaldo) valSaldo.textContent = 'R$ 4.765,50';
+                  if (valSaidas) valSaidas.textContent = 'R$ 505,30';
+                  if (valPrevisto) valPrevisto.textContent = 'R$ 4.765,50';
+                  if (valMeta) valMeta.textContent = 'R$ 505,30 / R$ 900,00';
+                  if (valMetaBar) valMetaBar.style.width = '56%';
+                  if (txMercado) txMercado.classList.add('is-added');
+                  flashKpi(kpiSaldo);
+                  flashKpi(kpiSaidas);
+                }
+                if (idx === 5) {
+                  if (valPrevisto) valPrevisto.textContent = 'R$ 4.615,60';
+                  if (txInternet) txInternet.classList.add('is-added');
+                  flashKpi(kpiPrevisto);
+                }
+              }, delays[idx] || idx * 900)
+            );
+          });
+        }
+
+        if (replayBtn) {
+          replayBtn.addEventListener('click', playMcpScene);
+        }
+
+        if (mcpDemo && 'IntersectionObserver' in window) {
+          var mcpIo = new IntersectionObserver(
+            function (entries) {
+              if (entries[0].isIntersecting) {
+                playMcpScene();
+                mcpIo.disconnect();
+              }
+            },
+            { threshold: 0.25 }
+          );
+          mcpIo.observe(mcpDemo);
+        } else {
+          playMcpScene();
         }
       })();
     </script>
