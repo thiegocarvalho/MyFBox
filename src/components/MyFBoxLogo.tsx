@@ -40,3 +40,22 @@ export const MyFBoxLogo: React.FC<MyFBoxLogoProps> = ({ size = 28, className = '
     </svg>
   );
 };
+
+interface MyFBoxBrandProps {
+  size?: number;
+  className?: string;
+}
+
+export const MyFBoxBrand: React.FC<MyFBoxBrandProps> = ({ size = 40, className = '' }) => (
+  <div className={`brand-block ${className}`.trim()}>
+    <div className="brand-logo-wrap">
+      <MyFBoxLogo size={size} />
+    </div>
+    <div className="brand-text">
+      <span className="brand-title">
+        My<span className="brand-highlight">F</span>Box
+      </span>
+      <span className="brand-tagline">My Financial Box</span>
+    </div>
+  </div>
+);

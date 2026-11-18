@@ -26,7 +26,7 @@ import type {
   EncryptedVaultEnvelope,
   InitialAccountData,
 } from '../types/finance';
-import { MyFBoxLogo } from './MyFBoxLogo';
+import { MyFBoxBrand } from './MyFBoxLogo';
 import { passwordStrength } from '../utils/password';
 import { parseDecimalInput } from '../utils/money';
 import { POPULAR_CURRENCIES, getCurrencySymbol } from '../services/currencyService';
@@ -311,8 +311,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
         <div className="gate-grid-pattern" />
         <div className="gate-aside-content">
           <div className="gate-brand">
-            <MyFBoxLogo size={64} />
-            <span>MyFBox</span>
+            <MyFBoxBrand size={56} />
           </div>
 
           <div className="gate-pitch">
@@ -374,8 +373,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({
       <main className="gate-main">
         <div className="gate-panel">
           <div className="gate-brand gate-brand-mobile">
-            <MyFBoxLogo size={52} />
-            <span>MyFBox</span>
+            <MyFBoxBrand size={48} />
           </div>
 
           <div className="gate-tabs" role="tablist" aria-label="Acesso ao cofre">

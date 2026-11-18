@@ -70,7 +70,7 @@ import {
   upsertVaultExchangeRate,
 } from './domain/vaultUseCases';
 import { VaultLockScreen } from './components/VaultLockScreen';
-import { MyFBoxLogo } from './components/MyFBoxLogo';
+import { MyFBoxBrand } from './components/MyFBoxLogo';
 import { MobileMenu, MobileMenuButton, type NavItem } from './components/MobileMenu';
 
 const DEFAULT_MCP_PORT = 4777;
@@ -653,17 +653,7 @@ export function App() {
     <div className="app-shell">
       <header className="workspace-header">
         <div className="header-left">
-          <div className="brand-block">
-            <div className="brand-logo-wrap">
-              <MyFBoxLogo size={40} />
-            </div>
-            <div className="brand-text">
-              <span className="brand-title">
-                My<span className="brand-highlight">F</span>Box
-              </span>
-              <span className="brand-tagline">My Financial Box</span>
-            </div>
-          </div>
+          <MyFBoxBrand size={40} />
 
           <div
             className={`month-navigator ${selectedYearMonth !== getCurrentYearMonth() ? 'is-away' : ''}`}
