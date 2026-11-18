@@ -6,6 +6,7 @@ export interface McpSetupInfo {
   serverPath: string;
   mcpConfigJson: string;
   claudeCliCommand: string;
+  agentPrompt: string;
 }
 
 export interface McpSetupContext {
@@ -79,11 +80,17 @@ export function buildMcpSetupInfo(ctx: McpSetupContext): McpSetupInfo {
       ? `claude mcp add myfbox${appUrl ? ` -e MYFBOX_APP_URL=${appUrl}` : ''} -- npx -y ${GITHUB_NPX_PACKAGE}`
       : `claude mcp add myfbox -- node ${quotedPath}`;
 
+  const agentPrompt =
+    environment === 'web-remote'
+      ? `Configure o servidor MCP "myfbox" na sua configuração de MCP usando command="npx", args=["-y", "${GITHUB_NPX_PACKAGE}"]${appUrl ? ` e env MYFBOX_APP_URL="${appUrl}"` : ''}. Depois, conecte ao meu cofre chamando connect_app.`
+      : `Configure o servidor MCP "myfbox" na sua configuração de MCP usando command="node" e args=["${serverPath}"]. Depois, conecte ao meu cofre chamando connect_app.`;
+
   return {
     environment,
     appUrl,
     serverPath,
     mcpConfigJson: JSON.stringify(mcpConfigObject, null, 2),
     claudeCliCommand,
+    agentPrompt,
   };
 }

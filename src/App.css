@@ -10086,6 +10086,7 @@ details.bk-collapsible-card[open] .bk-collapsible-chevron {
 .mcp-code-block-wrap pre {
   margin: 0;
   padding: 12px 14px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
   line-height: 1.5;
   text-align: left;

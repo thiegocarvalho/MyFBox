@@ -177,10 +177,10 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>(initialConfigTab ?? 'all');
   const [desktopVaultPath, setDesktopVaultPath] = useState<string | null>(null);
   const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
-  const [copiedMcpItem, setCopiedMcpItem] = useState<'json' | 'cli' | null>(null);
+  const [copiedMcpItem, setCopiedMcpItem] = useState<'json' | 'cli' | 'prompt' | null>(null);
   const mcpSetup = buildMcpSetupInfo({ desktopMcpPath });
 
-  const copyMcpSnippet = (kind: 'json' | 'cli', text: string) => {
+  const copyMcpSnippet = (kind: 'json' | 'cli' | 'prompt', text: string) => {
     void navigator.clipboard?.writeText(text).catch(() => undefined);
     setCopiedMcpItem(kind);
     setTimeout(() => {
@@ -429,42 +429,48 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             </div>
           </div>
           <p>
-            Ponte local segura em <code>127.0.0.1</code> para assistentes de IA operarem o cofre desbloqueado.
+            Conecte seu assistente de IA (Claude, Cursor, Antigravity) ao cofre desbloqueado.
           </p>
         </div>
       </header>
 
       {mcpSetup.environment === 'desktop' ? (
-        <div className="bk-card-footer" style={{ marginBottom: '0.75rem' }}>
-          <span className="field-hint">
-            <strong>App Desktop (Linux, Windows e macOS):</strong> o servidor MCP já vem embutido
-            no aplicativo em <code>{mcpSetup.serverPath}</code>. Basta ter o Node.js instalado e
-            colar o <code>mcp.json</code> (ou rodar o comando CLI) no seu assistente de IA.
-          </span>
-        </div>
+        <p className="field-hint" style={{ marginBottom: '0.75rem' }}>
+          <strong>App Desktop:</strong> o servidor MCP já vem incluído no app. Requer apenas Node.js instalado.
+        </p>
       ) : (
         mcpSetup.environment === 'web-remote' && (
-          <div className="bk-warning-banner" role="note" style={{ marginBottom: '0.75rem' }}>
-            <AlertTriangle size={16} aria-hidden />
-            <div>
-              <strong>Ponte MCP na versão Web:</strong> esta configuração usa <code>npx</code> para
-              baixar e rodar a ponte local automaticamente (sem clonar o repositório) já apontando
-              para <code>{`MYFBOX_APP_URL=${mcpSetup.appUrl}`}</code>. Exige Node.js e Git
-              (Chrome/Edge/Firefox; o Safari pode bloquear conexões em <code>127.0.0.1</code>). No{' '}
-              <strong>app Desktop</strong>, tudo já vem embutido.
-            </div>
-          </div>
+          <p className="field-hint" style={{ marginBottom: '0.75rem' }}>
+            <strong>Versão Web:</strong> requer Node.js e Git (Chrome, Edge, Firefox ou Brave; o Safari pode bloquear conexões locais em <code>127.0.0.1</code>).
+          </p>
         )
       )}
+
+      <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
+        <div className="mcp-code-header">
+          <span>Jeito fácil — envie este prompt para sua IA configurar e conectar</span>
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={() => copyMcpSnippet('prompt', mcpSetup.agentPrompt)}
+          >
+            {copiedMcpItem === 'prompt' ? <Check size={12} /> : <Copy size={12} />}
+            {copiedMcpItem === 'prompt' ? 'Prompt copiado!' : 'Copiar prompt'}
+          </button>
+        </div>
+        <div style={{ padding: '10px 14px', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+          “{mcpSetup.agentPrompt}”
+        </div>
+      </div>
 
       <div className="mcp-code-block-wrap" style={{ marginBottom: '0.85rem' }}>
         <div className="mcp-code-header">
           <span>
             {mcpSetup.environment === 'desktop'
-              ? 'mcp.json (Desktop — pronto para colar)'
+              ? 'Configuração manual — mcp.json (Desktop)'
               : mcpSetup.environment === 'web-remote'
-                ? 'mcp.json (Web via npx — pronto para colar)'
-                : 'mcp.json (Local)'}
+                ? 'Configuração manual — mcp.json (Web)'
+                : 'Configuração manual — mcp.json (Local)'}
           </span>
           <div className="mcp-code-actions">
             <button
@@ -486,7 +492,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             </button>
           </div>
         </div>
-        <pre className="mono">{mcpSetup.mcpConfigJson}</pre>
+        <pre>{mcpSetup.mcpConfigJson}</pre>
       </div>
 
       {mcp.enabled ? (
@@ -504,7 +510,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             ) : (
               <>
                 <strong>Aguardando pareamento</strong>
-                <span>Peça ao assistente de IA para se conectar ao MyFBox.</span>
+                <span>Envie o prompt acima (ou cole o JSON) e abra o link gerado pela IA para autorizar.</span>
               </>
             )}
           </div>
@@ -528,28 +534,11 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
               </button>
             </div>
           ) : null}
-
-          {mcp.status !== 'connected' && (
-            <div className="bk-mcp-howto">
-              <span className="eyebrow">COMO CONECTAR O ASSISTENTE</span>
-              <ol>
-                <li>
-                  Abra o assistente de IA na pasta do projeto (o <code>.mcp.json</code> já registra o
-                  servidor <code>myfbox</code>).
-                </li>
-                <li>Peça: “conecte ao MyFBox”. Ele fornecerá um link com código curto.</li>
-                <li>Abra o link neste navegador, confira o código e clique em Autorizar.</li>
-              </ol>
-              <span className="field-hint">
-                Após pareado, você pode pedir ao assistente: “registre almoço de R$ 42”, “adicione cotação EUR/BRL 6.30” ou “quanto gastei este mês?”.
-              </span>
-            </div>
-          )}
         </>
       ) : (
         <div className="bk-card-footer">
           <span className="field-hint">
-            O Modo MCP vem desligado por segurança. Ative o interruptor acima para permitir que agentes de IA se conectem ao seu cofre aberto via ponte local.
+            Desligado por segurança. Ative o interruptor acima quando quiser usar com um assistente de IA.
           </span>
         </div>
       )}
