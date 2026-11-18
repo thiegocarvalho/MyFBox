@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Copy,
@@ -326,6 +326,39 @@ const MCP_TOOLS_DOCS: ToolDoc[] = [
 export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<ModalTab>('prompts');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mcpApi = window.myfboxDesktop?.mcp;
+    if (!mcpApi) return;
+    let alive = true;
+    mcpApi
+      .info()
+      .then((info) => {
+        if (alive && info?.serverPath) setDesktopMcpPath(info.serverPath);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const isRemoteWeb =
+    !window.myfboxDesktop?.isDesktop &&
+    typeof window !== 'undefined' &&
+    window.location.hostname !== '127.0.0.1' &&
+    window.location.hostname !== 'localhost';
+
+  const mcpConfigObject = {
+    mcpServers: {
+      myfbox: {
+        command: 'node',
+        args: [desktopMcpPath ?? '/CAMINHO/ABSOLUTO/MyFBox/mcp/server.mjs'],
+        ...(isRemoteWeb ? { env: { MYFBOX_APP_URL: window.location.origin } } : {}),
+      },
+    },
+  };
+  const mcpConfigJson = JSON.stringify(mcpConfigObject, null, 2);
   const [searchQuery, setSearchQuery] = useState('');
   const [promptCategoryFilter, setPromptCategoryFilter] = useState<string>('todos');
 
@@ -645,8 +678,11 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                 <div className="mcp-step-content">
                   <h4>Configuração Manual em Outros Clientes MCP</h4>
                   <p>
-                    Adicione à configuração de MCP do seu cliente ou ambiente apontando para o script{' '}
-                    <code>mcp/server.mjs</code> com o caminho absoluto:
+                    {desktopMcpPath
+                      ? 'Configuração pronta para o app Desktop (caminho detectado automaticamente):'
+                      : isRemoteWeb
+                      ? 'Configuração para esta versão Web (inclui MYFBOX_APP_URL deste endereço; exige Node.js e o arquivo mcp/server.mjs local):'
+                      : 'Adicione à configuração de MCP do seu cliente ou ambiente apontando para o script mcp/server.mjs com o caminho absoluto:'}
                   </p>
                   <div className="mcp-code-block-wrap">
                     <div className="mcp-code-header">
@@ -654,36 +690,13 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
-                        onClick={() =>
-                          handleCopy(
-                            'manual-mcp-code',
-                            JSON.stringify(
-                              {
-                                mcpServers: {
-                                  myfbox: {
-                                    command: 'node',
-                                    args: ['/caminho/completo/para/MyFBox/mcp/server.mjs'],
-                                  },
-                                },
-                              },
-                              null,
-                              2
-                            )
-                          )
-                        }
+                        onClick={() => handleCopy('manual-mcp-code', mcpConfigJson)}
                       >
                         {copiedId === 'manual-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
                         {copiedId === 'manual-mcp-code' ? 'Copiado!' : 'Copiar'}
                       </button>
                     </div>
-                    <pre className="mono">{`{
-  "mcpServers": {
-    "myfbox": {
-      "command": "node",
-      "args": ["/CAMINHO/ABSOLUTO/MyFBox/mcp/server.mjs"]
-    }
-  }
-}`}</pre>
+                    <pre className="mono">{mcpConfigJson}</pre>
                   </div>
                 </div>
               </div>

@@ -45,6 +45,7 @@ function deriveAllowedOrigins() {
     'http://127.0.0.1:41730',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'file://',
   ]);
   try {
     const parsed = new URL(APP_URL);

@@ -172,6 +172,7 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
   const [showMcpInstructions, setShowMcpInstructions] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('all');
   const [desktopVaultPath, setDesktopVaultPath] = useState<string | null>(null);
+  const [desktopMcpPath, setDesktopMcpPath] = useState<string | null>(null);
 
   useEffect(() => {
     const vaultApi = window.myfboxDesktop?.vault;
@@ -184,6 +185,18 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       alive = false;
     };
   }, [envelope]);
+
+  useEffect(() => {
+    const mcpApi = window.myfboxDesktop?.mcp;
+    if (!mcpApi) return;
+    let alive = true;
+    mcpApi.info().then((info) => {
+      if (alive && info?.serverPath) setDesktopMcpPath(info.serverPath);
+    }).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -407,7 +420,15 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       </header>
 
-      {!window.myfboxDesktop?.isDesktop &&
+      {desktopMcpPath ? (
+        <div className="bk-card-footer" style={{ marginBottom: '0.75rem' }}>
+          <span className="field-hint">
+            <strong>App Desktop:</strong> o servidor MCP já vem empacotado em{' '}
+            <code>{desktopMcpPath}</code>. Clique em <strong>Instruções</strong> acima para copiar o{' '}
+            <code>mcp.json</code> pronto.
+          </span>
+        </div>
+      ) : (
         typeof window !== 'undefined' &&
         window.location.hostname !== '127.0.0.1' &&
         window.location.hostname !== 'localhost' && (
@@ -415,13 +436,15 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             <AlertTriangle size={16} aria-hidden />
             <div>
               <strong>Ponte MCP na versão Web:</strong> para conectar um assistente de IA a partir
-              deste endereço, inicie o servidor MCP localmente com{' '}
-              <code>{`MYFBOX_APP_URL=${window.location.origin} node mcp/server.mjs`}</code>{' '}
-              (Chrome/Edge/Firefox; o Safari pode bloquear conexões locais). Para usar sem
-              configuração extra, prefira o <strong>app Desktop</strong>.
+              deste endereço, use o JSON pré-configurado com{' '}
+              <code>{`MYFBOX_APP_URL=${window.location.origin}`}</code> em{' '}
+              <strong>Instruções</strong> acima (Chrome/Edge/Firefox; o Safari pode bloquear
+              conexões locais). Para uso sem configuração extra, prefira o{' '}
+              <strong>app Desktop</strong>.
             </div>
           </div>
-        )}
+        )
+      )}
 
       {mcp.enabled ? (
         <>
