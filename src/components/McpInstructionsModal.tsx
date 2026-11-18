@@ -618,27 +618,11 @@ export const McpInstructionsModal: React.FC<McpInstructionsModalProps> = ({ isOp
                   <h4>Instalação Prática neste Ambiente</h4>
                   <p>
                     {mcpSetup.environment === 'desktop'
-                      ? 'Configuração pronta para o app Desktop (caminho detectado automaticamente):'
+                      ? 'No app Desktop (Linux, Windows e macOS), o servidor MCP já vem embutido no aplicativo. Basta ter Node.js instalado e colar a configuração abaixo:'
                       : mcpSetup.environment === 'web-remote'
-                        ? 'Configuração para esta versão Web (inclui MYFBOX_APP_URL deste endereço; exige Node.js e o repositório local):'
+                        ? 'Na versão Web, o npx baixa e executa o servidor MCP automaticamente sem precisar clonar o repositório (exige Node.js e Git):'
                         : 'Adicione à configuração de MCP do seu cliente apontando para o script mcp/server.mjs:'}
                   </p>
-                  {mcpSetup.environment === 'web-remote' && (
-                    <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
-                      <div className="mcp-code-header">
-                        <span>1º passo (só na 1ª vez): baixar o servidor MCP local</span>
-                        <button
-                          type="button"
-                          className="btn-ghost btn-sm"
-                          onClick={() => handleCopy('clone-mcp-code', mcpSetup.cloneCommand)}
-                        >
-                          {copiedId === 'clone-mcp-code' ? <Check size={12} /> : <Copy size={12} />}
-                          {copiedId === 'clone-mcp-code' ? 'Copiado!' : 'Copiar'}
-                        </button>
-                      </div>
-                      <pre className="mono">{mcpSetup.cloneCommand}</pre>
-                    </div>
-                  )}
                   <div className="mcp-code-block-wrap" style={{ marginBottom: '0.75rem' }}>
                     <div className="mcp-code-header">
                       <span>Configuração MCP (JSON — Claude Desktop, Cursor, Windsurf, Antigravity)</span>

@@ -437,9 +437,9 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
       {mcpSetup.environment === 'desktop' ? (
         <div className="bk-card-footer" style={{ marginBottom: '0.75rem' }}>
           <span className="field-hint">
-            <strong>App Desktop:</strong> o servidor MCP já vem empacotado em{' '}
-            <code>{mcpSetup.serverPath}</code>. Copie o <code>mcp.json</code> ou o comando abaixo
-            para registrar no seu assistente de IA.
+            <strong>App Desktop (Linux, Windows e macOS):</strong> o servidor MCP já vem embutido
+            no aplicativo em <code>{mcpSetup.serverPath}</code>. Basta ter o Node.js instalado e
+            colar o <code>mcp.json</code> (ou rodar o comando CLI) no seu assistente de IA.
           </span>
         </div>
       ) : (
@@ -447,10 +447,11 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
           <div className="bk-warning-banner" role="note" style={{ marginBottom: '0.75rem' }}>
             <AlertTriangle size={16} aria-hidden />
             <div>
-              <strong>Ponte MCP na versão Web:</strong> esta configuração já inclui{' '}
-              <code>{`MYFBOX_APP_URL=${mcpSetup.appOrigin}`}</code>. Exige Node.js e o repositório
-              local do MyFBox (Chrome/Edge/Firefox; o Safari pode bloquear conexões locais). Para uso
-              sem configuração extra, prefira o <strong>app Desktop</strong>.
+              <strong>Ponte MCP na versão Web:</strong> esta configuração usa <code>npx</code> para
+              baixar e rodar a ponte local automaticamente (sem clonar o repositório) já apontando
+              para <code>{`MYFBOX_APP_URL=${mcpSetup.appUrl}`}</code>. Exige Node.js e Git
+              (Chrome/Edge/Firefox; o Safari pode bloquear conexões em <code>127.0.0.1</code>). No{' '}
+              <strong>app Desktop</strong>, tudo já vem embutido.
             </div>
           </div>
         )
@@ -462,10 +463,10 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
             {mcpSetup.environment === 'desktop'
               ? 'mcp.json (Desktop — pronto para colar)'
               : mcpSetup.environment === 'web-remote'
-                ? 'mcp.json (Web — com MYFBOX_APP_URL)'
+                ? 'mcp.json (Web via npx — pronto para colar)'
                 : 'mcp.json (Local)'}
           </span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div className="mcp-code-actions">
             <button
               type="button"
               className="btn-ghost btn-sm"

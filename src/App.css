@@ -10068,6 +10068,7 @@ details.bk-collapsible-card[open] .bk-collapsible-chevron {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 6px 12px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid var(--border-subtle);
@@ -10075,10 +10076,20 @@ details.bk-collapsible-card[open] .bk-collapsible-chevron {
   color: var(--text-secondary);
 }
 
+.mcp-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .mcp-code-block-wrap pre {
   margin: 0;
   padding: 12px 14px;
   font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre;
   color: var(--text-main);
   overflow-x: auto;
 }
