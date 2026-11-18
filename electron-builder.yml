@@ -10,6 +10,7 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+  - '!node_modules/**'
   - '!landing/**'
   - '!vaults/**'
   - '!backups/**'
