@@ -32,12 +32,11 @@ function safeCsvText(value: string): string {
   return /^\s*[=+\-@\t\r\n]/.test(value) ? `'${value}` : value;
 }
 
-export function exportTransactionsToCSV(
+export function buildTransactionsCSV(
   transactions: readonly Transaction[],
   categories: readonly Category[],
-  accounts: readonly Account[],
-  filenamePrefix: string = 'myfbox-lancamentos'
-): void {
+  accounts: readonly Account[]
+): string {
   const catMap = new Map(categories.map((c) => [c.id, c.name]));
   const accMap = new Map(accounts.map((a) => [a.id, a.name]));
 
@@ -82,7 +81,16 @@ export function exportTransactionsToCSV(
       .join(',');
   });
 
-  const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+  return '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+}
+
+export function exportTransactionsToCSV(
+  transactions: readonly Transaction[],
+  categories: readonly Category[],
+  accounts: readonly Account[],
+  filenamePrefix: string = 'myfbox-lancamentos'
+): void {
+  const csvContent = buildTransactionsCSV(transactions, categories, accounts);
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const dateStr = new Date().toISOString().slice(0, 10);

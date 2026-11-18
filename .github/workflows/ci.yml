@@ -29,5 +29,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Security audit (CVEs)
+        run: npm audit --audit-level=high
+
       - name: Build web and Electron
         run: npm run build && npm run electron:build
