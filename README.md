@@ -158,7 +158,7 @@ src/
   components/               telas (Visão Geral, Lançamentos, Comparativos, Metas, Contas, Backups)
   services/cryptoVault.ts   cifra/decifra o cofre com WebCrypto (AES-256-GCM + PBKDF2)
   services/vaultStorage.ts  adapter de persistência do cofre (IPC desktop ou IndexedDB no navegador)
-  services/currencyService.ts helpers e catálogo de moedas (re-exporta regras puras de `domain/currency.ts`)
+  services/currencyService.ts helpers e catálogo de moedas (re-exporta regras puras de `domain/currency.ts`, 13 moedas)
   services/mcpBridge.ts     ponte do navegador com o servidor MCP local
   services/mcpActions.ts    ações do MCP (20 ferramentas puras)
   utils/                    cálculos de saldo, conversão, comparativos, formatação

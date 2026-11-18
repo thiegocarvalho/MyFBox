@@ -40,9 +40,6 @@ export const POPULAR_CURRENCIES: readonly PopularCurrency[] = [
   { code: 'CLP', name: 'Peso Chileno', symbol: 'CLP$', flag: '🇨🇱' },
   { code: 'UYU', name: 'Peso Uruguaio', symbol: '$U', flag: '🇺🇾' },
   { code: 'MXN', name: 'Peso Mexicano', symbol: 'MX$', flag: '🇲🇽' },
-  { code: 'BTC', name: 'Bitcoin', symbol: '₿', flag: '🪙' },
-  { code: 'ETH', name: 'Ethereum', symbol: 'Ξ', flag: '💎' },
-  { code: 'USDT', name: 'Tether USD', symbol: '₮', flag: '💵' },
 ] as const;
 
 export const POPULAR_CURRENCY_CODES = [
@@ -59,9 +56,6 @@ export const POPULAR_CURRENCY_CODES = [
   'CLP',
   'UYU',
   'MXN',
-  'BTC',
-  'ETH',
-  'USDT',
 ] as const;
 
 export type PopularCurrencyCode = (typeof POPULAR_CURRENCY_CODES)[number];

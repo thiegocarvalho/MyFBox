@@ -116,7 +116,7 @@ const PROMPT_ITEMS: PromptItem[] = [
     category: 'Cotações',
     title: 'Cadastrar cotação entre moedas populares (ex: EUR / BRL)',
     prompt: 'Cadastre a cotação do Euro: 1 EUR = 6,32 BRL, e me mostre a lista de cotações salvas.',
-    description: 'Aceita qualquer par entre as 16 moedas globais e criptos populares suportadas (USD, EUR, GBP, BTC, etc.).',
+    description: 'Aceita qualquer par entre as 13 moedas globais suportadas (USD, EUR, GBP, etc.).',
     toolsUsed: ['set_exchange_rate', 'list_exchange_rates'],
   },
   {
