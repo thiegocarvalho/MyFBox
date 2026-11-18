@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, ipcMain, session } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, session } from 'electron'
 
 const DEV_SERVER_URL = 'http://127.0.0.1:41730'
 const VAULT_FILENAME = 'vault.myfbox.json'
@@ -93,7 +93,48 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+function getMcpServerPath(): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'mcp', 'server.mjs')
+  }
+  return path.join(__dirname, '..', 'mcp', 'server.mjs')
+}
+
+function configureNativeMenu(): void {
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+    return
+  }
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { role: 'appMenu' },
+    {
+      label: 'Editar',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'Janela',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { role: 'close' }],
+    },
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 function registerVaultIpcHandlers(): void {
+  ipcMain.handle('mcp:info', () => {
+    const serverPath = getMcpServerPath()
+    return {
+      serverPath,
+      command: `node "${serverPath}"`,
+    }
+  })
   ipcMain.handle('vault:info', async () => {
     const filePath = getVaultFilePath()
     return {
@@ -220,20 +261,36 @@ function createMainWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-    callback(false)
-  })
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
 
-  registerVaultIpcHandlers()
-  mainWindow = createMainWindow()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createMainWindow()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore()
+      }
+      mainWindow.focus()
     }
   })
-})
+
+  app.whenReady().then(() => {
+    session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+      callback(false)
+    })
+
+    configureNativeMenu()
+    registerVaultIpcHandlers()
+    mainWindow = createMainWindow()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        mainWindow = createMainWindow()
+      }
+    })
+  })
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

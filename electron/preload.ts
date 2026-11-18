@@ -9,4 +9,7 @@ contextBridge.exposeInMainWorld('myfboxDesktop', {
     delete: () => ipcRenderer.invoke('vault:delete'),
     info: () => ipcRenderer.invoke('vault:info'),
   },
+  mcp: {
+    info: () => ipcRenderer.invoke('mcp:info'),
+  },
 })
