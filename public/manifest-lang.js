@@ -4,7 +4,7 @@
   try {
     var lang = (navigator.language || 'pt').toLowerCase();
     var link = document.getElementById('manifest-link');
-    if (link) link.href = lang.indexOf('en') === 0 ? '/manifest.en.webmanifest' : '/manifest.pt.webmanifest';
+    if (link) link.href = lang.indexOf('en') === 0 ? './manifest.en.webmanifest' : './manifest.pt.webmanifest';
   } catch {
     /* mantém o manifest padrão */
   }

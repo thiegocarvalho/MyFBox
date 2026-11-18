@@ -58,7 +58,7 @@ function preloadCriticalFonts(): Plugin {
           ? [
               {
                 tag: 'link',
-                attrs: { rel: 'preload', href: `/${file}`, as: 'font', type: 'font/woff2', crossorigin: '' },
+                attrs: { rel: 'preload', href: `./${file}`, as: 'font', type: 'font/woff2', crossorigin: '' },
                 injectTo: 'head' as const,
               },
             ]
@@ -70,6 +70,7 @@ function preloadCriticalFonts(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [react(), contentSecurityPolicy(), preloadCriticalFonts()],
   server: {
     port: APP_PORT,
