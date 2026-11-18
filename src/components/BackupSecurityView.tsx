@@ -407,6 +407,22 @@ export const BackupSecurityView: React.FC<BackupSecurityViewProps> = ({
         </div>
       </header>
 
+      {!window.myfboxDesktop?.isDesktop &&
+        typeof window !== 'undefined' &&
+        window.location.hostname !== '127.0.0.1' &&
+        window.location.hostname !== 'localhost' && (
+          <div className="bk-warning-banner" role="note" style={{ marginBottom: '0.75rem' }}>
+            <AlertTriangle size={16} aria-hidden />
+            <div>
+              <strong>Ponte MCP na versão Web:</strong> para conectar um assistente de IA a partir
+              deste endereço, inicie o servidor MCP localmente com{' '}
+              <code>{`MYFBOX_APP_URL=${window.location.origin} node mcp/server.mjs`}</code>{' '}
+              (Chrome/Edge/Firefox; o Safari pode bloquear conexões locais). Para usar sem
+              configuração extra, prefira o <strong>app Desktop</strong>.
+            </div>
+          </div>
+        )}
+
       {mcp.enabled ? (
         <>
           <div className={`bk-mcp-status ${mcp.token ? mcp.status : 'waiting'}`} role="status">
