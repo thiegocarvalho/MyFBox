@@ -45,7 +45,7 @@ O MyFBox traz um **servidor MCP embutido** (`127.0.0.1`) para você conectar Cla
   quando os números do mês mudam depois do insight.
 - **Metas** (teto mensal) por categoria de despesa.
 - **Backups** cifrados (`.myfbox.json`), restauração e exportação de planilha CSV.
-- **Modo MCP local** (opcional, desligado por padrão): assistentes ou agentes de IA locais consultam
+- **Modo MCP local** (desligado por padrão): assistentes ou agentes de IA locais consultam
   e registram lançamentos no cofre aberto, só pela sua máquina.
 
 ## Teclado e Produtividade
